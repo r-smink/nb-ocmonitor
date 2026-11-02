@@ -148,6 +148,8 @@ Beide bestanden krijgen rechten 600. **Zet ze direct in de wachtwoordkluis.** Ze
 - zonder `APP_KEY` zijn 2FA-geheimen niet meer te lezen;
 - zonder de signing key moeten alle sites opnieuw gekoppeld worden.
 
+Optioneel: zet voor PageSpeed een API-sleutel in `.env` (`OCM_PAGESPEED_API_KEY`). Maak die aan in Google Cloud (API's → PageSpeed Insights API → Inloggegevens) en beperk de sleutel tot die ene API. Zonder sleutel werkt het ook, maar met een laag quotum. De scheduler-container meet elke site eens per `OCM_PAGESPEED_INTERVAL_DAYS` dagen (standaard 7).
+
 ## 6. Starten
 
 ```bash

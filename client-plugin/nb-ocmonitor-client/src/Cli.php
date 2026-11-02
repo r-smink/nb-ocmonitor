@@ -79,6 +79,47 @@ final class Cli
     }
 
     /**
+     * Toont of wijzigt welke acties het panel op deze site mag uitvoeren.
+     *
+     * ## OPTIONS
+     *
+     * [--enable=<scope>]
+     * : Optionele scope aanzetten, bijv. updates.
+     *
+     * [--disable=<scope>]
+     * : Optionele scope uitzetten.
+     *
+     * @param string[] $args
+     * @param array<string, mixed> $assoc
+     */
+    public function scopes(array $args, array $assoc): void
+    {
+        $current = (array) (Settings::summary()['scopes'] ?? []);
+        if ($current === []) {
+            \WP_CLI::error('Niet gekoppeld.');
+            return;
+        }
+        $wanted = $current;
+        foreach (['enable', 'disable'] as $mode) {
+            if (!isset($assoc[$mode])) {
+                continue;
+            }
+            $scope = (string) $assoc[$mode];
+            if (!array_key_exists($scope, Scopes::OPTIONAL)) {
+                \WP_CLI::error('Onbekende optionele scope: ' . $scope . ' (kies uit ' . implode(', ', array_keys(Scopes::OPTIONAL)) . ')');
+                return;
+            }
+            $wanted = $mode === 'enable' ? array_merge($wanted, [$scope]) : array_diff($wanted, [$scope]);
+        }
+        $change = Settings::setScopes(array_values($wanted));
+        if ($change !== null && $change['from'] !== $change['to']) {
+            $this->recorder->record('ocm.scopes_changed', 'scopes', implode(',', $change['from']), implode(',', $change['to']));
+            $this->recorder->flush();
+        }
+        \WP_CLI::log('Scopes: ' . implode(', ', $change['to'] ?? $current));
+    }
+
+    /**
      * Toont de laatst vastgelegde wijzigingen.
      *
      * ## OPTIONS

@@ -52,7 +52,7 @@ final class CommandSender
         try {
             $response = Http::withHeaders($headers + ['Content-Type' => 'application/json', 'User-Agent' => 'NB-OC-Monitor/1.0'])
                 ->withBody($body, 'application/json')
-                ->timeout((int) config('ocm.signer.http_timeout_seconds'))
+                ->timeout((int) (config('ocm.signer.command_timeouts')[$job->command] ?? config('ocm.signer.http_timeout_seconds')))
                 ->connectTimeout(10)
                 ->withoutRedirecting()
                 ->post($url);

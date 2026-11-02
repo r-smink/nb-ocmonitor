@@ -12,9 +12,11 @@ declare(strict_types=1);
 use NextBuzz\OcMonitor\Client\CommandContext;
 use NextBuzz\OcMonitor\Client\CommandError;
 use NextBuzz\OcMonitor\Client\CommandRegistry;
+use NextBuzz\OcMonitor\Client\Commands\UpdateArgs;
 use NextBuzz\OcMonitor\Client\Endpoint;
 use NextBuzz\OcMonitor\Client\EndpointResult;
 use NextBuzz\OcMonitor\Client\FailureLog;
+use NextBuzz\OcMonitor\Client\Scopes;
 use NextBuzz\OcMonitor\Client\SiteConfig;
 use NextBuzz\OcMonitor\Protocol\Canonical;
 use NextBuzz\OcMonitor\Protocol\Headers;
@@ -327,6 +329,73 @@ test('antwoord kan niet voor een ander verzoek gebruikt worden', function () {
         $threw = true;
     }
     check($threw, 'antwoord had niet mogen verifiëren tegen een ander verzoek');
+});
+
+// ---------------------------------------------------------------- scopes en update-argumenten
+
+test('scopes: verplichte scopes altijd aan, onbekende scopes vallen weg', function () {
+    check(Scopes::normalize([]) === ['read', 'events']);
+    check(Scopes::normalize(['updates', 'admin', 'read', 1]) === ['read', 'events', 'updates']);
+    check(Scopes::normalize(Scopes::DEFAULT) === Scopes::DEFAULT);
+});
+
+test('update-command zonder scope updates wordt geweigerd', function () {
+    $f = new Fixture();
+    $f->commands->add('update.plugin', 'updates', static function (): array {
+        return ['items' => []];
+    });
+    check(signedError($f, Fixture::body('update.plugin', ['args' => ['plugins' => ['akismet/akismet.php']]]), 403)['code'] === 'scope_denied');
+    $f->scopes[] = 'updates';
+    $body = Fixture::body('update.plugin', ['args' => ['plugins' => ['akismet/akismet.php']], 'job_id' => 'job_2']);
+    $headers = $f->sign($body);
+    check($f->verifiedPayload(handle($f, $body, $headers), $headers)['result'] === ['items' => []]);
+});
+
+test('update-argumenten: geldige lijsten', function () {
+    check(UpdateArgs::plugins(['plugins' => ['akismet/akismet.php', 'hello.php', 'akismet/akismet.php']]) === ['akismet/akismet.php', 'hello.php']);
+    check(UpdateArgs::themes(['themes' => ['twentytwentyfive', 'astra-child']]) === ['twentytwentyfive', 'astra-child']);
+    UpdateArgs::none([]);
+});
+
+test('update-argumenten: padmanipulatie, verkeerde types en te veel items worden geweigerd', function () {
+    $bad = [
+        ['plugins' => ['../wp-config.php']],
+        ['plugins' => ['akismet/../../x.php']],
+        ['plugins' => ['/etc/passwd.php']],
+        ['plugins' => ['a/b/c.php']],
+        ['plugins' => ['akismet/akismet']],
+        ['plugins' => 'akismet/akismet.php'],
+        ['plugins' => []],
+        ['plugins' => ['x' => 'akismet/akismet.php']],
+        ['plugins' => [123]],
+        ['plugins' => ['akismet/akismet.php'], 'package' => 'https://evil.example/x.zip'],
+        ['plugins' => array_fill(0, UpdateArgs::MAX_ITEMS + 1, 'a.php')],
+    ];
+    foreach ($bad as $i => $args) {
+        $threw = false;
+        try {
+            UpdateArgs::plugins($args);
+        } catch (CommandError $e) {
+            $threw = $e->errorCode() === 'bad_request';
+        }
+        check($threw, 'geval ' . $i . ' had geweigerd moeten worden');
+    }
+    foreach ([['themes' => ['../x']], ['themes' => ['a/b']], ['themes' => ['..']]] as $args) {
+        $threw = false;
+        try {
+            UpdateArgs::themes($args);
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'thema-args hadden geweigerd moeten worden: ' . json_encode($args));
+    }
+    $threw = false;
+    try {
+        UpdateArgs::none(['version' => '1.0']);
+    } catch (CommandError $e) {
+        $threw = true;
+    }
+    check($threw, 'update.core accepteert geen argumenten');
 });
 
 foreach ($failures as $failure) {

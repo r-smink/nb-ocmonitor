@@ -1,6 +1,6 @@
 # NB OC Monitor Client (WordPress-plugin)
 
-Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.1.0, fase 1 (MVP): koppelen, site-info als heartbeat, inventaris, en registratie van **alle** wijzigingen.
+Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.2.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, en updates van plugins, thema's, vertalingen en WordPress vanuit het panel.
 
 Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `sodium_compat` dat WordPress meelevert.
 
@@ -24,7 +24,7 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 
 - Endpoint: `POST /wp-json/nb-ocm/v1/cmd` (of `?rest_route=/nb-ocm/v1/cmd`). Elk verzoek moet ondertekend zijn volgens [docs/protocol.md](../../docs/protocol.md).
 - Een niet-geverifieerd verzoek krijgt dezelfde 404 als een onbekende route.
-- Commands in fase 1:
+- Commands:
 
 | Command | Scope | Doel |
 |---|---|---|
@@ -32,6 +32,23 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 | `site.inventory` | read | Core, plugins, mu-plugins, thema's, beschikbare updates, gebruikers per rol en omgeving. `{"refresh": true}` controleert eerst bij wordpress.org. Detecteert ook wijzigingen buiten WordPress om. |
 | `events.pull` | events | `{"after_seq": n, "limit": ≤500}` |
 | `events.ack` | events | `{"up_to_seq": n}`. Bevestigde events worden na 30 dagen lokaal opgeruimd. |
+| `update.plugin` | updates | `{"plugins": ["map/bestand.php", …]}`, maximaal 10 |
+| `update.theme` | updates | `{"themes": ["stylesheet", …]}`, maximaal 10 |
+| `update.core` | updates | Geen argumenten: de update die WordPress zelf aanbiedt |
+| `update.translations` | updates | Geen argumenten |
+
+## Scopes
+
+`read` en `events` staan altijd aan. De optionele scope `updates` staat standaard aan bij nieuwe koppelingen. Bij sites die met 0.1.0 gekoppeld zijn, zet je hem aan onder **Extra → NB OC Monitor → Toegestane acties**, of met `wp nb-ocm scopes --enable=updates`. Het panel kan scopes niet zelf wijzigen. Een wijziging komt als `ocm.scopes_changed` in het wijzigingslog.
+
+## Updates (plan §4.2)
+
+- Het panel kiest alleen **wat** er bijgewerkt wordt. Het pakket komt altijd uit de update-transient van de site zelf (wordpress.org of de updater van een premium-plugin). Het panel kan dus geen eigen zip of URL meesturen.
+- Per plugin of thema: eerst een kopie van de map naar `wp-content/nb-ocm-rollback/` (afgeschermd met `.htaccess` en `index.php`), dan de update via `Plugin_Upgrader`/`Theme_Upgrader`, en daarna een health check: een loopback-verzoek naar de homepage.
+- Werkte de homepage vóór de update wel en geeft hij daarna een 5xx, dan zet de plugin de oude map terug (`status: rolled_back`) en legt `plugin.rolled_back` vast. De kopie wordt daarna altijd verwijderd.
+- Lukt de loopback niet (sommige hosts blokkeren dat), dan beslist de plugin niet op basis van de health check. Een rollback vindt dan alleen plaats als de map na een mislukte update verdwenen is.
+- Voor WordPress zelf is er geen automatische rollback. Een mislukte health check wordt gemeld als `health_failed`.
+- Met `DISALLOW_FILE_MODS` of zonder schrijfrechten (FTP-gegevens nodig) weigert de plugin de update met een duidelijke fout.
 
 ## Registratie van wijzigingen (plan §2.7)
 
@@ -56,4 +73,5 @@ Deze tests dekken de kern: verificatie, replay, scopes, het body-schema en onder
 
 - Security-plugins die de REST API voor niet-ingelogde bezoekers blokkeren (bijvoorbeeld "Disable REST API" en sommige instellingen van iThemes of Solid Security) moeten `nb-ocm/v1` toestaan.
 - Multisite wordt nog niet ondersteund. De plugin blijft dan inactief en toont een melding.
-- Muterende commands (updates, gebruikers, backups) komen in fase 2 en 4. Die krijgen ook idempotentie op `job_id`.
+- Gebruikers- en backup-commands komen in latere fases.
+- Updates via de upgraders zijn nog niet getest op een echte WordPress-installatie. Test eerst op een interne site, ook met een premium-plugin (die levert zijn pakket soms alleen aan ingelogde beheerders).

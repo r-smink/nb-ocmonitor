@@ -6,6 +6,7 @@ namespace NextBuzz\OcMonitor\Client;
 
 use NextBuzz\OcMonitor\Client\Admin\AdminPage;
 use NextBuzz\OcMonitor\Client\Commands\SiteCommands;
+use NextBuzz\OcMonitor\Client\Commands\UpdateCommands;
 use NextBuzz\OcMonitor\Client\Events\EventPusher;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
@@ -35,6 +36,7 @@ final class Plugin
 
         $commands = new CommandRegistry();
         (new SiteCommands($store, $recorder))->registerOn($commands);
+        (new UpdateCommands($recorder))->registerOn($commands);
 
         add_action('rest_api_init', static function () use ($commands, $recorder): void {
             (new RestController(static function () use ($commands, $recorder): Endpoint {
@@ -44,7 +46,7 @@ final class Plugin
 
         $pairing = new PairingService($recorder);
         if (is_admin()) {
-            (new AdminPage($pairing, $store))->register();
+            (new AdminPage($pairing, $store, $recorder))->register();
         }
         if (defined('WP_CLI') && WP_CLI) {
             \WP_CLI::add_command('nb-ocm', new Cli($pairing, $store, $recorder));

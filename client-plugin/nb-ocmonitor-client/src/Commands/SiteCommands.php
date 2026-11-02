@@ -11,8 +11,7 @@ use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 
 /**
- * MVP-commands (fase 1): alleen lezen en events. Muterende commands (updates, users, backups)
- * komen in latere fases, elk met een eigen scope.
+ * Lezen en events. Muterende commands staan in eigen klassen met een eigen scope (UpdateCommands).
  */
 final class SiteCommands
 {
@@ -137,6 +136,9 @@ final class SiteCommands
                 'disallow_file_edit' => defined('DISALLOW_FILE_EDIT') && DISALLOW_FILE_EDIT,
                 'auto_update_core' => defined('WP_AUTO_UPDATE_CORE') ? WP_AUTO_UPDATE_CORE : null,
                 'blog_public' => (bool) get_option('blog_public'),
+                'users_can_register' => (bool) get_option('users_can_register'),
+                'default_role' => (string) get_option('default_role'),
+                'file_mods_allowed' => wp_is_file_mod_allowed('nb_ocm_updates'),
                 'plugin_version' => NB_OCM_VERSION,
             ],
             'last_event_seq' => $this->events->lastSeq(),

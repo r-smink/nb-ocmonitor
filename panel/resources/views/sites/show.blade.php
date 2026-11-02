@@ -16,11 +16,12 @@
     <p class="dsub"><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> · {{ $site->site_id }}</p>
   </div>
 
-  @php($issues = $site->issues())
-  @if ($issues !== [] && $site->isPaired())
+  @php($issues = collect($site->issues()))
+  @php($urgent = $issues->whereIn('level', ['crit', 'warn']))
+  @if ($urgent->isNotEmpty() && $site->isPaired())
     <div @class(['alert', 'warn' => $level !== 'crit'])>
       <ul class="issues">
-        @foreach ($issues as $issue)<li class="{{ $issue['level'] }}">{{ $issue['text'] }}</li>@endforeach
+        @foreach ($urgent as $issue)<li class="{{ $issue['level'] }}"><b>{{ \App\Ocm\SiteIssues::CATEGORIES[$issue['category']] }}:</b> {{ $issue['text'] }}</li>@endforeach
       </ul>
       @if ($site->last_error)<p class="note mt">Laatste fout: {{ $site->last_error }}</p>@endif
     </div>
@@ -86,6 +87,13 @@
           @endif
         </dd>
       </dl>
+      @php($tips = $issues->where('level', 'info'))
+      @if ($tips->isNotEmpty() && $site->isPaired())
+        <h4 class="mt">Aanbevelingen</h4>
+        <ul class="issues">
+          @foreach ($tips as $issue)<li class="info">{{ $issue['text'] }}</li>@endforeach
+        </ul>
+      @endif
     </div>
 
     <div class="panel">
@@ -98,10 +106,7 @@
               <tr>
                 <td>{{ $job->created_at->timezone('Europe/Amsterdam')->format('d-m H:i:s') }}</td>
                 <td class="mono">{{ $job->command }}</td>
-                <td class="wrap">
-                  <span @class(['state', 'bad' => in_array($job->status, ['failed', 'rejected']), 'idle' => in_array($job->status, ['pending', 'running'])])>{{ $job->status }}</span>
-                  @if ($job->error)<div class="note">{{ \Illuminate\Support\Str::limit($job->error, 160) }}</div>@endif
-                </td>
+                <td class="wrap">@include('partials.job-result', ['job' => $job])</td>
                 <td>{{ $job->requester?->name ?? 'systeem' }}</td>
               </tr>
             @empty
@@ -114,17 +119,72 @@
   </div>
 
   @if ($inventory !== [])
+    @php($canUpdate = auth()->user()->can('manage-sites') && $updatesBlocked === null)
+    @php($pluginUpdates = $updates->where('type', 'plugin')->reject(fn ($u) => in_array($u['id'], $queued['plugin'] ?? [], true)))
+    @php($themeUpdates = $updates->where('type', 'theme')->reject(fn ($u) => in_array($u['id'], $queued['theme'] ?? [], true)))
+
+    @if ($updatesBlocked && $updates->isNotEmpty())
+      <div class="alert warn mt">Bijwerken vanuit het panel kan hier niet: {{ $updatesBlocked }}.</div>
+    @endif
+
+    @if (!empty($inventory['core']['update']) || (int) ($inventory['translations_pending'] ?? 0) > 0)
+      <div class="panel">
+        <div class="panel-head">
+          <h3>WordPress</h3>
+          <span class="mono">{{ $inventory['core']['version'] ?? '' }}</span>
+          @if (!empty($inventory['core']['update']))
+            <span class="badge sec">WordPress {{ $inventory['core']['update']['version'] }} beschikbaar</span>
+          @endif
+          @if ($canUpdate)
+            <div class="right">
+              @if ((int) ($inventory['translations_pending'] ?? 0) > 0)
+                @if (in_array('translations', $queued['translations'] ?? [], true))
+                  <span class="state idle">vertalingen in wachtrij</span>
+                @else
+                  <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline">
+                    @csrf
+                    <input type="hidden" name="type" value="translations">
+                    <button class="btn ghost small" type="submit">Vertalingen bijwerken ({{ $inventory['translations_pending'] }})</button>
+                  </form>
+                @endif
+              @endif
+              @if (!empty($inventory['core']['update']))
+                @if (in_array('wordpress', $queued['core'] ?? [], true))
+                  <span class="state idle">WordPress-update in wachtrij</span>
+                @else
+                  <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline" data-confirm="WordPress op {{ $site->name }} bijwerken naar {{ $inventory['core']['update']['version'] }}? Voor WordPress zelf is er geen automatische rollback.">
+                    @csrf
+                    <input type="hidden" name="type" value="core">
+                    <button class="btn small" type="submit">WordPress bijwerken naar {{ $inventory['core']['update']['version'] }}</button>
+                  </form>
+                @endif
+              @endif
+            </div>
+          @endif
+        </div>
+        <p class="note">Bij een WordPress-update controleert de site na afloop of de homepage nog werkt. Terugzetten gebeurt bij WordPress zelf niet automatisch.</p>
+      </div>
+    @endif
+
     @php($plugins = collect($inventory['plugins'] ?? [])->sortBy(fn ($p) => (empty($p['update']) ? '1' : '0') . strtolower($p['name'] ?? '')))
     <div class="panel">
       <div class="panel-head">
         <h3>Plugins</h3><span class="badge">{{ $plugins->count() }}</span>
-        @if (!empty($inventory['core']['update']))
-          <span class="badge sec">WordPress {{ $inventory['core']['update']['version'] }} beschikbaar</span>
+        @if ($updates->where('type', 'plugin')->isNotEmpty())<span class="badge sec">{{ $updates->where('type', 'plugin')->count() }} update(s)</span>@endif
+        @if ($canUpdate && $pluginUpdates->count() > 1)
+          <div class="right">
+            <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline" data-confirm="Alle {{ $pluginUpdates->count() }} plugins met een update bijwerken op {{ $site->name }}?">
+              @csrf
+              <input type="hidden" name="type" value="plugin">
+              <input type="hidden" name="all" value="1">
+              <button class="btn small" type="submit">Alle plugins bijwerken ({{ $pluginUpdates->count() }})</button>
+            </form>
+          </div>
         @endif
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Plugin</th><th>Versie</th><th>Update</th><th>Actief</th><th>Auto-update</th></tr></thead>
+          <thead><tr><th>Plugin</th><th>Versie</th><th>Update</th><th>Actief</th><th>Auto-update</th><th></th></tr></thead>
           <tbody>
             @foreach ($plugins as $plugin)
               <tr>
@@ -133,6 +193,20 @@
                 <td @class(['lvl-warn' => !empty($plugin['update'])])>{{ $plugin['update']['version'] ?? '' }}</td>
                 <td>{{ !empty($plugin['active']) ? 'ja' : 'nee' }}</td>
                 <td>{{ !empty($plugin['auto_update']) ? 'aan' : 'uit' }}</td>
+                <td class="num">
+                  @if (!empty($plugin['update']['version']) && isset($plugin['file']))
+                    @if (in_array($plugin['file'], $queued['plugin'] ?? [], true))
+                      <span class="state idle">in wachtrij</span>
+                    @elseif ($canUpdate)
+                      <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline">
+                        @csrf
+                        <input type="hidden" name="type" value="plugin">
+                        <input type="hidden" name="ids[]" value="{{ $plugin['file'] }}">
+                        <button class="btn ghost small" type="submit">Bijwerken</button>
+                      </form>
+                    @endif
+                  @endif
+                </td>
               </tr>
             @endforeach
           </tbody>
@@ -140,10 +214,22 @@
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h3>Thema's</h3><span class="badge">{{ count($inventory['themes'] ?? []) }}</span></div>
+      <div class="panel-head">
+        <h3>Thema's</h3><span class="badge">{{ count($inventory['themes'] ?? []) }}</span>
+        @if ($canUpdate && $themeUpdates->count() > 1)
+          <div class="right">
+            <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline" data-confirm="Alle {{ $themeUpdates->count() }} thema's met een update bijwerken op {{ $site->name }}?">
+              @csrf
+              <input type="hidden" name="type" value="theme">
+              <input type="hidden" name="all" value="1">
+              <button class="btn small" type="submit">Alle thema's bijwerken ({{ $themeUpdates->count() }})</button>
+            </form>
+          </div>
+        @endif
+      </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Thema</th><th>Versie</th><th>Update</th><th>Actief</th></tr></thead>
+          <thead><tr><th>Thema</th><th>Versie</th><th>Update</th><th>Actief</th><th></th></tr></thead>
           <tbody>
             @foreach ($inventory['themes'] ?? [] as $theme)
               <tr>
@@ -151,11 +237,95 @@
                 <td class="mono">{{ $theme['version'] ?? '' }}</td>
                 <td @class(['lvl-warn' => !empty($theme['update'])])>{{ $theme['update']['version'] ?? '' }}</td>
                 <td>{{ !empty($theme['active']) ? 'ja' : '' }}</td>
+                <td class="num">
+                  @if (!empty($theme['update']['version']) && isset($theme['stylesheet']))
+                    @if (in_array($theme['stylesheet'], $queued['theme'] ?? [], true))
+                      <span class="state idle">in wachtrij</span>
+                    @elseif ($canUpdate)
+                      <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline">
+                        @csrf
+                        <input type="hidden" name="type" value="theme">
+                        <input type="hidden" name="ids[]" value="{{ $theme['stylesheet'] }}">
+                        <button class="btn ghost small" type="submit">Bijwerken</button>
+                      </form>
+                    @endif
+                  @endif
+                </td>
               </tr>
             @endforeach
           </tbody>
         </table>
       </div>
+    </div>
+  @endif
+
+  @if ($site->isPaired())
+    <div class="panel">
+      <div class="panel-head">
+        <h3>PageSpeed</h3>
+        @if ($pagespeed->isNotEmpty())<span class="hint">gemeten {{ $pagespeed->first()->measured_at->diffForHumans() }}</span>@endif
+        @can('manage-sites')
+          <div class="right">
+            @if ($site->pagespeed_requested_at)
+              <span class="state idle">meting aangevraagd</span>
+            @else
+              <form method="POST" action="{{ route('sites.pagespeed', $site) }}" class="inline">
+                @csrf
+                <button class="btn ghost small" type="submit">Nu meten</button>
+              </form>
+            @endif
+          </div>
+        @endcan
+      </div>
+      @if ($pagespeedLastError)
+        <p class="note">Laatste meting mislukt: {{ $pagespeedLastError->error }}</p>
+      @endif
+      @if ($pagespeed->isEmpty())
+        <p class="muted">Nog niet gemeten. De eerste meting volgt automatisch, of kies "Nu meten".</p>
+      @else
+        <div class="psi-grid">
+          @foreach (\App\Models\PagespeedResult::STRATEGIES as $strategy => $label)
+            @php($r = $pagespeed->get($strategy))
+            <div>
+              <div class="psi-head">{{ $label }}</div>
+              @if ($r)
+                <div class="psi-cats">
+                  @foreach (['performance' => 'Prestaties', 'accessibility' => 'Toegankelijkheid', 'best_practices' => 'Best practices', 'seo' => 'SEO'] as $field => $name)
+                    <div class="psi-cat">@include('partials.score', ['value' => $r->{$field}, 'class' => 'big']){{ $name }}</div>
+                  @endforeach
+                </div>
+                <dl class="kv">
+                  <dt>LCP</dt><dd>{{ $r->lcp_ms !== null ? number_format($r->lcp_ms / 1000, 1, ',', '') . ' s' : '–' }}@if (isset($r->field['lcp_ms'])) <span class="muted">· bezoekers {{ number_format($r->field['lcp_ms'] / 1000, 1, ',', '') }} s</span>@endif</dd>
+                  <dt>CLS</dt><dd>{{ $r->cls !== null ? number_format($r->cls, 3, ',', '') : '–' }}@if (isset($r->field['cls'])) <span class="muted">· bezoekers {{ number_format($r->field['cls'], 2, ',', '') }}</span>@endif</dd>
+                  <dt>INP (bezoekers)</dt><dd>{{ isset($r->field['inp_ms']) ? $r->field['inp_ms'] . ' ms' : 'geen velddata' }}</dd>
+                  <dt>FCP / TBT</dt><dd>{{ $r->fcp_ms !== null ? number_format($r->fcp_ms / 1000, 1, ',', '') . ' s' : '–' }} / {{ $r->tbt_ms !== null ? $r->tbt_ms . ' ms' : '–' }}</dd>
+                  <dt>Serverreactie</dt><dd>{{ $r->ttfb_ms !== null ? $r->ttfb_ms . ' ms' : '–' }}</dd>
+                </dl>
+              @else
+                <p class="muted">Geen geslaagde meting.</p>
+              @endif
+            </div>
+          @endforeach
+        </div>
+        @php($opportunities = $pagespeed->get('mobile')?->opportunities ?? [])
+        @if ($opportunities !== [])
+          <h4 class="mt">Grootste besparingen (mobiel)</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Aanbeveling</th><th class="num">Besparing</th><th>Details</th></tr></thead>
+              <tbody>
+                @foreach ($opportunities as $o)
+                  <tr><td class="wrap">{{ $o['title'] }}</td><td class="num">{{ number_format($o['savings_ms'] / 1000, 1, ',', '') }} s</td><td class="muted">{{ $o['display'] ?? '' }}</td></tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        @endif
+        @if (count($pagespeedHistory) >= 2)
+          <h4 class="mt">Trend prestaties mobiel</h4>
+          @include('partials.spark', ['values' => $pagespeedHistory, 'class' => 'wide'])
+        @endif
+      @endif
     </div>
   @endif
 

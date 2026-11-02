@@ -4,8 +4,11 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\TwoFactorController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PageSpeedController;
 use App\Http\Controllers\PluginDownloadController;
 use App\Http\Controllers\SiteController;
+use App\Http\Controllers\UpdateController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,13 +24,20 @@ Route::middleware('guest')->group(function () {
 Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
-    Route::get('/', [SiteController::class, 'index'])->name('sites.index');
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/sites', [SiteController::class, 'index'])->name('sites.index');
     Route::get('/sites/nieuw', [SiteController::class, 'create'])->name('sites.create')->can('manage-sites');
     Route::post('/sites', [SiteController::class, 'store'])->name('sites.store')->can('manage-sites');
     Route::get('/sites/{site}', [SiteController::class, 'show'])->name('sites.show');
     Route::post('/sites/{site}/koppelcode', [SiteController::class, 'regeneratePairing'])->name('sites.pairing')->can('manage-sites');
     Route::post('/sites/{site}/opdracht', [SiteController::class, 'queueCommand'])->name('sites.command')->can('manage-sites');
     Route::delete('/sites/{site}', [SiteController::class, 'destroy'])->name('sites.destroy')->can('manage-sites');
+    Route::post('/sites/{site}/updates', [UpdateController::class, 'site'])->name('sites.updates')->can('manage-sites')->middleware('throttle:60,1');
+    Route::post('/sites/{site}/pagespeed', [PageSpeedController::class, 'request'])->name('sites.pagespeed')->can('manage-sites')->middleware('throttle:30,1');
+
+    Route::get('/updates', [UpdateController::class, 'index'])->name('updates.index');
+    Route::post('/updates', [UpdateController::class, 'store'])->name('updates.store')->can('manage-sites')->middleware('throttle:30,1');
+    Route::get('/pagespeed', [PageSpeedController::class, 'index'])->name('pagespeed.index');
 
     Route::get('/download/nb-ocmonitor-client.zip', PluginDownloadController::class)->name('plugin.download');
     Route::get('/activiteit', [ActivityController::class, 'index'])->name('activity.index');

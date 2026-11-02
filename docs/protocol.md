@@ -76,6 +76,8 @@ Body van een command (JSON): `{"command": "...", "args": {...}, "job_id": "...",
 6. Pas daarna wordt de nonce verbruikt (atomair, bewaard tot `ts + venster + 1`). Een al gebruikte nonce betekent `replay`.
 7. Daarna, in de plugin: het JSON-schema van de body, `expires_at`, het command in de allowlist en binnen de scopes van de site.
 
+   Scopes: `read` en `events` altijd; `updates` (commands `update.plugin`, `update.theme`, `update.core`, `update.translations`) is optioneel en alleen op de site zelf aan of uit te zetten. Update-commands accepteren alleen namen van geïnstalleerde componenten, nooit een pakket-URL.
+
 Antwoorden ondertekent de site met haar eigen sleutel (`Signer::signResponse`). Het panel verifieert ze met `Verifier::verifyResponse` en accepteert **geen** ongesigneerd antwoord. Het antwoord is gebonden aan de nonce van het verzoek, dus het panel hoeft daar zelf geen nonce voor op te slaan.
 
 ## 5. Site → panel (events, heartbeat)

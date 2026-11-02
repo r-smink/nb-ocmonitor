@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PagespeedResult;
 use App\Models\Site;
 use App\Ocm\Activity;
 use App\Ocm\JobQueue;
 use App\Ocm\PanelKeys;
 use App\Ocm\PluginPackage;
+use App\Ocm\SiteIssues;
+use App\Ocm\Updates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -26,7 +29,9 @@ class SiteController extends Controller
 
     public function index(Request $request): View
     {
-        $sites = Site::query()->orderBy('name')->get();
+        $all = Site::query()->orderBy('name')->get();
+        SiteIssues::load($all);
+        $sites = $all;
         $q = trim((string) $request->query('q', ''));
         if ($q !== '') {
             $sites = $sites->filter(fn (Site $s) => Str::contains(Str::lower($s->name . ' ' . $s->url . ' ' . $s->client_name), Str::lower($q)));
@@ -35,7 +40,7 @@ class SiteController extends Controller
         $sites = $sites->sortBy(fn (Site $s) => $order[$s->level()] . Str::lower($s->name))->values();
 
         $counts = ['crit' => 0, 'warn' => 0, 'ok' => 0, 'pending' => 0];
-        foreach (Site::query()->get() as $site) {
+        foreach ($all as $site) {
             $counts[$site->level()]++;
         }
 
@@ -105,6 +110,13 @@ class SiteController extends Controller
             'jobs' => $site->jobs()->with('requester')->orderByDesc('id')->limit(15)->get(),
             'inventory' => $site->inventory ?? [],
             'commands' => self::MANUAL_COMMANDS,
+            'updates' => collect($site->availableUpdates())->keyBy(fn ($u) => $u['type'] . ':' . $u['id']),
+            'queued' => Updates::queuedIds($site),
+            'updatesBlocked' => $site->updatesBlockedReason(),
+            'pagespeed' => PagespeedResult::latestPerSite()->get($site->id, collect()),
+            'pagespeedLastError' => $site->pagespeedResults()->whereNotNull('error')->where('measured_at', '>=', now()->subDay())->latest('measured_at')->first(),
+            'pagespeedHistory' => $site->pagespeedResults()->where('strategy', 'mobile')->whereNull('error')
+                ->where('measured_at', '>=', now()->subDays(120))->orderBy('measured_at')->pluck('performance')->filter(fn ($v) => $v !== null)->values()->all(),
         ]);
     }
 

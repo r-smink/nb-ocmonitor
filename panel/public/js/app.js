@@ -39,7 +39,45 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // Pagina met lopende opdrachten automatisch verversen: <main data-refresh="5">
+  // Filters die direct versturen: <select data-autosubmit>
+  document.querySelectorAll('select[data-autosubmit]').forEach(function (select) {
+    select.addEventListener('change', function () { select.form.submit(); });
+  });
+
+  // Bulkselectie: <input type="checkbox" data-check-all="groep"> en <input type="checkbox" data-check="groep">,
+  // met optioneel <span data-check-count="groep"> en <button data-check-submit="groep">.
+  function syncChecks(group) {
+    const boxes = document.querySelectorAll('input[data-check="' + group + '"]');
+    const checked = Array.prototype.filter.call(boxes, function (b) { return b.checked; }).length;
+    document.querySelectorAll('[data-check-count="' + group + '"]').forEach(function (el) { el.textContent = checked; });
+    document.querySelectorAll('[data-check-submit="' + group + '"]').forEach(function (el) { el.disabled = checked === 0; });
+    document.querySelectorAll('input[data-check-all="' + group + '"]').forEach(function (all) {
+      all.checked = checked > 0 && checked === boxes.length;
+      all.indeterminate = checked > 0 && checked < boxes.length;
+    });
+  }
+  const groups = new Set();
+  document.querySelectorAll('input[data-check]').forEach(function (box) {
+    groups.add(box.dataset.check);
+    box.addEventListener('change', function () { syncChecks(box.dataset.check); });
+  });
+  document.querySelectorAll('input[data-check-all]').forEach(function (all) {
+    all.addEventListener('change', function () {
+      document.querySelectorAll('input[data-check="' + all.dataset.checkAll + '"]').forEach(function (b) { b.checked = all.checked; });
+      syncChecks(all.dataset.checkAll);
+    });
+  });
+  groups.forEach(syncChecks);
+
+  // Pagina met lopende opdrachten automatisch verversen: <main data-refresh="5">.
+  // Niet zolang er een selectie of een ingevuld veld is (anders raakt de gebruiker die kwijt).
   const main = document.querySelector('main[data-refresh]');
-  if (main) setTimeout(function () { window.location.reload(); }, parseInt(main.dataset.refresh, 10) * 1000);
+  if (main) {
+    const delay = parseInt(main.dataset.refresh, 10) * 1000;
+    const tick = function () {
+      const busy = document.querySelector('input[data-check]:checked') || (document.activeElement && document.activeElement.matches('input, select, textarea'));
+      if (busy) setTimeout(tick, delay); else window.location.reload();
+    };
+    setTimeout(tick, delay);
+  }
 });

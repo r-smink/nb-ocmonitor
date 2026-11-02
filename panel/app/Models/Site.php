@@ -2,17 +2,22 @@
 
 namespace App\Models;
 
+use App\Ocm\SiteIssues;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use NextBuzz\OcMonitor\Protocol\Base64Url;
 
 class Site extends Model
 {
-    public const DEFAULT_SCOPES = ['read', 'events'];
+    /** Gelijk aan Scopes::DEFAULT in de plugin; site.info geeft de werkelijke scopes terug. */
+    public const DEFAULT_SCOPES = ['read', 'events', 'updates'];
 
     protected $fillable = ['site_id', 'name', 'client_name', 'url', 'host'];
 
     protected $hidden = ['pairing_secret', 'inventory'];
+
+    /** @var list<array{level: string, category: string, text: string}>|null */
+    private ?array $issuesCache = null;
 
     protected function casts(): array
     {
@@ -25,6 +30,7 @@ class Site extends Model
             'inventory' => 'array',
             'inventory_at' => 'datetime',
             'event_gap_at' => 'datetime',
+            'pagespeed_requested_at' => 'datetime',
         ];
     }
 
@@ -43,6 +49,11 @@ class Site extends Model
         return $this->hasMany(SiteJob::class);
     }
 
+    public function pagespeedResults(): HasMany
+    {
+        return $this->hasMany(PagespeedResult::class);
+    }
+
     public function isPaired(): bool
     {
         return $this->public_key !== null;
@@ -58,47 +69,80 @@ class Site extends Model
         return !$this->isPaired() && $this->pairing_secret !== null && $this->pairing_expires_at?->isFuture();
     }
 
+    public function hasScope(string $scope): bool
+    {
+        return in_array($scope, $this->scopes ?? [], true);
+    }
+
+    /** Waarom het panel hier geen updates kan starten, of null als het wel kan. */
+    public function updatesBlockedReason(): ?string
+    {
+        if (!$this->isPaired()) {
+            return 'Site is niet gekoppeld';
+        }
+        $min = (string) config('ocm.updates.min_plugin_version');
+        if ($this->plugin_version !== null && version_compare($this->plugin_version, $min, '<')) {
+            return "Client-plugin {$this->plugin_version} is te oud voor updates vanuit het panel (minimaal {$min})";
+        }
+        if (!$this->hasScope('updates')) {
+            return 'Updates vanuit het panel staan uit op de site (WP-admin → Extra → NB OC Monitor)';
+        }
+
+        return null;
+    }
+
+    /**
+     * Beschikbare updates volgens de laatste inventaris.
+     *
+     * @return list<array{type: string, id: string, slug: string, name: string, from: string, to: string, active: bool}>
+     */
+    public function availableUpdates(): array
+    {
+        $inventory = $this->inventory ?? [];
+        $items = [];
+        if (!empty($inventory['core']['update']['version'])) {
+            $items[] = ['type' => 'core', 'id' => 'wordpress', 'slug' => 'wordpress', 'name' => 'WordPress',
+                'from' => (string) ($inventory['core']['version'] ?? ''), 'to' => (string) $inventory['core']['update']['version'], 'active' => true];
+        }
+        foreach ((array) ($inventory['plugins'] ?? []) as $plugin) {
+            if (is_array($plugin) && isset($plugin['file']) && !empty($plugin['update']['version'])) {
+                $items[] = ['type' => 'plugin', 'id' => (string) $plugin['file'], 'slug' => (string) ($plugin['slug'] ?? $plugin['file']),
+                    'name' => (string) ($plugin['name'] ?? $plugin['file']), 'from' => (string) ($plugin['version'] ?? ''),
+                    'to' => (string) $plugin['update']['version'], 'active' => !empty($plugin['active'])];
+            }
+        }
+        foreach ((array) ($inventory['themes'] ?? []) as $theme) {
+            if (is_array($theme) && isset($theme['stylesheet']) && !empty($theme['update']['version'])) {
+                $items[] = ['type' => 'theme', 'id' => (string) $theme['stylesheet'], 'slug' => (string) $theme['stylesheet'],
+                    'name' => (string) ($theme['name'] ?? $theme['stylesheet']), 'from' => (string) ($theme['version'] ?? ''),
+                    'to' => (string) $theme['update']['version'], 'active' => !empty($theme['active'])];
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<array{level: string, category: string, text: string}> $issues
+     */
+    public function setIssues(array $issues): void
+    {
+        $this->issuesCache = $issues;
+    }
+
+    /** @return list<array{level: string, category: string, text: string}> */
+    public function issues(): array
+    {
+        if ($this->issuesCache === null) {
+            SiteIssues::load(collect([$this]));
+        }
+
+        return $this->issuesCache;
+    }
+
     /** Niveau voor de tegelweergave (ServerDash-klassen lvl-ok/warn/crit/pending). */
     public function level(): string
     {
-        if (!$this->isPaired()) {
-            return 'pending';
-        }
-        if ($this->status === 'unreachable' || $this->status === 'error') {
-            return 'crit';
-        }
-        $heartbeat = config('ocm.heartbeat_minutes') * 3;
-        if ($this->last_seen_at === null || $this->last_seen_at->lt(now()->subMinutes($heartbeat)) || $this->event_gap_at !== null) {
-            return 'warn';
-        }
-
-        return $this->updates_count > 0 ? 'warn' : 'ok';
-    }
-
-    /** @return list<array{level: string, text: string}> */
-    public function issues(): array
-    {
-        $issues = [];
-        if (!$this->isPaired()) {
-            $issues[] = ['level' => 'info', 'text' => $this->pairingIsOpen() ? 'Wacht op koppeling' : 'Koppelcode verlopen'];
-            return $issues;
-        }
-        if ($this->status === 'unreachable') {
-            $issues[] = ['level' => 'crit', 'text' => 'Niet bereikbaar'];
-        } elseif ($this->status === 'error') {
-            $issues[] = ['level' => 'crit', 'text' => 'Fout bij laatste contact'];
-        }
-        $heartbeat = config('ocm.heartbeat_minutes') * 3;
-        if ($this->last_seen_at === null || $this->last_seen_at->lt(now()->subMinutes($heartbeat))) {
-            $issues[] = ['level' => 'warn', 'text' => 'Geen heartbeat sinds ' . ($this->last_seen_at?->diffForHumans() ?? 'koppeling')];
-        }
-        if ($this->event_gap_at !== null) {
-            $issues[] = ['level' => 'warn', 'text' => 'Gat in wijzigingslog'];
-        }
-        if ($this->updates_count > 0) {
-            $issues[] = ['level' => 'warn', 'text' => $this->updates_count . ' update(s) beschikbaar'];
-        }
-
-        return $issues;
+        return SiteIssues::levelOf($this, $this->issues());
     }
 }

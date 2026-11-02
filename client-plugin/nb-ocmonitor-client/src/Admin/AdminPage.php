@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace NextBuzz\OcMonitor\Client\Admin;
 
+use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 use NextBuzz\OcMonitor\Client\OptionFailureLog;
 use NextBuzz\OcMonitor\Client\PairingService;
+use NextBuzz\OcMonitor\Client\Scopes;
 use NextBuzz\OcMonitor\Client\Settings;
 
 /**
- * Extra > NB OC Monitor: status, koppelen en ontkoppelen, recente events en afgewezen verzoeken.
+ * Extra > NB OC Monitor: status, koppelen en ontkoppelen, toegestane acties, recente events en afgewezen verzoeken.
  */
 final class AdminPage
 {
@@ -19,11 +21,13 @@ final class AdminPage
 
     private PairingService $pairing;
     private EventStore $events;
+    private EventRecorder $recorder;
 
-    public function __construct(PairingService $pairing, EventStore $events)
+    public function __construct(PairingService $pairing, EventStore $events, EventRecorder $recorder)
     {
         $this->pairing = $pairing;
         $this->events = $events;
+        $this->recorder = $recorder;
     }
 
     public function register(): void
@@ -33,6 +37,27 @@ final class AdminPage
         });
         add_action('admin_post_nb_ocm_pair', [$this, 'handlePair']);
         add_action('admin_post_nb_ocm_unpair', [$this, 'handleUnpair']);
+        add_action('admin_post_nb_ocm_scopes', [$this, 'handleScopes']);
+    }
+
+    /** Scopes kunnen alleen hier (of via WP-CLI) veranderen, nooit via het panel. */
+    public function handleScopes(): void
+    {
+        $this->guard('nb_ocm_scopes');
+        $wanted = [];
+        foreach (array_keys(Scopes::OPTIONAL) as $scope) {
+            if (!empty($_POST['nb_ocm_scope'][$scope])) {
+                $wanted[] = $scope;
+            }
+        }
+        $change = Settings::setScopes($wanted);
+        if ($change === null) {
+            $this->redirect('error', 'De site is niet gekoppeld.');
+        }
+        if ($change['from'] !== $change['to']) {
+            $this->recorder->record('ocm.scopes_changed', 'scopes', implode(',', $change['from']), implode(',', $change['to']));
+        }
+        $this->redirect('success', 'Toegestane acties opgeslagen.');
     }
 
     public function handlePair(): void
@@ -97,6 +122,22 @@ final class AdminPage
             submit_button('Koppelen');
             echo '</form>';
         } else {
+            $active = (array) $summary['scopes'];
+            echo '<h2>Toegestane acties vanuit het panel</h2><p>Lezen en het wijzigingslog staan altijd aan. Het panel kan deze instelling niet zelf veranderen.</p>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            wp_nonce_field('nb_ocm_scopes');
+            echo '<input type="hidden" name="action" value="nb_ocm_scopes">';
+            foreach (Scopes::OPTIONAL as $scope => $description) {
+                printf(
+                    '<p><label><input type="checkbox" name="nb_ocm_scope[%1$s]" value="1"%2$s> <code>%1$s</code> — %3$s</label></p>',
+                    esc_attr($scope),
+                    in_array($scope, $active, true) ? ' checked' : '',
+                    esc_html($description)
+                );
+            }
+            submit_button('Opslaan', 'secondary');
+            echo '</form>';
+
             echo '<h2>Ontkoppelen</h2><p>Verwijdert de sleutels. Het panel kan daarna niets meer op deze site uitvoeren.</p>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
             wp_nonce_field('nb_ocm_unpair');

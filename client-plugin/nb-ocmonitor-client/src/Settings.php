@@ -16,7 +16,6 @@ final class Settings
 {
     public const OPTION = 'nb_ocm_config';
     public const KEY_OPTION = 'nb_ocm_site_key';
-    public const DEFAULT_SCOPES = ['read', 'events'];
 
     public static function load(): ?SiteConfig
     {
@@ -46,7 +45,7 @@ final class Settings
             (string) $config['panel_url'],
             $panelKeys,
             $keys,
-            array_values(array_filter((array) ($config['scopes'] ?? self::DEFAULT_SCOPES), 'is_string'))
+            Scopes::normalize((array) ($config['scopes'] ?? Scopes::REQUIRED))
         );
     }
 
@@ -88,7 +87,7 @@ final class Settings
             'panel_key_ids' => $panelKeyIds,
             'site_key_id' => $siteKeyId,
             'site_key_in_wp_config' => defined('NB_OCM_SITE_KEY'),
-            'scopes' => $config['scopes'] ?? self::DEFAULT_SCOPES,
+            'scopes' => Scopes::normalize((array) ($config['scopes'] ?? Scopes::REQUIRED)),
             'paired_at' => $config['paired_at'] ?? null,
         ];
     }
@@ -105,9 +104,28 @@ final class Settings
             'site_id' => $siteId,
             'panel_url' => $panelUrl,
             'panel_keys' => array_values($panelKeysB64),
-            'scopes' => self::DEFAULT_SCOPES,
+            'scopes' => Scopes::DEFAULT,
             'paired_at' => $now,
         ], false);
+    }
+
+    /**
+     * Zet de optionele scopes. Alleen vanuit WP-admin of WP-CLI, nooit via een panel-command.
+     *
+     * @param string[] $scopes
+     * @return array{from: string[], to: string[]}|null null als de site niet gekoppeld is
+     */
+    public static function setScopes(array $scopes): ?array
+    {
+        $config = get_option(self::OPTION);
+        if (!is_array($config) || empty($config['site_id'])) {
+            return null;
+        }
+        $from = Scopes::normalize((array) ($config['scopes'] ?? Scopes::REQUIRED));
+        $config['scopes'] = Scopes::normalize($scopes);
+        update_option(self::OPTION, $config, false);
+
+        return ['from' => $from, 'to' => $config['scopes']];
     }
 
     public static function clear(): void

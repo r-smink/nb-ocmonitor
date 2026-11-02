@@ -110,7 +110,7 @@ class TwoFactorController extends Controller
         $user->save();
         Activity::log('login', [], null, $user);
 
-        return redirect()->intended(route('sites.index'));
+        return redirect()->intended(route('dashboard'));
     }
 
     private function throttleKey(User $user): string

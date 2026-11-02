@@ -26,8 +26,27 @@ final class ResultProcessor
             'site.info' => $this->info($site, $result),
             'site.inventory' => $this->inventory($site, $result),
             'events.pull' => $this->events($site, $job, $result),
+            'update.plugin', 'update.theme', 'update.core', 'update.translations' => $this->updated($site, $job, $result),
             default => null,
         };
+    }
+
+    /**
+     * Na een update is de update-transient op de site gewist; daarom een inventaris mét refresh.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function updated(Site $site, SiteJob $job, array $result): void
+    {
+        JobQueue::enqueue($site, 'site.inventory', ['refresh' => true]);
+
+        $problems = collect((array) ($result['items'] ?? []))
+            ->filter(fn ($item) => is_array($item) && in_array($item['status'] ?? '', ['failed', 'rolled_back', 'health_failed'], true))
+            ->map(fn ($item) => ['id' => $item['id'] ?? '', 'status' => $item['status'], 'message' => $item['message'] ?? null])
+            ->values()->all();
+        if ($problems !== []) {
+            Activity::log('update_problem', ['job_id' => $job->job_id, 'command' => $job->command, 'items' => $problems], $site);
+        }
     }
 
     /**
@@ -38,6 +57,9 @@ final class ResultProcessor
         $site->wp_version = self::str($result['wp_version'] ?? null);
         $site->php_version = self::str($result['php_version'] ?? null);
         $site->plugin_version = self::str($result['plugin_version'] ?? null);
+        if (isset($result['scopes']) && is_array($result['scopes'])) {
+            $site->scopes = array_values(array_filter($result['scopes'], fn ($s) => is_string($s) && preg_match('/^[a-z_]{1,32}$/', $s)));
+        }
         $site->save();
 
         $remoteSeq = (int) ($result['last_event_seq'] ?? 0);
