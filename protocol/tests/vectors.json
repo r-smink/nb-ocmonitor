@@ -1,0 +1,84 @@
+{
+    "note": "Gegenereerd door tests/generate-vectors.php. Ed25519 is deterministisch: elke implementatie moet exact deze waarden opleveren.",
+    "keys": {
+        "panel": {
+            "seed_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+            "public_key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+            "key_id": "k_34750f98bd59fcfc"
+        },
+        "site": {
+            "seed_hex": "0202020202020202020202020202020202020202020202020202020202020202",
+            "public_key": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q",
+            "key_id": "k_6a3803d5f059902a"
+        }
+    },
+    "command_request": {
+        "context": "NBOCM-v1-cmd",
+        "method": "POST",
+        "host": "klant.example.nl",
+        "path": "/nb-ocm/v1/cmd",
+        "site_id": "site_01",
+        "timestamp": 1767225600,
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+        "body": "{\"command\":\"site.info\",\"args\":{},\"job_id\":\"job_1\",\"expires_at\":1767225660}",
+        "canonical": "NBOCM-v1-cmd\nPOST\nklant.example.nl\n/nb-ocm/v1/cmd\nsite_01\nk_34750f98bd59fcfc\n1767225600\nAAECAwQFBgcICQoLDA0ODxAREhMUFRYX\ne59ad4c41f294bd679332eefb1c3cd0b1cc2c797184477d727f0ed7acf825c5e",
+        "headers": {
+            "x-nbocm-site": "site_01",
+            "x-nbocm-key": "k_34750f98bd59fcfc",
+            "x-nbocm-ts": "1767225600",
+            "x-nbocm-nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+            "x-nbocm-sig": "otjP1Ryx5lbfWsmgxclWPFU4BnQ_ELg4a9247iEelvJXQyO9l0afsxoQ-Ykp5wi5FViyeUm4JWqMCLhGNop2CQ"
+        }
+    },
+    "site_event_request": {
+        "context": "NBOCM-v1-site",
+        "method": "POST",
+        "host": "ocm.nextbuzz.nl",
+        "path": "/api/sites/site_01/events",
+        "site_id": "site_01",
+        "timestamp": 1767225600,
+        "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+        "body": "{\"events\":[{\"seq\":1,\"type\":\"plugin.updated\",\"slug\":\"akismet\",\"from\":\"5.3\",\"to\":\"5.4\"}]}",
+        "canonical": "NBOCM-v1-site\nPOST\nocm.nextbuzz.nl\n/api/sites/site_01/events\nsite_01\nk_6a3803d5f059902a\n1767225600\nAAECAwQFBgcICQoLDA0ODxAREhMUFRYX\nad6301486b2550594db179d7a0a0c945e23442d3425caf2d14c807d78a7b8705",
+        "headers": {
+            "x-nbocm-site": "site_01",
+            "x-nbocm-key": "k_6a3803d5f059902a",
+            "x-nbocm-ts": "1767225600",
+            "x-nbocm-nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+            "x-nbocm-sig": "DF87Apk_DEk42JC4C1qk96aaE1EXS7IvH_Zhiz8EjDGyRbqWIPszSxbmydLe2Tliiv7NLB2_lrpSSl-RuESlCw"
+        }
+    },
+    "response": {
+        "site_id": "site_01",
+        "request_nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+        "status": 200,
+        "timestamp": 1767225601,
+        "body": "{\"ok\":true,\"wp_version\":\"6.9\"}",
+        "canonical": "NBOCM-v1-resp\nsite_01\nk_6a3803d5f059902a\n1767225601\nAAECAwQFBgcICQoLDA0ODxAREhMUFRYX\n200\n4b1c81ca0286b5413e411b60c9e6aa333607c3aa1e1b82cbbc39e72ade7b8aab",
+        "headers": {
+            "x-nbocm-key": "k_6a3803d5f059902a",
+            "x-nbocm-ts": "1767225601",
+            "x-nbocm-sig": "asDV8oiZXT1-g7BdLiWX5tskpOBo4BqtL3JQd0QQUrK6GBmvMh6AVtqFAyGS2MyDgAPQYYSigSHaKei0MmoiBw"
+        }
+    },
+    "login_token": {
+        "site_id": "site_01",
+        "host": "klant.example.nl",
+        "wp_user": "nb-rick",
+        "panel_user": "rick@nextbuzz.nl",
+        "now": 1767225600,
+        "nonce": "GBkaGxwdHh8gISIjJCUmJygpKiss",
+        "token": "k_34750f98bd59fcfc.eyJhdWQiOiJsb2dpbiIsInNpdGVfaWQiOiJzaXRlXzAxIiwiaG9zdCI6ImtsYW50LmV4YW1wbGUubmwiLCJ3cF91c2VyIjoibmItcmljayIsInBhbmVsX3VzZXIiOiJyaWNrQG5leHRidXp6Lm5sIiwiaWF0IjoxNzY3MjI1NjAwLCJleHAiOjE3NjcyMjU2NjAsIm5vbmNlIjoiR0JrYUd4d2RIaDhnSVNJakpDVW1KeWdwS2lzcyJ9.hryLmvhjKF_wRYSkjbWZPP6PV_Nuys7y4P0LPGQuAMVf7AV_4tSkBs5fvfVj6xXZY-sTR4tsigQkBeCQox8uCg"
+    },
+    "pairing_proof": {
+        "secret_b64": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+        "proof": {
+            "site_id": "site_01",
+            "site_pk": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q",
+            "site_url": "https://klant.example.nl",
+            "ts": 1767225600,
+            "hmac": "zKnCu5MMtmcURl_V26hj_JH63P64j3zNBi_9ZYCCGHA",
+            "sig": "9QhIBBWo5vlQkk-dRe140rNkLdKi_VdBZVLQ3XZ_wexomNBs_Ub_KaWJyzprj7552qTzXWqS-jmooW_ybv1wAg"
+        }
+    }
+}

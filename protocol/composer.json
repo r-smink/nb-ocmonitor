@@ -1,0 +1,20 @@
+{
+    "name": "nextbuzz/ocm-protocol",
+    "description": "NB OC Monitor: ondertekend protocol tussen panel en client-plugin (Ed25519)",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": ">=7.4"
+    },
+    "suggest": {
+        "ext-sodium": "Snelle Ed25519. Binnen WordPress valt de library terug op het meegeleverde sodium_compat."
+    },
+    "autoload": {
+        "psr-4": {
+            "NextBuzz\\OcMonitor\\Protocol\\": "src/"
+        }
+    },
+    "scripts": {
+        "test": "php tests/run.php"
+    }
+}
