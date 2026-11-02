@@ -4,27 +4,36 @@ Eigen beheerplatform voor de WordPress-sites van Next Buzz (in de geest van Infi
 
 | Map | Inhoud | Status |
 |---|---|---|
-| [`protocol/`](protocol/) | Ondertekend protocol (Ed25519) tussen panel en plugin, met testvectoren | Fase 0, klaar |
-| [`docs/`](docs/) | [Protocolspecificatie](docs/protocol.md), [dreigingsmodel](docs/threat-model.md) | Fase 0, klaar |
-| [`client-plugin/`](client-plugin/nb-ocmonitor-client/) | WordPress-plugin `nb-ocmonitor-client`: koppelen, heartbeat, inventaris, registratie van alle wijzigingen | Fase 1, plugin-MVP klaar (nog niet getest op een echte WP-installatie) |
-| `panel/` | Laravel + Livewire-dashboard (vormgeving en donker thema gelijk aan ServerDash) en signer | Fase 1 |
-| `deploy/` | docker-compose, reverse proxy | Fase 1 |
+| [`protocol/`](protocol/) | Ondertekend protocol (Ed25519) tussen panel en plugin, met testvectoren | Klaar (fase 0) |
+| [`client-plugin/`](client-plugin/nb-ocmonitor-client/) | WordPress-plugin `nb-ocmonitor-client`: koppelen, heartbeat, inventaris, registratie van alle wijzigingen | MVP (fase 1). Nog te testen op een echte WP-site |
+| [`panel/`](panel/) | Laravel-panel in ServerDash-stijl (standaard donker): login met verplichte 2FA, sites koppelen, plugin-download, signer, wijzigingslog, audit log | MVP (fase 1) |
+| [`deploy/`](deploy/) + [`docker-compose.yml`](docker-compose.yml) | Docker-opzet: Caddy (HTTPS), app, signer, scheduler, MySQL | Klaar voor een droplet. Lokaal niet getest (geen Docker) |
+| [`docs/`](docs/) | [Protocol](docs/protocol.md), [dreigingsmodel](docs/threat-model.md), [installatie op DigitalOcean](docs/DEPLOY-DIGITALOCEAN.md) | |
 
-## Protocoltests draaien
+## Installeren op een server
 
-De library heeft geen dependencies en draait op PHP ≥ 7.4 met ext-sodium:
+Zie [docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md). Kort samengevat:
 
 ```bash
-cd protocol
-php -d extension=sodium tests/run.php
+git clone … /opt/nb-ocmonitor && cd /opt/nb-ocmonitor
+bash deploy/setup.sh          # maakt .env + signer.env, sleutels en het eerste admin-account
+docker compose up -d --build
 ```
 
-Staat sodium niet aan in `php.ini` en ligt de extensiemap niet op de standaardplek, geef die dan mee, bijvoorbeeld:
-`php -d extension_dir=C:/Devtools/php/ext -d extension=sodium tests/run.php`.
+## Tests
 
-Genereer `tests/vectors.json` alleen opnieuw (`tests/generate-vectors.php`) bij een bewuste protocolwijziging. De vectoren zijn het contract tussen panel en plugin.
+```bash
+php -d extension=sodium protocol/tests/run.php                           # protocol (46)
+php -d extension=sodium client-plugin/nb-ocmonitor-client/tests/run.php  # plugin-kern (19)
+cd panel && php artisan test                                              # panel (27)
+php scripts/sync-protocol.php --check                                     # plugin-kopie van het protocol actueel?
+```
 
-## Hoe de library gebruikt wordt
+Op deze ontwikkelmachine laden de PHP-extensies via `PHP_INI_SCAN_DIR=C:/Devtools/composer/conf.d` (zie [panel/README.md](panel/README.md)).
 
-- **Panel:** via een Composer path-repository (`nextbuzz/ocm-protocol`).
-- **Plugin:** de library wordt bij de build naar `client-plugin/nb-ocmonitor-client/lib/protocol/` gekopieerd (WordPress-plugins hebben geen Composer tijdens runtime). Een CI-check vergelijkt de kopie met het origineel.
+Genereer `protocol/tests/vectors.json` alleen opnieuw (`tests/generate-vectors.php`) bij een bewuste protocolwijziging. De vectoren zijn het contract tussen panel en plugin.
+
+## Hoe de protocol-library gebruikt wordt
+
+- **Panel:** via een Composer path-repository (`nextbuzz/ocm-protocol`, gekopieerd naar `vendor`).
+- **Plugin:** `scripts/sync-protocol.php` kopieert de library naar `client-plugin/nb-ocmonitor-client/lib/protocol/`, omdat WordPress-plugins tijdens runtime geen Composer hebben.

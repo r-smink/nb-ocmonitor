@@ -24,14 +24,20 @@ final class Pairing
         return random_bytes(32);
     }
 
-    public static function createCode(string $panelUrl, string $siteId, KeyPair $panelKeys, string $secret, int $expiresAt): string
+    /**
+     * @param string $panelPublicKey ruwe publieke panel-sleutel (32 bytes); de private key is hier niet nodig
+     */
+    public static function createCode(string $panelUrl, string $siteId, string $panelPublicKey, string $secret, int $expiresAt): string
     {
+        if (strlen($panelPublicKey) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES || strlen($secret) !== 32) {
+            throw new \InvalidArgumentException('panel public key must be 32 bytes and secret 32 bytes');
+        }
         $code = [
             'v' => 1,
             'panel_url' => rtrim($panelUrl, '/'),
             'site_id' => $siteId,
-            'panel_kid' => $panelKeys->keyId(),
-            'panel_pk' => $panelKeys->publicKeyB64(),
+            'panel_kid' => KeyPair::keyIdFor($panelPublicKey),
+            'panel_pk' => Base64Url::encode($panelPublicKey),
             'secret' => Base64Url::encode($secret),
             'exp' => $expiresAt,
         ];

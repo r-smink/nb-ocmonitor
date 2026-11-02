@@ -1,0 +1,90 @@
+# NB OC Monitor op één Docker-host (bijv. een DigitalOcean-droplet).
+# Eerste keer: ./deploy/setup.sh   Daarna: docker compose up -d --build
+#
+# Alleen Caddy is van buitenaf bereikbaar (80/443). De private panel-sleutel staat alleen in
+# signer.env en is alleen zichtbaar voor de signer-container.
+
+x-app: &app
+  image: nb-ocmonitor:latest
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
+  restart: unless-stopped
+  env_file: .env
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  app:
+    <<: *app
+    environment:
+      AUTORUN_ENABLED: "true"
+      OCM_BOOTSTRAP: "true"
+    expose: ["8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+
+  signer:
+    <<: *app
+    env_file: [.env, signer.env]
+    command: ["php", "/var/www/html/artisan", "ocm:signer"]
+    stop_signal: SIGTERM
+    healthcheck: { disable: true }
+    depends_on:
+      app: { condition: service_healthy }
+
+  scheduler:
+    <<: *app
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      start_period: 10s
+    depends_on:
+      app: { condition: service_healthy }
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:?Zet DB_DATABASE in .env}
+      MYSQL_USER: ${DB_USERNAME:?Zet DB_USERNAME in .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Zet DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Zet DB_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Zet DOMAIN in .env, bijv. ocm.nextbuzz.nl}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      ADMIN_ALLOW_IPS: ${ADMIN_ALLOW_IPS:-0.0.0.0/0 ::/0}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  mysql_data:
+  caddy_data:
+  caddy_config:

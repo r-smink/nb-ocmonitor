@@ -1,0 +1,16 @@
+.git
+**/.env
+**/.env.*
+!panel/.env.example
+signer.env
+backups
+panel/vendor
+panel/node_modules
+panel/database/*.sqlite
+panel/storage/logs/*
+panel/storage/framework/cache/data/*
+panel/storage/framework/sessions/*
+panel/storage/framework/views/*
+panel/.phpunit.cache
+client-plugin/nb-ocmonitor-client/tests
+**/*.zip

@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Klantsites (client-plugin) moeten altijd bij /api/* kunnen. De rest van het panel kun je
+	# beperken tot eigen IP-adressen met ADMIN_ALLOW_IPS in .env (standaard: iedereen).
+	@panel_blocked {
+		not path /api/* /up
+		not remote_ip {$ADMIN_ALLOW_IPS}
+	}
+	respond @panel_blocked "Forbidden" 403
+
+	reverse_proxy app:8080
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+		-X-Powered-By
+	}
+}

@@ -1,0 +1,20 @@
+/* ==========================================================================
+   Next Buzz — Fonts (self-hosted, variabel; geen Google Fonts i.v.m. CSP en AVG)
+   Headings: Schibsted Grotesk · Body: Hanken Grotesk. Beide SIL Open Font License.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Schibsted Grotesk';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 900;
+  src: url('/fonts/schibsted-grotesk-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Hanken Grotesk';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('/fonts/hanken-grotesk-latin-wght-normal.woff2') format('woff2-variations');
+}

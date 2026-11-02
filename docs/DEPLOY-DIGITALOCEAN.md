@@ -1,0 +1,191 @@
+# NB OC Monitor installeren op een DigitalOcean-droplet (Docker)
+
+Na deze stappen draait het panel op `https://<jouw-domein>`, met automatisch een HTTPS-certificaat via Caddy en Let's Encrypt. Inloggen gaat met e-mail, wachtwoord en verplichte tweestapsverificatie.
+
+```
+Internet ──443──► caddy ──► app (Laravel, nginx + php-fpm)
+                              │
+                 scheduler ───┤  zet heartbeats/inventaris klaar
+                 signer ──────┤  enige container met de private panel-sleutel; praat met klantsites
+                 mysql ◄──────┘
+```
+
+## Wat je nodig hebt
+
+- Een DigitalOcean-account.
+- Een (sub)domein waarvan je de DNS beheert, bijvoorbeeld `ocm.nextbuzz.nl`.
+- Een SSH-sleutel op je eigen computer.
+- De code van deze repository. Zet hem bij voorkeur in een **privé** GitHub-repo. Rsync vanaf je eigen computer kan ook (zie stap 4).
+
+## 1. Droplet aanmaken
+
+1. **Create → Droplets**.
+2. Region: **Amsterdam (AMS3)**.
+3. Image: **Marketplace → "Docker"** (Ubuntu met Docker en Docker Compose voorgeïnstalleerd).
+4. Size: **Basic, Regular, 2 GB RAM / 1 vCPU** of groter. MySQL 8 met Laravel past niet goed in 1 GB.
+5. Authentication: **SSH Key** (geen wachtwoord).
+6. Zet **Backups** en **Monitoring** aan.
+7. Hostname: bijvoorbeeld `ocm-nextbuzz`.
+
+Noteer het IP-adres van de droplet.
+
+## 2. DNS
+
+Maak bij je DNS-provider een **A-record** voor het domein naar het IP van de droplet, en een **AAAA-record** als de droplet IPv6 heeft. Controleer met `dig +short ocm.nextbuzz.nl`. Caddy kan pas een certificaat aanvragen als de DNS klopt.
+
+## 3. Droplet beveiligen
+
+```bash
+ssh root@<ip>
+
+apt update && apt -y upgrade
+apt -y install unattended-upgrades fail2ban
+dpkg-reconfigure -f noninteractive unattended-upgrades
+
+# Firewall: alleen SSH, HTTP en HTTPS.
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 443/udp
+ufw --force enable
+```
+
+Let op: Docker zet gepubliceerde poorten zelf open, buiten ufw om. In deze opzet publiceert alleen Caddy poorten (80/443). MySQL en de app zijn alleen binnen het Docker-netwerk bereikbaar. Wil je dubbele zekerheid, maak dan ook in DigitalOcean een **Cloud Firewall** met alleen 22, 80 en 443 inkomend.
+
+Aanrader: een eigen gebruiker in plaats van root, en SSH alleen met sleutels (`PasswordAuthentication no` in `/etc/ssh/sshd_config`).
+
+## 4. Code op de droplet zetten
+
+**Via een privé GitHub-repo (aanbevolen):**
+
+```bash
+# Op de droplet: deploy key maken en als read-only "Deploy key" toevoegen aan de GitHub-repo.
+ssh-keygen -t ed25519 -f ~/.ssh/ocm_deploy -N ""
+cat ~/.ssh/ocm_deploy.pub
+printf 'Host github.com\n  IdentityFile ~/.ssh/ocm_deploy\n' >> ~/.ssh/config
+
+git clone git@github.com:<organisatie>/nb-ocmonitor.git /opt/nb-ocmonitor
+cd /opt/nb-ocmonitor
+```
+
+**Of via rsync vanaf je eigen computer** (in Git Bash, vanuit de map `nb-ocmonitor`):
+
+```bash
+rsync -av --delete --exclude .env --exclude signer.env --exclude 'panel/vendor' \
+  --exclude 'panel/database/*.sqlite' --exclude backups ./ root@<ip>:/opt/nb-ocmonitor/
+```
+
+## 5. Configuratie aanmaken
+
+```bash
+cd /opt/nb-ocmonitor
+bash deploy/setup.sh
+```
+
+Het script vraagt naar:
+
+- het domein, het e-mailadres voor Let's Encrypt en het e-mailadres van de eerste admin;
+- optioneel de **IP-adressen die het panel mogen openen**, bijvoorbeeld het vaste IP van kantoor. Klantsites kunnen dan nog steeds bij `/api/*`, maar de beheeromgeving is voor andere IP's afgeschermd (403). Leeg laten betekent dat iedereen de loginpagina ziet.
+
+Het script maakt daarna:
+
+- `.env` met willekeurige wachtwoorden, een `APP_KEY`, de **publieke** panel-sleutel en het tijdelijke admin-wachtwoord;
+- `signer.env` met de **private** panel-sleutel, die alleen de signer-container leest.
+
+Beide bestanden krijgen rechten 600. **Zet ze direct in de wachtwoordkluis.** Ze zijn nodig om een backup terug te zetten:
+
+- zonder `APP_KEY` zijn 2FA-geheimen niet meer te lezen;
+- zonder de signing key moeten alle sites opnieuw gekoppeld worden.
+
+## 6. Starten
+
+```bash
+docker compose up -d --build
+docker compose ps          # alle services "running"; app "healthy"
+docker compose logs -f app # migraties en "Admin-account … aangemaakt"
+```
+
+Open `https://<domein>` en log in met het e-mailadres en het tijdelijke wachtwoord dat `setup.sh` toonde. Je moet direct tweestapsverificatie instellen door de QR-code te scannen met Microsoft Authenticator, 1Password of Google Authenticator. Wijzig daarna je wachtwoord via **Account**.
+
+Collega's voeg je toe via **Gebruikers**. Ze krijgen een tijdelijk wachtwoord en stellen bij hun eerste login hun eigen 2FA in. De rollen:
+
+- **Admin**: alles, inclusief gebruikersbeheer.
+- **Beheerder**: sites toevoegen en opdrachten geven.
+- **Alleen lezen**: alleen bekijken.
+
+## 7. Eerste site koppelen
+
+1. **Sites → Site toevoegen**: vul de naam en de exacte siteadres-URL (`https://…`) in.
+2. Klik op **Plugin** (rechtsboven) of op de link in de stappen om `nb-ocmonitor-client-<versie>.zip` te downloaden.
+3. Installeer de zip op de site via **Plugins → Nieuwe plugin → Plugin uploaden** en activeer hem.
+4. Kopieer de koppelcode uit het panel. Die is 15 minuten geldig, eenmalig te gebruiken, en alleen voor die host.
+5. Plak de code op de site onder **Extra → NB OC Monitor**, of gebruik `wp nb-ocm pair <code>`.
+6. De site verschijnt als gekoppeld. Binnen enkele seconden haalt de signer de status en de inventaris op.
+
+Lukt het koppelen niet? Controleer het volgende:
+
+- De site moet via HTTPS bereikbaar zijn, en de URL in het panel moet gelijk zijn aan het siteadres in WordPress.
+- Security-plugins die de REST API blokkeren moeten `nb-ocm/v1` toestaan.
+- In **Activiteit → Audit log panel** staat de reden van een afgewezen koppeling, bijvoorbeeld `host_mismatch`.
+
+## 8. Backups
+
+DigitalOcean-backups maken een wekelijkse kopie van de hele droplet. Daarnaast een dagelijkse database-dump:
+
+```bash
+crontab -e
+# toevoegen:
+30 3 * * * cd /opt/nb-ocmonitor && bash deploy/backup.sh >> backups/backup.log 2>&1
+```
+
+De dumps staan in `/opt/nb-ocmonitor/backups` (14 dagen). Kopieer ze bij voorkeur ook naar externe opslag, zoals DigitalOcean Spaces met `s3cmd` of `rclone`.
+
+**Terugzetten:**
+
+```bash
+gunzip -c backups/ocmonitor-<datum>.sql.gz | docker compose exec -T mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"'
+```
+
+Gebruik daarbij dezelfde `.env` en `signer.env`.
+
+## 9. Updaten
+
+```bash
+cd /opt/nb-ocmonitor
+git pull                       # of opnieuw rsyncen
+docker compose up -d --build   # migraties draaien automatisch bij het starten van de app
+docker image prune -f
+```
+
+Een nieuwe versie van de client-plugin zit automatisch in de download van het panel. Op de sites werk je hem voorlopig bij door de zip opnieuw te uploaden. Automatische plugin-updates komen in een volgende fase.
+
+## 10. Handige commando's
+
+```bash
+docker compose logs -f signer                       # wat de signer naar sites stuurt (ok/fout per opdracht)
+docker compose logs -f scheduler
+docker compose exec app php artisan ocm:verify-log  # controleer de hash-keten van het audit log
+docker compose exec app php artisan ocm:queue-checks --inventory   # nu alle inventarissen vernieuwen
+docker compose exec mysql sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"'
+```
+
+## 11. Problemen oplossen
+
+| Probleem | Oplossing |
+|---|---|
+| Geen HTTPS-certificaat | Klopt de DNS? Zijn poort 80 en 443 open? Bekijk `docker compose logs caddy`. |
+| 403 op het panel | Je IP staat niet in `ADMIN_ALLOW_IPS`. Pas `.env` aan en draai `docker compose up -d caddy`. |
+| Wachtwoord of 2FA-telefoon kwijt (enige admin) | Zet in `.env` `OCM_RESET_ADMIN=1` en een nieuw `OCM_ADMIN_PASSWORD`, en draai `docker compose up -d app`. Log in en stel 2FA opnieuw in. Zet daarna `OCM_RESET_ADMIN=0` en draai `docker compose up -d app` opnieuw. Gaat het om een andere gebruiker, dan kan een admin diens 2FA resetten via **Gebruikers**. |
+| Site blijft "Niet bereikbaar" | Bekijk `docker compose logs signer`. Een 404 betekent meestal: de plugin is niet actief, de site is ontkoppeld, of een security-plugin blokkeert de REST API. |
+| Signer start niet ("hoort niet bij OCM_PANEL_PUBLIC_KEY") | `signer.env` en `.env` horen niet bij elkaar. Zet beide terug uit de kluis. |
+| Private panel-sleutel gelekt | Volg het runbook in [docs/threat-model.md](threat-model.md): stop de signer, zet `NB_OCM_DISABLED` op de sites, maak een nieuw sleutelpaar (`php artisan ocm:keygen`) en koppel de sites opnieuw. |
+
+## Checklist
+
+- [ ] DNS wijst naar de droplet, en het certificaat is uitgegeven
+- [ ] ufw en Cloud Firewall laten alleen 22, 80 en 443 toe
+- [ ] `.env` en `signer.env` staan in de wachtwoordkluis
+- [ ] Eerste login gedaan, 2FA ingesteld en wachtwoord gewijzigd
+- [ ] `ADMIN_ALLOW_IPS` ingesteld (aanbevolen)
+- [ ] Backup-cron actief en een terugzet-test gedaan
+- [ ] Eerste site gekoppeld, met heartbeat en inventaris zichtbaar

@@ -347,7 +347,7 @@ test('login: misvormde tokens', function () use ($panel, $ts) {
 // ---------------------------------------------------------------- pairing
 
 test('pairing: code roundtrip', function () use ($panel, $ts) {
-    $code = Pairing::createCode('https://ocm.nextbuzz.nl/', VECTOR_SITE_ID, $panel, VECTOR_PAIRING_SECRET, $ts + 900);
+    $code = Pairing::createCode('https://ocm.nextbuzz.nl/', VECTOR_SITE_ID, $panel->publicKey(), VECTOR_PAIRING_SECRET, $ts + 900);
     $parsed = Pairing::parseCode("  {$code}\n", $ts);
     check($parsed['panel_pk'] === $panel->publicKey());
     check($parsed['secret'] === VECTOR_PAIRING_SECRET);
@@ -355,17 +355,17 @@ test('pairing: code roundtrip', function () use ($panel, $ts) {
 });
 
 test('pairing: verlopen code', function () use ($panel, $ts) {
-    $code = Pairing::createCode('https://ocm.nextbuzz.nl', VECTOR_SITE_ID, $panel, VECTOR_PAIRING_SECRET, $ts);
+    $code = Pairing::createCode('https://ocm.nextbuzz.nl', VECTOR_SITE_ID, $panel->publicKey(), VECTOR_PAIRING_SECRET, $ts);
     rejects(VerificationFailed::EXPIRED, fn () => Pairing::parseCode($code, $ts + 1));
 });
 
 test('pairing: panel-URL zonder https', function () use ($panel, $ts) {
-    $code = Pairing::createCode('http://ocm.nextbuzz.nl', VECTOR_SITE_ID, $panel, VECTOR_PAIRING_SECRET, $ts + 900);
+    $code = Pairing::createCode('http://ocm.nextbuzz.nl', VECTOR_SITE_ID, $panel->publicKey(), VECTOR_PAIRING_SECRET, $ts + 900);
     rejects(VerificationFailed::MALFORMED, fn () => Pairing::parseCode($code, $ts));
 });
 
 test('pairing: publieke sleutel in code vervangen', function () use ($panel, $ts) {
-    $code = Pairing::createCode('https://ocm.nextbuzz.nl', VECTOR_SITE_ID, $panel, VECTOR_PAIRING_SECRET, $ts + 900);
+    $code = Pairing::createCode('https://ocm.nextbuzz.nl', VECTOR_SITE_ID, $panel->publicKey(), VECTOR_PAIRING_SECRET, $ts + 900);
     $data = json_decode(Base64Url::decode(substr($code, strlen(Pairing::CODE_PREFIX))), true);
     $data['panel_pk'] = KeyPair::generate()->publicKeyB64();
     $tampered = Pairing::CODE_PREFIX . Base64Url::encode((string) json_encode($data, JSON_UNESCAPED_SLASHES));
