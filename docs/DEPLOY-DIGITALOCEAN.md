@@ -52,27 +52,78 @@ ufw --force enable
 
 Let op: Docker zet gepubliceerde poorten zelf open, buiten ufw om. In deze opzet publiceert alleen Caddy poorten (80/443). MySQL en de app zijn alleen binnen het Docker-netwerk bereikbaar. Wil je dubbele zekerheid, maak dan ook in DigitalOcean een **Cloud Firewall** met alleen 22, 80 en 443 inkomend.
 
-Aanrader: een eigen gebruiker in plaats van root, en SSH alleen met sleutels (`PasswordAuthentication no` in `/etc/ssh/sshd_config`).
+### Eigen gebruiker `deploy` (in plaats van root)
+
+Je installeert en beheert OC Monitor als gewone gebruiker. Root mag daarna niet meer via SSH inloggen.
+
+```bash
+# Nog als root ingelogd:
+adduser deploy                      # kies een sterk wachtwoord (nodig voor sudo) en zet het in de kluis
+usermod -aG sudo,docker deploy      # sudo voor beheer, docker voor 'docker compose'
+
+# Jouw SSH-sleutel (waarmee je nu als root inlogt) ook voor deploy instellen.
+rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
+
+# Map voor de applicatie, eigendom van deploy.
+mkdir -p /opt/nb-ocmonitor && chown deploy:deploy /opt/nb-ocmonitor
+```
+
+Test in een **nieuw** terminalvenster, en laat het root-venster nog open:
+
+```bash
+ssh deploy@<ip>
+sudo whoami        # moet "root" geven (na je wachtwoord)
+docker ps          # moet werken zonder sudo
+```
+
+Werkt dat, schakel dan root-login en wachtwoord-login uit:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/99-hardening.conf >/dev/null <<'EOF'
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+EOF
+sudo sshd -t && sudo systemctl restart ssh
+```
+
+Test opnieuw in een nieuw venster dat `ssh deploy@<ip>` werkt en `ssh root@<ip>` geweigerd wordt. Sluit pas dan het root-venster.
+
+Let op: lid zijn van de groep `docker` staat in de praktijk gelijk aan root-rechten. Bescherm de SSH-sleutel van `deploy` dus net zo goed als die van root. Het voordeel van een eigen gebruiker is dat root niet meer van buitenaf kan inloggen en dat je niet per ongeluk alles als root doet.
 
 ## 4. Code op de droplet zetten
 
+Alles vanaf hier doe je als `deploy` (`ssh deploy@<ip>`).
+
 **Via een privé GitHub-repo (aanbevolen):**
 
-```bash
-# Op de droplet: deploy key maken en als read-only "Deploy key" toevoegen aan de GitHub-repo.
-ssh-keygen -t ed25519 -f ~/.ssh/ocm_deploy -N ""
-cat ~/.ssh/ocm_deploy.pub
-printf 'Host github.com\n  IdentityFile ~/.ssh/ocm_deploy\n' >> ~/.ssh/config
-
-git clone git@github.com:<organisatie>/nb-ocmonitor.git /opt/nb-ocmonitor
-cd /opt/nb-ocmonitor
-```
+1. Maak een deploy key op de droplet. Deze sleutel geeft alleen leestoegang tot deze ene repo:
+   ```bash
+   ssh-keygen -t ed25519 -C "ocm-droplet" -f ~/.ssh/ocm_deploy -N ""
+   cat ~/.ssh/ocm_deploy.pub
+   ```
+2. Ga op GitHub naar de repo, dan **Settings → Deploy keys → Add deploy key**. Plak de publieke sleutel en laat **Allow write access uit**.
+3. Laat SSH die sleutel voor GitHub gebruiken, en test de verbinding:
+   ```bash
+   cat >> ~/.ssh/config <<'EOF'
+   Host github.com
+     IdentityFile ~/.ssh/ocm_deploy
+     IdentitiesOnly yes
+   EOF
+   chmod 600 ~/.ssh/config
+   ssh -T git@github.com     # "Hi <organisatie>/nb-ocmonitor! You've successfully authenticated…"
+   ```
+4. Clone de repo:
+   ```bash
+   git clone git@github.com:<organisatie>/nb-ocmonitor.git /opt/nb-ocmonitor
+   cd /opt/nb-ocmonitor
+   ```
 
 **Of via rsync vanaf je eigen computer** (in Git Bash, vanuit de map `nb-ocmonitor`):
 
 ```bash
 rsync -av --delete --exclude .env --exclude signer.env --exclude 'panel/vendor' \
-  --exclude 'panel/database/*.sqlite' --exclude backups ./ root@<ip>:/opt/nb-ocmonitor/
+  --exclude 'panel/database/*.sqlite' --exclude backups ./ deploy@<ip>:/opt/nb-ocmonitor/
 ```
 
 ## 5. Configuratie aanmaken
