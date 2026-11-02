@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Eerste installatie op de droplet: maakt .env en signer.env met willekeurige geheimen,
-# genereert het panel-sleutelpaar en bouwt het image. Draai vanuit de repo-root: ./deploy/setup.sh
+# Eerste installatie: maakt .env en signer.env met willekeurige geheimen, genereert het
+# panel-sleutelpaar en bouwt het image. Draai vanuit de repo-root: bash deploy/setup.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,32 +12,28 @@ command -v docker >/dev/null || { echo "Docker ontbreekt." >&2; exit 1; }
 command -v openssl >/dev/null || { echo "openssl ontbreekt." >&2; exit 1; }
 
 read -rp "Domein van het panel (bijv. ocm.nextbuzz.nl): " DOMAIN
-read -rp "E-mailadres voor Let's Encrypt-meldingen: " ACME_EMAIL
 read -rp "E-mailadres van de eerste admin: " ADMIN_EMAIL
 read -rp "IP-adressen die het panel mogen openen (spatie-gescheiden, leeg = iedereen): " ADMIN_IPS
-
 [ -n "$DOMAIN" ] && [ -n "$ADMIN_EMAIL" ] || { echo "Domein en admin-e-mail zijn verplicht." >&2; exit 1; }
+ADMIN_IPS="${ADMIN_IPS:-0.0.0.0/0 ::/0}"
+
+read -rp "E-mailadres voor Let's Encrypt-meldingen: " ACME_EMAIL
 
 APP_KEY="base64:$(openssl rand -base64 32)"
 DB_PASSWORD="$(openssl rand -hex 24)"
 DB_ROOT_PASSWORD="$(openssl rand -hex 24)"
 ADMIN_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)"
 
-echo "Image bouwen (eerste keer duurt een paar minuten)…"
-docker compose build app
-
-KEYS="$(docker run --rm --entrypoint php nb-ocmonitor:latest /var/www/html/artisan ocm:keygen --dotenv)"
-PUBLIC_KEY="$(printf '%s\n' "$KEYS" | sed -n 's/^OCM_PANEL_PUBLIC_KEY=//p')"
-SIGNING_KEY="$(printf '%s\n' "$KEYS" | sed -n 's/^OCM_SIGNING_KEY=//p')"
-[ -n "$PUBLIC_KEY" ] && [ -n "$SIGNING_KEY" ] || { echo "Sleutels genereren mislukt." >&2; exit 1; }
-
 umask 077
-cat > .env <<EOF
-# NB OC Monitor (aangemaakt door deploy/setup.sh op $(date -u +%F)). Bewaar een kopie in de wachtwoordkluis:
-# zonder APP_KEY zijn 2FA-geheimen en koppelcodes in de database niet meer te lezen.
+# Mislukt er onderweg iets, ruim dan de half aangemaakte bestanden op zodat setup opnieuw kan.
+trap 'echo "Setup afgebroken; .env en signer.env verwijderd." >&2; rm -f .env signer.env' ERR
+{
+  echo "# NB OC Monitor (aangemaakt door deploy/setup.sh op $(date -u +%F)). Bewaar een kopie in de wachtwoordkluis:"
+  echo "# zonder APP_KEY zijn 2FA-geheimen en koppelcodes in de database niet meer te lezen."
+  cat <<EOF
 DOMAIN=${DOMAIN}
-ACME_EMAIL=${ACME_EMAIL}
-ADMIN_ALLOW_IPS=${ADMIN_IPS:-0.0.0.0/0 ::/0}
+ACME_EMAIL=${ACME_EMAIL:-}
+ADMIN_ALLOW_IPS=${ADMIN_IPS}
 
 APP_NAME="OC Monitor"
 APP_ENV=production
@@ -66,32 +62,44 @@ CACHE_STORE=database
 QUEUE_CONNECTION=database
 MAIL_MAILER=log
 
-OCM_PANEL_PUBLIC_KEY=${PUBLIC_KEY}
+OCM_PANEL_PUBLIC_KEY=
 OCM_ADMIN_EMAIL=${ADMIN_EMAIL}
 OCM_ADMIN_PASSWORD=${ADMIN_PASSWORD}
 OCM_RESET_ADMIN=0
 OCM_HEARTBEAT_MINUTES=15
 EOF
+} > .env
+chmod 600 .env
 
-cat > signer.env <<EOF
-# ALLEEN voor de signer-container. Nooit delen, nooit in git. Kopie in de wachtwoordkluis.
-OCM_SIGNING_KEY=${SIGNING_KEY}
-EOF
+# Compose controleert bij elke actie of alle env_files bestaan; signer.env wordt hieronder gevuld.
+: > signer.env
+chmod 600 signer.env
 
-chmod 600 .env signer.env
+echo "Image bouwen (eerste keer duurt een paar minuten)…"
+docker compose build app
+
+KEYS="$(docker run --rm --entrypoint php nb-ocmonitor:latest /var/www/html/artisan ocm:keygen --dotenv)"
+PUBLIC_KEY="$(printf '%s\n' "$KEYS" | sed -n 's/^OCM_PANEL_PUBLIC_KEY=//p')"
+SIGNING_KEY="$(printf '%s\n' "$KEYS" | sed -n 's/^OCM_SIGNING_KEY=//p')"
+[ -n "$PUBLIC_KEY" ] && [ -n "$SIGNING_KEY" ] || { echo "Sleutels genereren mislukt." >&2; rm -f .env signer.env; exit 1; }
+
+sed -i "s|^OCM_PANEL_PUBLIC_KEY=.*|OCM_PANEL_PUBLIC_KEY=${PUBLIC_KEY}|" .env
+printf '# ALLEEN voor de signer-container. Nooit delen, nooit in git. Kopie in de wachtwoordkluis.\nOCM_SIGNING_KEY=%s\n' "$SIGNING_KEY" > signer.env
+chmod 600 signer.env
+trap - ERR
 
 cat <<EOF
 
-Klaar. Start het panel met:
+Klaar. Start OC Monitor met:
 
   docker compose up -d --build
+EOF
+cat <<EOF
 
-Daarna: https://${DOMAIN}
+Open https://${DOMAIN}
   E-mail:     ${ADMIN_EMAIL}
   Wachtwoord: ${ADMIN_PASSWORD}
   Bij de eerste login stel je tweestapsverificatie in.
 
-Zet .env en signer.env nu in de wachtwoordkluis.
-Wijzig na de eerste login je wachtwoord via Account. Het tijdelijke wachtwoord blijft in .env staan
-(het wordt alleen gebruikt als er nog geen gebruikers zijn, of met OCM_RESET_ADMIN=1).
+Zet .env en signer.env nu in de wachtwoordkluis, en wijzig na de eerste login je wachtwoord via Account.
 EOF
