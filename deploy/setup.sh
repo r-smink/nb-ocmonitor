@@ -11,7 +11,7 @@ fi
 command -v docker >/dev/null || { echo "Docker ontbreekt." >&2; exit 1; }
 command -v openssl >/dev/null || { echo "openssl ontbreekt." >&2; exit 1; }
 
-read -rp "Domein van het panel (bijv. ocm.nextbuzz.nl): " DOMAIN
+read -rp "Domein van het panel (bijv. oc.nextbuzz.nl): " DOMAIN
 read -rp "E-mailadres van de eerste admin: " ADMIN_EMAIL
 read -rp "IP-adressen die het panel mogen openen (spatie-gescheiden, leeg = iedereen): " ADMIN_IPS
 [ -n "$DOMAIN" ] && [ -n "$ADMIN_EMAIL" ] || { echo "Domein en admin-e-mail zijn verplicht." >&2; exit 1; }

@@ -13,7 +13,7 @@ Internet ──443──► caddy ──► app (Laravel, nginx + php-fpm)
 ## Wat je nodig hebt
 
 - Een DigitalOcean-account.
-- Een (sub)domein waarvan je de DNS beheert, bijvoorbeeld `ocm.nextbuzz.nl`.
+- Een (sub)domein waarvan je de DNS beheert, bijvoorbeeld `oc.nextbuzz.nl`.
 - Een SSH-sleutel op je eigen computer.
 - De code van deze repository. Zet hem bij voorkeur in een **privé** GitHub-repo. Rsync vanaf je eigen computer kan ook (zie stap 4).
 
@@ -31,7 +31,7 @@ Noteer het IP-adres van de droplet.
 
 ## 2. DNS
 
-Maak bij je DNS-provider een **A-record** voor het domein naar het IP van de droplet, en een **AAAA-record** als de droplet IPv6 heeft. Controleer met `dig +short ocm.nextbuzz.nl`. Caddy kan pas een certificaat aanvragen als de DNS klopt.
+Maak bij je DNS-provider een **A-record** voor het domein naar het IP van de droplet, en een **AAAA-record** als de droplet IPv6 heeft. Controleer met `dig +short oc.nextbuzz.nl`. Caddy kan pas een certificaat aanvragen als de DNS klopt.
 
 ## 3. Droplet beveiligen
 
@@ -111,11 +111,11 @@ Alles vanaf hier doe je als `deploy` (`ssh deploy@<ip>`).
      IdentitiesOnly yes
    EOF
    chmod 600 ~/.ssh/config
-   ssh -T git@github.com     # "Hi <organisatie>/nb-ocmonitor! You've successfully authenticated…"
+   ssh -T git@github.com     # "Hi r-smink/nb-ocmonitor! You've successfully authenticated…"
    ```
 4. Clone de repo:
    ```bash
-   git clone git@github.com:<organisatie>/nb-ocmonitor.git /opt/nb-ocmonitor
+   git clone git@github.com:r-smink/nb-ocmonitor.git /opt/nb-ocmonitor
    cd /opt/nb-ocmonitor
    ```
 

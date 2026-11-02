@@ -73,7 +73,7 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      DOMAIN: ${DOMAIN:?Zet DOMAIN in .env, bijv. ocm.nextbuzz.nl}
+      DOMAIN: ${DOMAIN:?Zet DOMAIN in .env, bijv. oc.nextbuzz.nl}
       ACME_EMAIL: ${ACME_EMAIL:-}
       ADMIN_ALLOW_IPS: ${ADMIN_ALLOW_IPS:-0.0.0.0/0 ::/0}
     volumes:
