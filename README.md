@@ -25,7 +25,7 @@ docker compose up -d --build
 ```bash
 php -d extension=sodium protocol/tests/run.php                           # protocol (46)
 php -d extension=sodium client-plugin/nb-ocmonitor-client/tests/run.php  # plugin-kern (34)
-cd panel && php artisan test                                              # panel (64)
+cd panel && php artisan test                                              # panel (67)
 php scripts/sync-protocol.php --check                                     # plugin-kopie van het protocol actueel?
 ```
 

@@ -328,7 +328,7 @@
     @endif
   @endif
 
-  @if ($site->isPaired())
+  @if ($site->isPaired() && \App\Ocm\Menu::enabled('pagespeed'))
     <div class="panel">
       <div class="panel-head">
         <h3>PageSpeed</h3>
@@ -512,7 +512,7 @@
     </div>
   @endif
 
-  @if ($site->isPaired())
+  @if ($site->isPaired() && \App\Ocm\Menu::enabled('wp-users'))
     <div class="panel">
       <div class="panel-head">
         <h3>WordPress-gebruikers</h3><span class="badge">{{ $wpUsers->count() }}</span>

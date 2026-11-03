@@ -99,6 +99,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::put('/account/wachtwoord', [AccountController::class, 'updatePassword'])->name('account.password');
 
     Route::middleware('can:manage-users')->group(function () {
+        Route::get('/instellingen', [\App\Http\Controllers\SettingsController::class, 'show'])->name('settings.show');
+        Route::put('/instellingen', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
         Route::get('/gebruikers', [UserController::class, 'index'])->name('users.index');
         Route::post('/gebruikers', [UserController::class, 'store'])->name('users.store');
         Route::put('/gebruikers/{user}', [UserController::class, 'update'])->name('users.update');

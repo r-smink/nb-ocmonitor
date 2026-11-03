@@ -16,7 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Alleen Caddy (in hetzelfde Docker-netwerk) kan de app bereiken.
         $middleware->trustProxies(at: '*');
-        $middleware->web(append: [SecurityHeaders::class]);
+        $middleware->web(append: [SecurityHeaders::class, \App\Http\Middleware\MenuItemEnabled::class]);
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('dashboard'));
     })

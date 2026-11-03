@@ -17,6 +17,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Instellingen uit het panel (Instellingen) over de waarden uit .env heen.
+        \App\Ocm\AppSettings::apply();
+
         Gate::define('manage-sites', fn (User $user): bool => $user->canManageSites());
         Gate::define('manage-users', fn (User $user): bool => $user->isAdmin());
 
