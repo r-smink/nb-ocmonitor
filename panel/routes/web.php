@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\UpdateController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WpUserController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -53,6 +54,13 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/klanten/{customer}/updates', [CustomerController::class, 'startUpdates'])->name('customers.updates')->can('manage-sites')->middleware('throttle:20,1');
     Route::match(['get', 'post'], '/klanten/{customer}/rapport/bekijken', [CustomerController::class, 'report'])->name('customers.report')->middleware('throttle:30,1');
     Route::post('/klanten/{customer}/rapport', [CustomerController::class, 'sendReport'])->name('customers.report.send')->can('manage-sites')->middleware('throttle:10,1');
+
+    Route::get('/wp-gebruikers', [WpUserController::class, 'index'])->name('wp-users.index');
+    Route::post('/wp-gebruikers/verversen', [WpUserController::class, 'refresh'])->name('wp-users.refresh')->can('manage-sites')->middleware('throttle:10,1');
+    Route::post('/wp-gebruikers/2fa', [WpUserController::class, 'twoFactor'])->name('wp-users.two-factor')->can('manage-sites')->middleware('throttle:10,1');
+    Route::post('/sites/{site}/2fa', [WpUserController::class, 'twoFactor'])->name('sites.two-factor')->can('manage-sites')->middleware('throttle:20,1');
+    Route::post('/sites/{site}/wp-gebruikers/{userId}', [WpUserController::class, 'action'])->whereNumber('userId')->name('wp-users.action')->can('manage-sites')->middleware('throttle:30,1');
+    Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
 
     Route::get('/rapporten', [ReportController::class, 'index'])->name('reports.index');
     Route::put('/rapporten', [ReportController::class, 'update'])->name('reports.update')->can('manage-sites');

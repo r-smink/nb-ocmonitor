@@ -8,6 +8,7 @@ use NextBuzz\OcMonitor\Client\CommandContext;
 use NextBuzz\OcMonitor\Client\CommandError;
 use NextBuzz\OcMonitor\Client\CommandRegistry;
 use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
+use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 
@@ -143,6 +144,7 @@ final class SiteCommands
                 'users_can_register' => (bool) get_option('users_can_register'),
                 'default_role' => (string) get_option('default_role'),
                 'login_security' => LoginSecurity::summary(),
+                'two_factor' => TwoFactor::disabledByConstant() ? 'disabled' : TwoFactor::mode(),
                 'file_mods_allowed' => wp_is_file_mod_allowed('nb_ocm_updates'),
                 'plugin_version' => NB_OCM_VERSION,
             ],

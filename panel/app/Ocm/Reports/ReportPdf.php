@@ -128,6 +128,8 @@ final class ReportPdf
         $now = \Carbon\CarbonImmutable::now();
         $site = fn (string $name, string $url) => [
             'name' => $name, 'url' => $url, 'wp' => '6.9', 'php' => '8.3.14', 'plugins' => 18, 'themes' => 2, 'https' => true,
+            'uptime' => ['percent' => 99.93, 'checks' => 26000, 'incidents' => 1, 'down_minutes' => 15, 'avg_ms' => 640],
+            'ssl_expires_at' => $now->addDays(64), 'domain_expires_at' => null,
             'updates' => [
                 ['date' => $now->subDays(20), 'kind' => 'Plugin', 'name' => 'Yoast SEO', 'from' => '25.1', 'to' => '25.3', 'ok' => true],
                 ['date' => $now->subDays(20), 'kind' => 'Plugin', 'name' => 'WooCommerce', 'from' => '9.4.1', 'to' => '9.5.0', 'ok' => true],

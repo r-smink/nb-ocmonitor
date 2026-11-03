@@ -9,11 +9,11 @@ namespace NextBuzz\OcMonitor\Client;
  * wijzigingslog en updates altijd aan: een beheerder van de site kan updates vanuit het panel
  * niet meer uitzetten. Wie de koppeling helemaal wil stoppen, ontkoppelt of zet NB_OCM_DISABLED.
  *
- * Nieuwe groepen (bijv. gebruikersbeheer) komen hier als optionele scope bij.
+ * Sinds 0.4.0 ook gebruikersbeheer (users). Nieuwe groepen komen hier bij.
  */
 final class Scopes
 {
-    public const REQUIRED = ['read', 'events', 'updates'];
+    public const REQUIRED = ['read', 'events', 'updates', 'users'];
 
     /** Standaard voor nieuwe koppelingen. */
     public const DEFAULT = self::REQUIRED;

@@ -123,6 +123,11 @@ td .spark { width: 120px; height: 26px; }
 .asset-list { display: grid; gap: 10px; }
 .asset-list .asset { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
 .asset-list .asset b { min-width: 190px; }
+.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.shots figure { margin: 0; display: grid; gap: 6px; }
+.shots figcaption { font-size: var(--text-xs); font-weight: 700; color: var(--text-muted); }
+.shots img { width: 100%; max-height: 520px; object-fit: cover; object-position: top; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+@media (max-width: 900px) { .shots { grid-template-columns: 1fr; } }
 .asset-list input[type="file"] { max-width: 260px; font-size: var(--text-xs); }
 @media (max-width: 900px) { .cal > div { min-height: 64px; } .cal-item { font-size: 10px; } }
 .table-wrap.scroll-lg { max-height: 720px; overflow-y: auto; }

@@ -82,6 +82,30 @@
         <dt>PHP</dt><dd>{{ $site->php_version ?? '–' }}</dd>
         <dt>Plugin</dt><dd>{{ $site->plugin_version ?? '–' }}</dd>
         <dt>Laatst gezien</dt><dd>{{ $site->last_seen_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? '–' }}</dd>
+        <dt>Uptime (30 dagen)</dt>
+        <dd>
+          @if ($site->uptime_state === 'down')<span class="badge sec">offline{{ $site->down_since ? ' sinds ' . $site->down_since->timezone('Europe/Amsterdam')->format('d-m H:i') : '' }}</span>@endif
+          {{ $uptime['percent'] !== null ? number_format($uptime['percent'], 2, ',', '') . '%' : 'nog geen metingen' }}
+          @if ($uptime['incidents'] > 0)<span class="muted">· {{ $uptime['incidents'] }} storing(en), {{ $uptime['down_minutes'] }} min</span>@endif
+          @if ($site->response_ms)<span class="muted">· {{ $site->response_ms }} ms</span>@endif
+        </dd>
+        <dt>SSL</dt>
+        <dd>
+          @if ($site->ssl_expires_at)
+            <span @class(['issue-text', 'warn' => $site->ssl_expires_at->lt(now()->addDays(14)), 'crit' => $site->ssl_expires_at->lt(now()->addDays(3))])>tot {{ $site->ssl_expires_at->format('d-m-Y') }}</span>
+            <span class="muted">{{ $site->ssl_issuer }}</span>
+          @endif
+          @if ($site->ssl_error)<span class="issue-text crit">{{ $site->ssl_error }}</span>@endif
+          @if (!$site->ssl_expires_at && !$site->ssl_error)–@endif
+        </dd>
+        <dt>Domein</dt>
+        <dd>
+          @if ($site->domain_expires_at)
+            <span @class(['issue-text', 'warn' => $site->domain_expires_at->lt(now()->addDays(30))])>verloopt {{ $site->domain_expires_at->format('d-m-Y') }}</span>
+          @else
+            <span class="muted">{{ $site->domain_error ?? '–' }}</span>
+          @endif
+        </dd>
         <dt>Inventaris</dt><dd>{{ $site->inventory_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? '–' }}</dd>
         <dt>Gekoppeld</dt><dd>{{ $site->paired_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? 'nee' }}</dd>
         <dt>Site-sleutel</dt><dd class="mono">{{ $site->key_id ?? '–' }}</dd>
@@ -133,6 +157,23 @@
       <div class="alert warn mt">Bijwerken vanuit het panel kan hier niet: {{ $updatesBlocked }}.</div>
     @endif
 
+    @php($clientUpdate = $updates->get('client:nb-ocmonitor-client'))
+    @if ($clientUpdate)
+      <div class="alert warn">
+        Client-plugin {{ $clientUpdate['from'] }} → {{ $clientUpdate['to'] }} beschikbaar (ondertekende release).
+        @if ($canUpdate)
+          @if (in_array('nb-ocmonitor-client', $queued['client'] ?? [], true))
+            <span class="state idle">in wachtrij</span>
+          @else
+            <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline">
+              @csrf
+              <input type="hidden" name="type" value="client">
+              <button class="btn small" type="submit">Client-plugin bijwerken</button>
+            </form>
+          @endif
+        @endif
+      </div>
+    @endif
     @if (!empty($inventory['core']['update']) || (int) ($inventory['translations_pending'] ?? 0) > 0)
       <div class="panel">
         <div class="panel-head">
@@ -339,6 +380,67 @@
           <h4 class="mt">Trend prestaties mobiel</h4>
           @include('partials.spark', ['values' => $pagespeedHistory, 'class' => 'wide'])
         @endif
+      @endif
+    </div>
+  @endif
+
+  @if ($visual)
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Visuele controle na updates</h3>
+        <span class="hint">{{ $visual->created_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}</span>
+        @if ($visual->status === 'done')
+          <span @class(['badge', 'sec' => $visual->changed(), 'ok' => !$visual->changed()])>{{ number_format($visual->diff_percent, 1, ',', '') }}% veranderd</span>
+        @else
+          <span class="state idle">{{ ['before' => 'screenshot vooraf…', 'updating' => 'updates lopen…', 'skipped' => 'overgeslagen'][$visual->status] ?? $visual->status }}</span>
+        @endif
+        @can('manage-sites')
+          @if ($visual->changed() && !$visual->reviewed_at)
+            <div class="right">
+              <form method="POST" action="{{ route('sites.visual.review', [$site, $visual]) }}" class="inline">@csrf<button class="btn ghost small" type="submit">Bekeken, in orde</button></form>
+            </div>
+          @endif
+        @endcan
+      </div>
+      @if ($visual->error)<p class="note">{{ $visual->error }}</p>@endif
+      @if ($visual->before_image || $visual->after_image)
+        <div class="shots">
+          @foreach (['before_image' => 'Voor', 'after_image' => 'Na', 'diff_image' => 'Verschil'] as $field => $label)
+            @if ($visual->{$field})
+              <figure><figcaption>{{ $label }}</figcaption><img src="data:image/jpeg;base64,{{ $visual->{$field} }}" alt="{{ $label }} de updates" loading="lazy"></figure>
+            @endif
+          @endforeach
+        </div>
+        <p class="note mt">Screenshots via Google PageSpeed Insights (desktop). Wisselende inhoud zoals sliders of cookiebanners geeft ook verschil; controleer bij een hoog percentage de site zelf.</p>
+      @endif
+    </div>
+  @endif
+
+  @if ($site->isPaired())
+    <div class="panel">
+      <div class="panel-head">
+        <h3>WordPress-gebruikers</h3><span class="badge">{{ $wpUsers->count() }}</span>
+        @if ($site->wp_users_at)<span class="hint">opgehaald {{ $site->wp_users_at->diffForHumans() }}</span>@endif
+        @can('manage-sites')
+          @if ($site->usersBlockedReason() === null)
+            <div class="right">
+              <form method="POST" action="{{ route('sites.two-factor', $site) }}" class="row-actions">
+                @csrf
+                <label class="hint" for="tfa-mode">2FA afdwingen</label>
+                <select id="tfa-mode" name="mode" class="w-auto">
+                  @foreach (\App\Http\Controllers\WpUserController::TWO_FACTOR_MODES as $mode => $label)<option value="{{ $mode }}" @selected((($site->wp_users ?? [])['two_factor_mode'] ?? 'off') === $mode)>{{ $label }}</option>@endforeach
+                </select>
+                <button class="btn ghost small" type="submit">Opslaan</button>
+              </form>
+            </div>
+          @endif
+        @endcan
+      </div>
+      @if ($reason = $site->usersBlockedReason())
+        <p class="muted">{{ $reason }}.</p>
+      @else
+        @if (!empty(($site->wp_users ?? [])['two_factor_disabled']))<p class="note">2FA staat op de site uit via NB_OCM_DISABLE_2FA in wp-config.php.</p>@endif
+        @include('partials.wp-users-table', ['rows' => $wpUsers, 'showSite' => false])
       @endif
     </div>
   @endif

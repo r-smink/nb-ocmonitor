@@ -18,6 +18,7 @@ final class Updates
         'theme' => 'update.theme',
         'core' => 'update.core',
         'translations' => 'update.translations',
+        'client' => 'plugin.self_update',
     ];
 
     private const ARG_NAMES = ['plugin' => 'plugins', 'theme' => 'themes'];
@@ -40,18 +41,28 @@ final class Updates
             if ((int) (($site->inventory ?? [])['translations_pending'] ?? 0) === 0) {
                 return 0;
             }
-            $job = JobQueue::enqueue($site, $command, [], $user);
+            $job = self::enqueue($site, $command, [], $user);
             Activity::log('updates_requested', ['job_id' => $job->job_id, 'type' => $type], $site, $user);
 
             return 1;
         }
 
         $available = collect($site->availableUpdates())->where('type', $type)->keyBy('id');
+        if ($type === 'client') {
+            $release = PluginRelease::offerFor($site->plugin_version);
+            if ($release === null || in_array('nb-ocmonitor-client', self::queuedIds($site)['client'] ?? [], true)) {
+                return 0;
+            }
+            $job = self::enqueue($site, $command, ['version' => $release['version'], 'sha256' => $release['sha256'], 'signature' => $release['signature']], $user, false);
+            Activity::log('updates_requested', ['job_id' => $job->job_id, 'type' => $type, 'to' => $release['version']], $site, $user);
+
+            return 1;
+        }
         if ($type === 'core') {
             if (!$available->has('wordpress')) {
                 return 0;
             }
-            $job = JobQueue::enqueue($site, $command, [], $user);
+            $job = self::enqueue($site, $command, [], $user);
             Activity::log('updates_requested', ['job_id' => $job->job_id, 'type' => $type, 'to' => $available['wordpress']['to']], $site, $user);
 
             return 1;
@@ -63,7 +74,7 @@ final class Updates
             ->values();
 
         foreach ($ids->chunk(max(1, min(10, (int) config('ocm.updates.chunk_size')))) as $chunk) {
-            $job = JobQueue::enqueue($site, $command, [self::ARG_NAMES[$type] => $chunk->values()->all()], $user, false);
+            $job = self::enqueue($site, $command, [self::ARG_NAMES[$type] => $chunk->values()->all()], $user, false);
             Activity::log('updates_requested', [
                 'job_id' => $job->job_id,
                 'type' => $type,
@@ -72,6 +83,23 @@ final class Updates
         }
 
         return $ids->count();
+    }
+
+    /**
+     * Update-job aanmaken. Met visuele controle wachten de jobs even tot de screenshot vooraf er is.
+     *
+     * @param array<string, mixed> $args
+     */
+    private static function enqueue(Site $site, string $command, array $args, ?User $user, bool $deduplicate = true): SiteJob
+    {
+        $visual = Visual::enabled();
+        $hold = $visual && !\App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'updating')->exists();
+        $job = JobQueue::enqueue($site, $command, $args, $user, $deduplicate, $hold ? Visual::holdUntil() : null);
+        if ($visual) {
+            Visual::attach($site, $job);
+        }
+
+        return $job;
     }
 
     /**
@@ -101,6 +129,7 @@ final class Updates
                 $ids = match ($type) {
                     'core' => ['wordpress'],
                     'translations' => ['translations'],
+                    'client' => ['nb-ocmonitor-client'],
                     default => array_values((array) (($job->args ?? [])[self::ARG_NAMES[$type]] ?? [])),
                 };
                 $result[$job->site_id][$type] = array_merge($result[$job->site_id][$type] ?? [], $ids);

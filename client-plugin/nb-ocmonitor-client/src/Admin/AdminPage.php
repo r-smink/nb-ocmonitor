@@ -10,6 +10,7 @@ use NextBuzz\OcMonitor\Client\OptionFailureLog;
 use NextBuzz\OcMonitor\Client\PairingService;
 use NextBuzz\OcMonitor\Client\Security\ClientIp;
 use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
+use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 use NextBuzz\OcMonitor\Client\Settings;
 
 /**
@@ -60,6 +61,10 @@ final class AdminPage
             'xmlrpc' => (string) ($post['nb_ocm_xmlrpc'] ?? ''),
             'hide_users' => !empty($post['nb_ocm_hide_users']),
         ]);
+        $twoFactor = TwoFactor::setMode((string) ($post['nb_ocm_two_factor'] ?? 'off'));
+        if ($twoFactor['from'] !== $twoFactor['to']) {
+            $this->recorder->record('ocm.two_factor_changed', 'two_factor', $twoFactor['from'], $twoFactor['to']);
+        }
         if ($change['from'] !== $change['to']) {
             $this->recorder->record('ocm.login_security_changed', 'login_security', self::describe($change['from']), self::describe($change['to']));
         }
@@ -151,6 +156,12 @@ final class AdminPage
             '<tr><th scope="row">Gebruikersnamen afschermen</th><td><label><input type="checkbox" name="nb_ocm_hide_users" value="1"%s> Voor bezoekers die niet zijn ingelogd: geen gebruikerslijst via de REST API (<code>/wp-json/wp/v2/users</code>), geen <code>?author=1</code> en geen gebruikers in de sitemap.</label></td></tr>',
             $c['hide_users'] ? ' checked' : ''
         );
+        echo '<tr><th scope="row"><label for="nb_ocm_two_factor">Tweestapsverificatie afdwingen</label></th><td><select id="nb_ocm_two_factor" name="nb_ocm_two_factor">';
+        foreach (TwoFactor::MODES as $mode => $label) {
+            printf('<option value="%s"%s>%s</option>', esc_attr($mode), selected(TwoFactor::mode(), $mode, false), esc_html($label));
+        }
+        echo '</select><p class="description">Wie al een 2FA-plugin gebruikt (Two Factor, Wordfence, WP 2FA) merkt niets. Anderen krijgen na het wachtwoord een code per e-mail; controleer dus of de site mail kan versturen. Noodstop: <code>define(\'NB_OCM_DISABLE_2FA\', true);</code> in wp-config.php.'
+            . (TwoFactor::disabledByConstant() ? ' <strong>Staat nu uit via NB_OCM_DISABLE_2FA.</strong>' : '') . '</p></td></tr>';
         echo '</tbody></table>';
         submit_button('Inlogbeveiliging opslaan', 'secondary');
         echo '</form>';
@@ -209,7 +220,7 @@ final class AdminPage
             submit_button('Koppelen');
             echo '</form>';
         } else {
-            echo '<h2>Vanuit het panel</h2><p>Het panel kan de site uitlezen, het wijzigingslog ophalen en plugins, thema\'s, vertalingen en WordPress bijwerken. Alleen updates die WordPress zelf aanbiedt; het panel kan geen eigen pakketten sturen. Wil je dat stoppen, ontkoppel de site of zet de noodstop.</p>';
+            echo '<h2>Vanuit het panel</h2><p>Het panel kan de site uitlezen, het wijzigingslog ophalen, plugins, thema\'s, vertalingen en WordPress bijwerken (alleen wat WordPress zelf aanbiedt), deze plugin bijwerken naar een release die met de release-sleutel van Next Buzz is ondertekend, en beheerders blokkeren, uitloggen, terugzetten of een wachtwoordreset laten doen. Het panel kan geen gebruikers aanmaken, geen wachtwoorden kiezen en geen eigen code sturen. Wil je dat stoppen, ontkoppel de site of zet de noodstop.</p>';
         }
 
         $this->renderLoginSecurity();

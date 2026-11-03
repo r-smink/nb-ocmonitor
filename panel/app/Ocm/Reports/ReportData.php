@@ -45,7 +45,7 @@ final class ReportData
             ->whereBetween('occurred_at', [$start, $end])->orderBy('occurred_at')->get()->groupBy('site_id');
         $pagespeed = PagespeedResult::latestPerSite();
 
-        $siteData = $sites->map(fn (Site $site) => self::site($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $start))->all();
+        $siteData = $sites->map(fn (Site $site) => self::site($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $start, $end))->all();
 
         $runs = $customer->runs()->with('doneBy')->whereBetween('due_on', [$start->toDateString(), $end->toDateString()])->orderBy('due_on')->get()
             ->map(fn (MaintenanceRun $r) => ['date' => $r->due_on, 'done_at' => $r->done_at, 'by' => $r->doneBy?->name, 'notes' => $r->notes])->all();
@@ -72,7 +72,7 @@ final class ReportData
      * @param Collection<string, PagespeedResult> $pagespeed
      * @return array<string, mixed>
      */
-    private static function site(Site $site, Collection $events, Collection $pagespeed, CarbonImmutable $start): array
+    private static function site(Site $site, Collection $events, Collection $pagespeed, CarbonImmutable $start, CarbonImmutable $end): array
     {
         $inventory = $site->inventory ?? [];
         $names = [];
@@ -128,6 +128,9 @@ final class ReportData
             'plugins' => count((array) ($inventory['plugins'] ?? [])),
             'themes' => count((array) ($inventory['themes'] ?? [])),
             'https' => $inventory['environment']['https'] ?? null,
+            'uptime' => \App\Ocm\Monitoring\Monitor::stats($site, $start, $end),
+            'ssl_expires_at' => $site->ssl_expires_at,
+            'domain_expires_at' => $site->domain_expires_at,
             'updates' => $updates,
             'pending' => array_map(fn ($u) => ['kind' => ['core' => 'WordPress', 'plugin' => 'Plugin', 'theme' => 'Thema'][$u['type']], 'name' => $u['name'], 'from' => $u['from'], 'to' => $u['to']], $site->availableUpdates()),
             'security' => [

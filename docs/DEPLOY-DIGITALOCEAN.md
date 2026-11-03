@@ -150,6 +150,10 @@ Beide bestanden krijgen rechten 600. **Zet ze direct in de wachtwoordkluis.** Ze
 
 Optioneel: zet voor PageSpeed een API-sleutel in `.env` (`OCM_PAGESPEED_API_KEY`). Maak die aan in Google Cloud (API's → PageSpeed Insights API → Inloggegevens) en beperk de sleutel tot die ene API. Zonder sleutel werkt het ook, maar met een laag quotum. De scheduler-container meet elke site eens per `OCM_PAGESPEED_INTERVAL_DAYS` dagen (standaard 7).
 
+Monitoring: de scheduler controleert elke 5 minuten de homepage van elke site, het SSL-certificaat twee keer per dag en de domeinregistratie (RDAP) wekelijks. Visuele controle bij updates werkt alleen met `OCM_PAGESPEED_API_KEY`; uitzetten met `OCM_VISUAL_CHECKS=false`, drempel met `OCM_VISUAL_THRESHOLD` (standaard 15%).
+
+Nieuwe versie van de client-plugin: maak lokaal `php scripts/release-plugin.php` (de release-sleutel staat alleen op je eigen computer, in `~/.nb-ocm/`), commit `client-plugin/dist/` en deploy. Sites met 0.4.0 of nieuwer krijgen de update dan aangeboden onder Updates → OC-plugin. **Bewaar de release-sleutel ook in een wachtwoordkluis**: zonder die sleutel kunnen sites niet meer via het panel bijgewerkt worden.
+
 Voor klantrapporten per e-mail: zet de `MAIL_*`-regels in `.env` (SMTP van je mailprovider) en voer `docker compose up -d --force-recreate` uit. Zonder SMTP blijft `MAIL_MAILER=log` staan: rapporten bekijken en downloaden werkt dan wel, versturen schrijft de mail alleen naar het log. Logo's, achtergronden en fonts voor de rapporten staan in de database en zitten dus in de gewone backup.
 
 ## 6. Starten

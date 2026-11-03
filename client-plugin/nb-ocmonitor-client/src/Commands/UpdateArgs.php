@@ -43,6 +43,34 @@ final class UpdateArgs
     }
 
     /**
+     * Zelf bijwerken: alleen een versienummer, de sha256 en de release-handtekening. De URL bepaalt
+     * de plugin zelf (de panel-URL van de koppeling), zodat het panel geen ander adres kan opgeven.
+     *
+     * @param array<string, mixed> $args {version: string, sha256: string, signature: string}
+     * @return array{version: string, sha256: string, signature: string}
+     */
+    public static function selfUpdate(array $args): array
+    {
+        if (array_diff(array_keys($args), ['version', 'sha256', 'signature']) !== []) {
+            throw new CommandError('bad_request', 'Alleen version, sha256 en signature zijn toegestaan');
+        }
+        $version = $args['version'] ?? null;
+        $sha = $args['sha256'] ?? null;
+        $signature = $args['signature'] ?? null;
+        if (!is_string($version) || preg_match('/^\d{1,3}\.\d{1,3}\.\d{1,3}$/D', $version) !== 1) {
+            throw new CommandError('bad_request', 'Ongeldige versie');
+        }
+        if (!is_string($sha) || preg_match('/^[a-f0-9]{64}$/D', $sha) !== 1) {
+            throw new CommandError('bad_request', 'Ongeldige sha256');
+        }
+        if (!is_string($signature) || preg_match('/^[A-Za-z0-9_-]{86}$/D', $signature) !== 1) {
+            throw new CommandError('bad_request', 'Ongeldige handtekening');
+        }
+
+        return ['version' => $version, 'sha256' => $sha, 'signature' => $signature];
+    }
+
+    /**
      * @param array<string, mixed> $args
      * @return string[]
      */

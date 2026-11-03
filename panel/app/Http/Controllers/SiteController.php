@@ -116,6 +116,9 @@ class SiteController extends Controller
             'updatesBlocked' => $site->updatesBlockedReason(),
             'pagespeed' => PagespeedResult::latestPerSite()->get($site->id, collect()),
             'lastUpdated' => self::lastUpdated($site),
+            'uptime' => \App\Ocm\Monitoring\Monitor::stats($site, \Carbon\CarbonImmutable::now()->subDays(30), \Carbon\CarbonImmutable::now()),
+            'visual' => $site->visualChecks()->latest('id')->first(),
+            'wpUsers' => collect((array) (($site->wp_users ?? [])['users'] ?? []))->map(fn ($u) => $u + ['site' => $site]),
             // Alleen een fout tonen als dat per strategie nog de nieuwste meting is.
             'pagespeedLastError' => $site->pagespeedResults()->where('measured_at', '>=', now()->subDay())->orderByDesc('id')->get()
                 ->unique('strategy')->first(fn (PagespeedResult $r) => $r->error !== null),
@@ -151,6 +154,15 @@ class SiteController extends Controller
             });
 
         return $map;
+    }
+
+    public function reviewVisual(Request $request, Site $site, \App\Models\VisualCheck $check): RedirectResponse
+    {
+        abort_unless($check->site_id === $site->id, 404);
+        $check->update(['reviewed_at' => now(), 'reviewed_by' => $request->user()->id]);
+        Activity::log('visual_reviewed', ['check' => $check->id, 'percent' => $check->diff_percent], $site);
+
+        return back()->with('status', 'Visuele controle gemarkeerd als bekeken.');
     }
 
     public function regeneratePairing(Site $site): RedirectResponse

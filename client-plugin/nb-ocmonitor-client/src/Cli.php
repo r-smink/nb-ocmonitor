@@ -8,6 +8,7 @@ use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 use NextBuzz\OcMonitor\Client\Security\ClientIp;
 use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
+use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 
 /**
  * Beheer van NB OC Monitor via WP-CLI.
@@ -103,6 +104,9 @@ final class Cli
      * [--allow=<ip>]
      * : IP-adres of CIDR-range toevoegen aan de uitzonderingen.
      *
+     * [--two-factor=<off|admins|editors>]
+     * : Tweestapsverificatie afdwingen (code per e-mail voor wie geen 2FA-plugin heeft).
+     *
      * [--unlock]
      * : Alle blokkades opheffen.
      *
@@ -127,6 +131,15 @@ final class Cli
                 $changed = true;
             }
         }
+        if (isset($assoc['two-factor'])) {
+            if (!isset(TwoFactor::MODES[(string) $assoc['two-factor']])) {
+                \WP_CLI::error('Kies off, admins of editors');
+                return;
+            }
+            $change = TwoFactor::setMode((string) $assoc['two-factor']);
+            $this->recorder->record('ocm.two_factor_changed', 'two_factor', $change['from'], $change['to'], 'success', ['via' => 'wp-cli']);
+            $this->recorder->flush();
+        }
         if (isset($assoc['allow'])) {
             if (!ClientIp::isValidRange((string) $assoc['allow'])) {
                 \WP_CLI::error('Ongeldig IP-adres of range: ' . $assoc['allow']);
@@ -142,6 +155,7 @@ final class Cli
                 $this->recorder->flush();
             }
         }
+        \WP_CLI::log(sprintf('%-16s %s', 'two_factor', TwoFactor::disabledByConstant() ? 'uit (NB_OCM_DISABLE_2FA)' : TwoFactor::mode()));
         foreach (LoginSecurity::summary() as $key => $value) {
             \WP_CLI::log(sprintf('%-16s %s', $key, is_bool($value) ? ($value ? 'aan' : 'uit') : (string) $value));
         }

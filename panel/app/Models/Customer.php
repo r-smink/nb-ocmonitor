@@ -21,6 +21,7 @@ class Customer extends Model
     /** Onderdelen die in het rapport kunnen staan, in deze volgorde. */
     public const REPORT_SECTIONS = [
         'summary' => 'Samenvatting',
+        'uptime' => 'Beschikbaarheid (uptime)',
         'maintenance' => 'Onderhoudsmomenten en notities',
         'updates' => 'Uitgevoerde updates',
         'pending' => 'Openstaande updates',
@@ -30,7 +31,7 @@ class Customer extends Model
         'changes' => 'Overige wijzigingen',
     ];
 
-    public const DEFAULT_SECTIONS = ['summary', 'maintenance', 'updates', 'security', 'pagespeed'];
+    public const DEFAULT_SECTIONS = ['summary', 'uptime', 'maintenance', 'updates', 'security', 'pagespeed'];
 
     protected $fillable = ['name', 'contact_name', 'email', 'report_cc', 'phone', 'notes', 'visits_per_year', 'contract_start', 'report_enabled', 'report_sections'];
 

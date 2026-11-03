@@ -21,6 +21,8 @@ class CleanupCommand extends Command
         $stale = SiteJob::query()->where('status', 'running')->where('started_at', '<', now()->subMinutes(15))
             ->update(['status' => 'failed', 'error' => 'Signer gestopt tijdens uitvoering', 'finished_at' => now()]);
 
+        \App\Models\UptimeCheck::query()->where('checked_at', '<', now()->subDays((int) config('ocm.monitoring.keep_days', 120)))->delete();
+        \App\Models\VisualCheck::query()->where('created_at', '<', now()->subDays(90))->delete();
         $old = SiteJob::query()->whereIn('status', ['done', 'failed', 'rejected'])->where('created_at', '<', now()->subDays(30))->delete();
 
         $expired = Site::query()->whereNull('public_key')->whereNotNull('pairing_secret')->where('pairing_expires_at', '<', now())

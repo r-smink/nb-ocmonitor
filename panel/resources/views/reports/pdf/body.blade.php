@@ -33,6 +33,25 @@
 @foreach ($d['sites'] as $site)
   <div class="site-head">{{ $site['name'] }} <span>· {{ $site['url'] }}</span></div>
 
+  @if ($on('uptime'))
+    <h3>Beschikbaarheid</h3>
+    @if (($site['uptime']['percent'] ?? null) === null)
+      <p class="muted">Nog geen metingen in deze periode.</p>
+    @else
+      <table class="data">
+        <tr><th>Uptime</th><th>Storingen</th><th>Totaal offline</th><th>Gem. reactietijd</th><th>SSL-certificaat geldig tot</th></tr>
+        <tr>
+          <td><b class="{{ $site['uptime']['percent'] >= 99.9 ? 'ok' : ($site['uptime']['percent'] >= 99 ? '' : 'bad') }}">{{ number_format($site['uptime']['percent'], 2, ',', '') }}%</b></td>
+          <td>{{ $site['uptime']['incidents'] }}</td>
+          <td>{{ $site['uptime']['down_minutes'] }} min</td>
+          <td>{{ $site['uptime']['avg_ms'] !== null ? number_format($site['uptime']['avg_ms'] / 1000, 2, ',', '') . ' s' : '–' }}</td>
+          <td>{{ $site['ssl_expires_at'] ? $site['ssl_expires_at']->format('d-m-Y') : '–' }}</td>
+        </tr>
+      </table>
+      <p class="small muted">De homepage wordt elke 5 minuten gecontroleerd. Een storing telt vanaf twee mislukte controles op rij.</p>
+    @endif
+  @endif
+
   @if ($on('updates'))
     <h3>Uitgevoerde updates</h3>
     @if ($site['updates'] === [])

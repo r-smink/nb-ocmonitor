@@ -21,12 +21,14 @@ RUN install-php-extensions intl gd \
     && apt-get update && apt-get install -y --no-install-recommends qpdf && rm -rf /var/lib/apt/lists/*
 
 ENV OCM_CLIENT_PLUGIN_PATH=/var/www/client-plugin/nb-ocmonitor-client \
+    OCM_CLIENT_PLUGIN_DIST=/var/www/client-plugin/dist \
     PHP_OPCACHE_ENABLE=1 \
     AUTORUN_ENABLED=false \
     LOG_CHANNEL=stderr
 
 COPY --chown=www-data:www-data --from=vendor /build/panel /var/www/html
 COPY --chown=www-data:www-data client-plugin/nb-ocmonitor-client /var/www/client-plugin/nb-ocmonitor-client
+COPY --chown=www-data:www-data client-plugin/dist /var/www/client-plugin/dist
 COPY --chmod=755 deploy/entrypoint.d/ /etc/entrypoint.d/
 
 USER www-data

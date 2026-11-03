@@ -56,7 +56,11 @@ final class SiteIssues
         $ids = $paired->pluck('id')->all();
         $events = collect();
         $pagespeed = collect();
+        $visual = collect();
         if ($ids !== []) {
+            $visual = \App\Models\VisualCheck::query()->whereIn('site_id', $ids)->where('status', 'done')->whereNull('reviewed_at')
+                ->where('after_at', '>=', now()->subDays(7))->orderByDesc('id')
+                ->get(['id', 'site_id', 'status', 'diff_percent', 'after_at', 'reviewed_at'])->unique('site_id')->keyBy('site_id');
             $events = SiteEvent::query()->whereIn('site_id', $ids)
                 ->where('occurred_at', '>=', now()->subDays(self::EVENT_WINDOW_DAYS))
                 ->whereIn('type', self::EVENT_TYPES)
@@ -70,7 +74,7 @@ final class SiteIssues
         }
 
         foreach ($sites as $site) {
-            $site->setIssues(self::forSite($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect())));
+            $site->setIssues(self::forSite($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $visual->get($site->id)));
         }
     }
 
@@ -79,7 +83,7 @@ final class SiteIssues
      * @param Collection<int, PagespeedResult> $pagespeed mobiel, nieuwste eerst
      * @return list<array{level: string, category: string, text: string}>
      */
-    public static function forSite(Site $site, Collection $events, Collection $pagespeed): array
+    public static function forSite(Site $site, Collection $events, Collection $pagespeed, ?\App\Models\VisualCheck $visual = null): array
     {
         if (!$site->isPaired()) {
             return [['level' => 'info', 'category' => 'koppeling', 'text' => $site->pairingIsOpen() ? 'Wacht op koppeling' : 'Koppelcode verlopen']];
@@ -100,6 +104,47 @@ final class SiteIssues
         if ($site->last_seen_at === null || $site->last_seen_at->lt(now()->subMinutes($heartbeat))) {
             $add('warn', 'beschikbaarheid', 'Geen heartbeat sinds ' . ($site->last_seen_at?->diffForHumans() ?? 'koppeling'));
         }
+        if ($site->uptime_state === 'down') {
+            $add('crit', 'beschikbaarheid', 'Website offline' . ($site->down_since ? ' sinds ' . $site->down_since->timezone('Europe/Amsterdam')->format('d-m H:i') : ''));
+        } elseif ($site->response_ms !== null && $site->response_ms > 4000) {
+            $add('info', 'prestaties', 'Trage homepage: ' . number_format($site->response_ms / 1000, 1, ',', '') . ' s');
+        }
+        $sslWarn = (int) config('ocm.monitoring.ssl_warn_days', 14);
+        if ($site->ssl_expires_at !== null) {
+            $days = (int) floor(now()->diffInDays($site->ssl_expires_at, false));
+            if ($days < 0) {
+                $add('crit', 'beveiliging', 'SSL-certificaat is verlopen (' . $site->ssl_expires_at->format('d-m-Y') . ')');
+            } elseif ($days <= 3) {
+                $add('crit', 'beveiliging', "SSL-certificaat verloopt over {$days} dag(en)");
+            } elseif ($days <= $sslWarn) {
+                $add('warn', 'beveiliging', "SSL-certificaat verloopt over {$days} dagen" . ($site->ssl_issuer ? " ({$site->ssl_issuer})" : ''));
+            }
+        }
+        if ($site->ssl_error !== null && str_starts_with($site->url, 'https://')) {
+            $add('crit', 'beveiliging', $site->ssl_error);
+        }
+        if ($site->domain_expires_at !== null) {
+            $days = (int) floor(now()->diffInDays($site->domain_expires_at, false));
+            if ($days < 0) {
+                $add('crit', 'beschikbaarheid', 'Domeinregistratie is verlopen');
+            } elseif ($days <= (int) config('ocm.monitoring.domain_warn_days', 30)) {
+                $add('warn', 'beschikbaarheid', "Domein verloopt over {$days} dagen (" . $site->domain_expires_at->format('d-m-Y') . ')');
+            }
+        }
+        if ($visual !== null && $visual->changed()) {
+            $add('warn', 'updates', 'Homepage zichtbaar veranderd na updates (' . number_format($visual->diff_percent, 0) . '%): controleer de site');
+        }
+        $wpUsers = $site->wp_users ?? null;
+        if (is_array($wpUsers) && is_array($wpUsers['users'] ?? null)) {
+            $admins = collect($wpUsers['users'])->filter(fn ($u) => in_array('administrator', (array) ($u['roles'] ?? []), true) && empty($u['locked']));
+            $without = $admins->filter(fn ($u) => empty($u['two_factor']))->count();
+            if ($without > 0) {
+                $add('warn', 'beveiliging', "{$without} beheerder" . ($without === 1 ? '' : 's') . ' zonder tweestapsverificatie');
+            }
+            if ($admins->count() > 5) {
+                $add('info', 'beveiliging', $admins->count() . ' beheerders: is dat nodig?');
+            }
+        }
         if ($site->event_gap_at !== null) {
             $add('warn', 'beveiliging', 'Gat in wijzigingslog: mogelijk zijn events op de site verwijderd');
         }
@@ -112,7 +157,10 @@ final class SiteIssues
         if (!empty($inventory['core']['update']['version'])) {
             $add('warn', 'updates', 'WordPress ' . $inventory['core']['update']['version'] . ' beschikbaar (nu ' . ($inventory['core']['version'] ?? '?') . ')');
         }
-        $components = collect($site->availableUpdates())->where('type', '!=', 'core');
+        $components = collect($site->availableUpdates())->whereIn('type', ['plugin', 'theme']);
+        if ($client = collect($site->availableUpdates())->firstWhere('type', 'client')) {
+            $add('info', 'updates', 'Client-plugin ' . $client['to'] . ' beschikbaar (nu ' . $client['from'] . ')');
+        }
         if ($components->isNotEmpty()) {
             $plugins = $components->where('type', 'plugin')->count();
             $themes = $components->where('type', 'theme')->count();
@@ -195,6 +243,9 @@ final class SiteIssues
                 }
             } elseif ($site->plugin_version !== null && version_compare($site->plugin_version, '0.3.0', '<')) {
                 $add('info', 'koppeling', 'Client-plugin ' . $site->plugin_version . ': werk bij naar 0.3.0 voor inlogbeveiliging');
+            }
+            if ($site->plugin_version !== null && version_compare($site->plugin_version, '0.4.0', '<')) {
+                $add('info', 'koppeling', 'Client-plugin ' . $site->plugin_version . ': installeer eenmalig 0.4.0 met de hand; daarna werkt hij zichzelf bij');
             }
         }
 

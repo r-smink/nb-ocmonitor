@@ -19,7 +19,11 @@ use NextBuzz\OcMonitor\Client\FailureLog;
 use NextBuzz\OcMonitor\Client\Scopes;
 use NextBuzz\OcMonitor\Client\Security\ClientIp;
 use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
+use NextBuzz\OcMonitor\Client\Security\TrustedDevice;
+use NextBuzz\OcMonitor\Client\Commands\UserArgs;
+use NextBuzz\OcMonitor\Client\Release;
 use NextBuzz\OcMonitor\Client\SiteConfig;
+use NextBuzz\OcMonitor\Protocol\Base64Url;
 use NextBuzz\OcMonitor\Protocol\Canonical;
 use NextBuzz\OcMonitor\Protocol\Headers;
 use NextBuzz\OcMonitor\Protocol\InMemoryNonceStore;
@@ -335,10 +339,10 @@ test('antwoord kan niet voor een ander verzoek gebruikt worden', function () {
 
 // ---------------------------------------------------------------- scopes en update-argumenten
 
-test('scopes: updates staat altijd aan, ook bij oude configuraties zonder updates', function () {
-    check(Scopes::normalize([]) === ['read', 'events', 'updates']);
-    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates']);
-    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates']);
+test('scopes: updates en users staan altijd aan, ook bij oude configuraties', function () {
+    check(Scopes::normalize([]) === ['read', 'events', 'updates', 'users']);
+    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates', 'users']);
+    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates', 'users']);
 });
 
 test('update-command zonder scope updates wordt geweigerd', function () {
@@ -430,6 +434,65 @@ test('inlogbeveiliging: instellingen worden begrensd en ongeldige waarden vallen
     $c = LoginSecurity::normalize(['lockout' => '0', 'max_attempts' => 1, 'lockout_minutes' => 99999, 'xmlrpc' => 'hack', 'allowlist' => "198.51.100.1\nkantoor, 10.0.0.0/8 198.51.100.1"]);
     check($c['lockout'] === false && $c['max_attempts'] === 3 && $c['lockout_minutes'] === 1440 && $c['xmlrpc'] === 'auto');
     check($c['allowlist'] === ['198.51.100.1', '10.0.0.0/8'], json_encode($c['allowlist']));
+});
+
+// ---------------------------------------------------------------- release, gebruikers en 2FA
+
+test('release: alleen een zip met een geldige release-handtekening wordt geaccepteerd', function () {
+    $release = KeyPair::generate();
+    $zip = 'PK' . random_bytes(200);
+    $sig = Base64Url::encode(sodium_crypto_sign_detached($zip, Base64Url::decode($release->secretKeyB64())));
+    $pub = Base64Url::encode($release->publicKey());
+    check(Release::verify($zip, $sig, $pub));
+    check(!Release::verify($zip . 'x', $sig, $pub), 'gewijzigde zip');
+    check(!Release::verify($zip, $sig), 'andere sleutel (de echte release-sleutel)');
+    check(!Release::verify($zip, 'onzin', $pub));
+    check(strlen(Base64Url::decode(Release::PUBLIC_KEY)) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES);
+});
+
+test('self-update-argumenten: geen URL, alleen versie, sha256 en handtekening', function () {
+    $ok = ['version' => '0.4.1', 'sha256' => str_repeat('a', 64), 'signature' => str_repeat('A', 86)];
+    check(UpdateArgs::selfUpdate($ok) === $ok);
+    foreach ([$ok + ['url' => 'https://evil.example/x.zip'], ['version' => '../1'] + $ok, ['sha256' => 'abc'] + $ok, ['signature' => 'x'] + $ok] as $i => $bad) {
+        $threw = false;
+        try {
+            UpdateArgs::selfUpdate($bad);
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'geval ' . $i);
+    }
+});
+
+test('gebruikers-argumenten: nooit naar administrator, alleen geldige ids en modes', function () {
+    check(UserArgs::userId(['user_id' => 7]) === 7);
+    check(UserArgs::demote(['user_id' => 7, 'role' => 'editor']) === ['user_id' => 7, 'role' => 'editor']);
+    check(UserArgs::twoFactorMode(['mode' => 'admins']) === 'admins');
+    foreach ([
+        static function () { UserArgs::userId(['user_id' => '7']); },
+        static function () { UserArgs::userId(['user_id' => 0]); },
+        static function () { UserArgs::userId(['user_id' => 7, 'role' => 'x']); },
+        static function () { UserArgs::demote(['user_id' => 7, 'role' => 'administrator']); },
+        static function () { UserArgs::twoFactorMode(['mode' => 'all']); },
+    ] as $i => $call) {
+        $threw = false;
+        try {
+            $call();
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'geval ' . $i);
+    }
+});
+
+test('vertrouwd apparaat: verloopt, en vervalt na een nieuw wachtwoord', function () {
+    $hash = '$P$Babcdefghijklmnopqrstuvwxyz012';
+    $cookie = TrustedDevice::make(5, $hash, 2000, 'geheim');
+    check(TrustedDevice::valid($cookie, 5, $hash, 1000, 'geheim'));
+    check(!TrustedDevice::valid($cookie, 5, $hash, 2001, 'geheim'), 'verlopen');
+    check(!TrustedDevice::valid($cookie, 6, $hash, 1000, 'geheim'), 'andere gebruiker');
+    check(!TrustedDevice::valid($cookie, 5, '$P$Bzzzzzzzzzzzzzzzzzzzzzzzzzz', 1000, 'geheim'), 'nieuw wachtwoord');
+    check(!TrustedDevice::valid('9999.' . str_repeat('0', 64), 5, $hash, 1000, 'geheim'), 'vervalste mac');
 });
 
 foreach ($failures as $failure) {

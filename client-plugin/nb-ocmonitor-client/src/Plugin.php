@@ -7,6 +7,8 @@ namespace NextBuzz\OcMonitor\Client;
 use NextBuzz\OcMonitor\Client\Admin\AdminPage;
 use NextBuzz\OcMonitor\Client\Commands\SiteCommands;
 use NextBuzz\OcMonitor\Client\Commands\UpdateCommands;
+use NextBuzz\OcMonitor\Client\Commands\UserCommands;
+use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 use NextBuzz\OcMonitor\Client\Events\EventPusher;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
@@ -34,11 +36,15 @@ final class Plugin
         $recorder = new EventRecorder($store, new EventPusher(), new VersionSnapshot());
         $recorder->register();
         (new LoginSecurity($recorder))->register();
+        (new TwoFactor($recorder))->register();
+        $users = new UserCommands($recorder);
+        $users->register();
         Cron::register($recorder, $store);
 
         $commands = new CommandRegistry();
         (new SiteCommands($store, $recorder))->registerOn($commands);
         (new UpdateCommands($recorder))->registerOn($commands);
+        $users->registerOn($commands);
 
         add_action('rest_api_init', static function () use ($commands, $recorder): void {
             (new RestController(static function () use ($commands, $recorder): Endpoint {
