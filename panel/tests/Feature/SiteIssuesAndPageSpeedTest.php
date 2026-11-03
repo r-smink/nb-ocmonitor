@@ -164,6 +164,12 @@ class SiteIssuesAndPageSpeedTest extends TestCase
         // Na een fout niet meteen opnieuw.
         $this->artisan('ocm:pagespeed')->assertSuccessful();
         Http::assertSentCount(2);
+        $this->get('/sites/' . $site->site_id)->assertSee('Laatste meting mislukt');
+
+        // Een geslaagde meting daarna verbergt de oude fout.
+        $site->pagespeedResults()->create(['strategy' => 'mobile', 'performance' => 70, 'measured_at' => now()]);
+        $site->pagespeedResults()->create(['strategy' => 'desktop', 'performance' => 71, 'measured_at' => now()]);
+        $this->get('/sites/' . $site->site_id)->assertDontSee('Laatste meting mislukt');
     }
 
     public function test_score_drop_is_reported(): void

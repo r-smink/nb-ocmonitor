@@ -26,7 +26,12 @@ final class ResultProcessor
             'site.info' => $this->info($site, $result),
             'site.inventory' => $this->inventory($site, $result),
             'events.pull' => $this->events($site, $job, $result),
-            'update.plugin', 'update.theme', 'update.core', 'update.translations' => $this->updated($site, $job, $result),
+            'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update' => $this->updated($site, $job, $result),
+            'users.list' => $this->users($site, $result),
+            'db.cleanup' => $this->cleaned($site, $job, $result),
+            'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
+            'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
+            'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
             default => null,
         };
     }
@@ -47,6 +52,58 @@ final class ResultProcessor
         if ($problems !== []) {
             Activity::log('update_problem', ['job_id' => $job->job_id, 'command' => $job->command, 'items' => $problems], $site);
         }
+    }
+
+    /**
+     * Alleen bekende velden bewaren, ingekort; de lijst komt van de site en is dus niet te vertrouwen.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function users(Site $site, array $result): void
+    {
+        $text = fn ($v, int $max = 190) => is_scalar($v) ? mb_substr((string) $v, 0, $max) : '';
+        $users = collect((array) ($result['users'] ?? []))->filter(fn ($u) => is_array($u))->take(500)->map(fn (array $u) => [
+            'id' => (int) ($u['id'] ?? 0),
+            'login' => $text($u['login'] ?? '', 60),
+            'email' => $text($u['email'] ?? ''),
+            'name' => $text($u['name'] ?? '', 120),
+            'roles' => array_values(array_filter(array_map(fn ($r) => is_string($r) && preg_match('/^[a-z0-9_-]{1,40}$/', $r) ? $r : null, (array) ($u['roles'] ?? [])))),
+            'registered' => is_int($u['registered'] ?? null) ? $u['registered'] : null,
+            'last_login' => is_int($u['last_login'] ?? null) ? $u['last_login'] : null,
+            'locked' => !empty($u['locked']),
+            'two_factor' => is_string($u['two_factor'] ?? null) ? $text($u['two_factor'], 30) : null,
+            'sessions' => (int) ($u['sessions'] ?? 0),
+        ])->filter(fn ($u) => $u['id'] > 0)->values()->all();
+        $mode = (string) ($result['two_factor_mode'] ?? 'off');
+
+        $site->wp_users = [
+            'users' => $users,
+            'total' => (int) ($result['total'] ?? count($users)),
+            'two_factor_mode' => in_array($mode, ['off', 'admins', 'editors'], true) ? $mode : 'off',
+            'two_factor_disabled' => !empty($result['two_factor_disabled_by_constant']),
+        ];
+        $site->wp_users_at = now();
+        $site->save();
+    }
+
+    /** @param array<string, mixed> $result */
+    private function cleaned(Site $site, SiteJob $job, array $result): void
+    {
+        $deleted = array_map('intval', array_filter((array) ($result['deleted'] ?? []), 'is_numeric'));
+        Activity::log('cleanup_done', ['job_id' => $job->job_id, 'deleted' => $deleted, 'more' => !empty($result['more'])], $site, $job->requester);
+        if (is_array($result['stats'] ?? null)) {
+            $inventory = $site->inventory ?? [];
+            $inventory['cleanup'] = $result['stats'];
+            $site->inventory = $inventory;
+            $site->save();
+        }
+    }
+
+    /** @param array<string, mixed> $result */
+    private function userAction(Site $site, SiteJob $job, array $result): void
+    {
+        Activity::log('wp_user_action_done', ['job_id' => $job->job_id, 'command' => $job->command, 'args' => $job->args], $site, $job->requester);
+        JobQueue::enqueue($site, 'users.list');
     }
 
     /**

@@ -17,9 +17,13 @@
     <nav>
       <a href="{{ route('dashboard') }}" @class(['active' => request()->routeIs('dashboard')])>Overzicht</a>
       <a href="{{ route('sites.index') }}" @class(['active' => request()->routeIs('sites.*')])>Sites</a>
+      <a href="{{ route('customers.index') }}" @class(['active' => request()->routeIs('customers.*')])>Klanten</a>
       @php($navUpdates = (int) \App\Models\Site::query()->whereNotNull('public_key')->sum('updates_count'))
       <a href="{{ route('updates.index') }}" @class(['active' => request()->routeIs('updates.*')])>Updates @if ($navUpdates > 0)<span class="nav-badge">{{ $navUpdates }}</span>@endif</a>
       <a href="{{ route('pagespeed.index') }}" @class(['active' => request()->routeIs('pagespeed.*')])>PageSpeed</a>
+      <a href="{{ route('versions.index') }}" @class(['active' => request()->routeIs('versions.*')])>Versies</a>
+      <a href="{{ route('wp-users.index') }}" @class(['active' => request()->routeIs('wp-users.*')])>WP-gebruikers</a>
+      <a href="{{ route('reports.index') }}" @class(['active' => request()->routeIs('reports.*')])>Rapporten</a>
       <a href="{{ route('activity.index') }}" @class(['active' => request()->routeIs('activity.*')])>Activiteit</a>
       @can('manage-users')
         <a href="{{ route('users.index') }}" @class(['active' => request()->routeIs('users.*')])>Gebruikers</a>

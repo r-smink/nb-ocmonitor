@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace NextBuzz\OcMonitor\Client;
 
 use NextBuzz\OcMonitor\Client\Admin\AdminPage;
+use NextBuzz\OcMonitor\Client\Backup\BackupCommands;
 use NextBuzz\OcMonitor\Client\Commands\SiteCommands;
+use NextBuzz\OcMonitor\Client\Commands\CleanupCommands;
 use NextBuzz\OcMonitor\Client\Commands\UpdateCommands;
+use NextBuzz\OcMonitor\Client\Commands\UserCommands;
+use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 use NextBuzz\OcMonitor\Client\Events\EventPusher;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 use NextBuzz\OcMonitor\Client\Events\VersionSnapshot;
+use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 
 final class Plugin
 {
@@ -32,11 +37,18 @@ final class Plugin
         $store = new EventStore();
         $recorder = new EventRecorder($store, new EventPusher(), new VersionSnapshot());
         $recorder->register();
+        (new LoginSecurity($recorder))->register();
+        (new TwoFactor($recorder))->register();
+        $users = new UserCommands($recorder);
+        $users->register();
         Cron::register($recorder, $store);
 
         $commands = new CommandRegistry();
         (new SiteCommands($store, $recorder))->registerOn($commands);
         (new UpdateCommands($recorder))->registerOn($commands);
+        $users->registerOn($commands);
+        (new BackupCommands($recorder))->registerOn($commands);
+        (new CleanupCommands($recorder))->registerOn($commands);
 
         add_action('rest_api_init', static function () use ($commands, $recorder): void {
             (new RestController(static function () use ($commands, $recorder): Endpoint {

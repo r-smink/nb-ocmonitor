@@ -13,11 +13,11 @@ use Illuminate\View\View;
 
 class UpdateController extends Controller
 {
-    public const TYPES = ['plugin' => 'Plugins', 'theme' => 'Thema\'s', 'core' => 'WordPress'];
+    public const TYPES = ['plugin' => 'Plugins', 'theme' => 'Thema\'s', 'core' => 'WordPress', 'client' => 'OC-plugin'];
 
     public function index(Request $request): View
     {
-        $sites = Site::query()->whereNotNull('public_key')->orderBy('name')->get();
+        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
         $open = Updates::openJobs($sites);
 
         $rows = collect();
@@ -37,12 +37,13 @@ class UpdateController extends Controller
             'component' => (string) $request->query('component', ''),
             'site' => (string) $request->query('site', ''),
             'q' => trim((string) $request->query('q', '')),
+            'tag' => $request->integer('tag') ?: null,
         ];
         $base = $rows->filter(fn ($r) => ($filters['type'] === null || $r['type'] === $filters['type'])
             && ($filters['site'] === '' || $r['site']->site_id === $filters['site'])
             && ($filters['q'] === '' || Str::contains(Str::lower($r['name'] . ' ' . $r['slug'] . ' ' . $r['site']->name . ' ' . $r['site']->host), Str::lower($filters['q']))));
         $filtered = $base->filter(fn ($r) => $filters['component'] === '' || $r['type'] . ':' . $r['slug'] === $filters['component'])
-            ->sortBy(fn ($r) => ['core' => 0, 'plugin' => 1, 'theme' => 2][$r['type']] . Str::lower($r['name'] . ' ' . $r['site']->name))
+            ->sortBy(fn ($r) => ['core' => 0, 'client' => 1, 'plugin' => 2, 'theme' => 3][$r['type']] . Str::lower($r['name'] . ' ' . $r['site']->name))
             ->values();
 
         return view('updates.index', [
@@ -51,7 +52,7 @@ class UpdateController extends Controller
             'allComponents' => $this->components($rows),
             'sites' => $sites->filter(fn (Site $s) => $rows->contains(fn ($r) => $r['site']->id === $s->id))->values(),
             'filters' => $filters,
-            'counts' => ['plugin' => $rows->where('type', 'plugin')->count(), 'theme' => $rows->where('type', 'theme')->count(), 'core' => $rows->where('type', 'core')->count()],
+            'counts' => ['plugin' => $rows->where('type', 'plugin')->count(), 'theme' => $rows->where('type', 'theme')->count(), 'core' => $rows->where('type', 'core')->count(), 'client' => $rows->where('type', 'client')->count()],
             'jobs' => SiteJob::query()->with(['site', 'requester'])->whereIn('command', array_values(Updates::COMMANDS))->orderByDesc('id')->limit(25)->get(),
             'hasOpenJobs' => $open !== [],
             'types' => self::TYPES,
@@ -104,7 +105,7 @@ class UpdateController extends Controller
     public function site(Request $request, Site $site): RedirectResponse
     {
         $data = $request->validate([
-            'type' => ['required', 'in:plugin,theme,core,translations'],
+            'type' => ['required', 'in:plugin,theme,core,translations,client'],
             'ids' => ['array', 'max:500'],
             'ids.*' => ['string', 'max:255'],
             'all' => ['boolean'],

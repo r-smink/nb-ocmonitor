@@ -150,6 +150,20 @@ Beide bestanden krijgen rechten 600. **Zet ze direct in de wachtwoordkluis.** Ze
 
 Optioneel: zet voor PageSpeed een API-sleutel in `.env` (`OCM_PAGESPEED_API_KEY`). Maak die aan in Google Cloud (API's → PageSpeed Insights API → Inloggegevens) en beperk de sleutel tot die ene API. Zonder sleutel werkt het ook, maar met een laag quotum. De scheduler-container meet elke site eens per `OCM_PAGESPEED_INTERVAL_DAYS` dagen (standaard 7).
 
+Backups vóór updates (DigitalOcean Spaces):
+
+1. Maak in DigitalOcean een Space aan (Spaces Object Storage), in dezelfde regio als de droplet, met **File Listing: Restricted** en zonder CDN.
+2. Maak onder API → Spaces Keys een sleutel aan, liefst beperkt tot deze ene Space (Limited access, Read/Write/Delete).
+3. Zet in `.env`: `OCM_SPACES_KEY`, `OCM_SPACES_SECRET`, `OCM_SPACES_REGION` (bijv. `ams3`) en `OCM_SPACES_BUCKET`, en voer `docker compose up -d --force-recreate` uit.
+
+Sites met client-plugin 0.5.0 of nieuwer maken dan vóór elke update een backup van de database en de onderdelen die bijgewerkt worden. Die is versleuteld met een sleutel die alleen op de site zelf staat (de site uploadt rechtstreeks via een tijdelijke link; de Spaces-sleutel komt nooit op een klantsite). Een backup blijft 7 dagen staan, of tot je de visuele controle op "Bekeken, in orde" zet. Mislukt de backup, dan gaan de updates niet door.
+
+Monitoring: de scheduler controleert elke 5 minuten de homepage van elke site, het SSL-certificaat twee keer per dag en de domeinregistratie (RDAP) wekelijks. Visuele controle bij updates werkt alleen met `OCM_PAGESPEED_API_KEY`; uitzetten met `OCM_VISUAL_CHECKS=false`, drempel met `OCM_VISUAL_THRESHOLD` (standaard 15%).
+
+Nieuwe versie van de client-plugin: maak lokaal `php scripts/release-plugin.php` (de release-sleutel staat alleen op je eigen computer, in `~/.nb-ocm/`), commit `client-plugin/dist/` en deploy. Sites met 0.4.0 of nieuwer krijgen de update dan aangeboden onder Updates → OC-plugin. **Bewaar de release-sleutel ook in een wachtwoordkluis**: zonder die sleutel kunnen sites niet meer via het panel bijgewerkt worden.
+
+Voor klantrapporten per e-mail: zet de `MAIL_*`-regels in `.env` (SMTP van je mailprovider) en voer `docker compose up -d --force-recreate` uit. Zonder SMTP blijft `MAIL_MAILER=log` staan: rapporten bekijken en downloaden werkt dan wel, versturen schrijft de mail alleen naar het log. Logo's, achtergronden en fonts voor de rapporten staan in de database en zitten dus in de gewone backup.
+
 ## 6. Starten
 
 ```bash

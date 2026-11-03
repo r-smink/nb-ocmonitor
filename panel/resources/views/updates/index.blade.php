@@ -26,6 +26,7 @@
     </nav>
     <form class="filters" method="GET" action="{{ route('updates.index') }}">
       @if ($filters['type'])<input type="hidden" name="type" value="{{ $filters['type'] }}">@endif
+      @include('partials.tag-select')
       <select name="component" data-autosubmit aria-label="Plugin of thema">
         <option value="">Alle plugins en thema's</option>
         @foreach ($allComponents as $component)

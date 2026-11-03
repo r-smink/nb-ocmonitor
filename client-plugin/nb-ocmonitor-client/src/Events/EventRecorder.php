@@ -60,7 +60,6 @@ final class EventRecorder
         add_action('delete_user', [$this, 'onUserDeleted'], 10, 3);
         add_action('profile_update', [$this, 'onProfileUpdated'], 10, 2);
         add_action('wp_login', [$this, 'onLogin'], 10, 2);
-        add_action('wp_login_failed', [$this, 'onLoginFailed']);
 
         foreach (self::CRITICAL_OPTIONS as $option) {
             add_action('update_option_' . $option, [$this, 'onCriticalOptionUpdated'], 10, 3);
@@ -137,7 +136,10 @@ final class EventRecorder
         return count($changes);
     }
 
-    /** Uurlijks via cron: mislukte logins als samenvatting per uur, niet per poging. */
+    /**
+     * Uurlijks via cron: mislukte logins als samenvatting per uur, niet per poging. De bron is
+     * "cron" omdat de cron-taak de samenvatting wegschrijft; de pogingen zelf staan per kanaal in data.
+     */
     public function flushFailedLoginSummaries(int $now): void
     {
         $counts = get_option(self::FAILED_LOGINS_OPTION);
@@ -145,11 +147,16 @@ final class EventRecorder
             return;
         }
         $currentHour = intdiv($now, HOUR_IN_SECONDS);
-        foreach ($counts as $hour => $count) {
+        foreach ($counts as $hour => $entry) {
             if ((int) $hour < $currentHour) {
+                // Tot 0.2.0 was een uur alleen een getal.
+                $entry = is_array($entry) ? $entry : ['count' => (int) $entry];
                 $this->record('login.failed_summary', '', null, null, 'success', [
                     'hour_start' => (int) $hour * HOUR_IN_SECONDS,
-                    'count' => (int) $count,
+                    'count' => (int) ($entry['count'] ?? 0),
+                    'channels' => array_map('intval', (array) ($entry['channels'] ?? [])),
+                    'locked' => (int) ($entry['locked'] ?? 0),
+                    'blocked' => (int) ($entry['blocked'] ?? 0),
                 ], 'cron');
                 unset($counts[$hour]);
             }
@@ -355,12 +362,25 @@ final class EventRecorder
         }
     }
 
-    public function onLoginFailed(): void
+    /**
+     * Door LoginSecurity bij elke mislukte login aangeroepen.
+     *
+     * @param string $channel wp-login, xmlrpc, rest of other
+     * @param bool $lockedNow deze poging leidde tot een blokkade van het IP
+     * @param bool $blocked het IP was al geblokkeerd
+     */
+    public function countFailedLogin(string $channel, bool $lockedNow, bool $blocked): void
     {
         $counts = get_option(self::FAILED_LOGINS_OPTION);
         $counts = is_array($counts) ? $counts : [];
         $hour = (string) intdiv(time(), HOUR_IN_SECONDS);
-        $counts[$hour] = ($counts[$hour] ?? 0) + 1;
+        $entry = $counts[$hour] ?? [];
+        $entry = is_array($entry) ? $entry : ['count' => (int) $entry];
+        $entry['count'] = (int) ($entry['count'] ?? 0) + 1;
+        $entry['channels'][$channel] = (int) ($entry['channels'][$channel] ?? 0) + 1;
+        $entry['locked'] = (int) ($entry['locked'] ?? 0) + ($lockedNow ? 1 : 0);
+        $entry['blocked'] = (int) ($entry['blocked'] ?? 0) + ($blocked ? 1 : 0);
+        $counts[$hour] = $entry;
         update_option(self::FAILED_LOGINS_OPTION, $counts, false);
     }
 

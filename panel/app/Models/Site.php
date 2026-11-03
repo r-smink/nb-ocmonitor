@@ -4,17 +4,18 @@ namespace App\Models;
 
 use App\Ocm\SiteIssues;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use NextBuzz\OcMonitor\Protocol\Base64Url;
 
 class Site extends Model
 {
     /** Gelijk aan Scopes::DEFAULT in de plugin; site.info geeft de werkelijke scopes terug. */
-    public const DEFAULT_SCOPES = ['read', 'events', 'updates'];
+    public const DEFAULT_SCOPES = ['read', 'events', 'updates', 'users', 'maintenance'];
 
-    protected $fillable = ['site_id', 'name', 'client_name', 'url', 'host'];
+    protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host'];
 
-    protected $hidden = ['pairing_secret', 'inventory'];
+    protected $hidden = ['pairing_secret', 'inventory', 'wp_users'];
 
     /** @var list<array{level: string, category: string, text: string}>|null */
     private ?array $issuesCache = null;
@@ -31,12 +32,49 @@ class Site extends Model
             'inventory_at' => 'datetime',
             'event_gap_at' => 'datetime',
             'pagespeed_requested_at' => 'datetime',
+            'down_since' => 'datetime',
+            'uptime_checked_at' => 'datetime',
+            'ssl_expires_at' => 'datetime',
+            'ssl_checked_at' => 'datetime',
+            'domain_expires_at' => 'datetime',
+            'domain_checked_at' => 'datetime',
+            'wp_users' => 'array',
+            'wp_users_at' => 'datetime',
         ];
     }
 
     public function getRouteKeyName(): string
     {
         return 'site_id';
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function tags(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class)->orderBy('name');
+    }
+
+    /** Eigen tags plus die van de klant. @return \Illuminate\Support\Collection<int, Tag> */
+    public function allTags(): \Illuminate\Support\Collection
+    {
+        return $this->tags->concat($this->customer?->tags ?? collect())->unique('id')->sortBy('name')->values();
+    }
+
+    /** Database opschonen vanuit het panel: plugin 0.6.0+ en scope maintenance. */
+    public function cleanupBlockedReason(): ?string
+    {
+        if (!$this->isPaired()) {
+            return 'Site is niet gekoppeld';
+        }
+        if ($this->plugin_version === null || version_compare($this->plugin_version, '0.6.0', '<')) {
+            return 'Vanaf client-plugin 0.6.0 (deze site: ' . ($this->plugin_version ?? '?') . ')';
+        }
+
+        return $this->hasScope('maintenance') ? null : 'Opschonen staat niet aan op de site';
     }
 
     public function events(): HasMany
@@ -47,6 +85,24 @@ class Site extends Model
     public function jobs(): HasMany
     {
         return $this->hasMany(SiteJob::class);
+    }
+
+    public function visualChecks(): HasMany
+    {
+        return $this->hasMany(VisualCheck::class);
+    }
+
+    /** Gebruikersbeheer vanuit het panel: plugin 0.4.0+ en scope users. */
+    public function usersBlockedReason(): ?string
+    {
+        if (!$this->isPaired()) {
+            return 'Site is niet gekoppeld';
+        }
+        if ($this->plugin_version === null || version_compare($this->plugin_version, '0.4.0', '<')) {
+            return 'Client-plugin ' . ($this->plugin_version ?? '?') . ' kan nog geen gebruikers beheren (minimaal 0.4.0)';
+        }
+
+        return $this->hasScope('users') ? null : 'Gebruikersbeheer staat niet aan op de site';
     }
 
     public function pagespeedResults(): HasMany
@@ -117,6 +173,10 @@ class Site extends Model
                     'name' => (string) ($theme['name'] ?? $theme['stylesheet']), 'from' => (string) ($theme['version'] ?? ''),
                     'to' => (string) $theme['update']['version'], 'active' => !empty($theme['active'])];
             }
+        }
+        if ($release = \App\Ocm\PluginRelease::offerFor($this->plugin_version)) {
+            $items[] = ['type' => 'client', 'id' => 'nb-ocmonitor-client', 'slug' => 'nb-ocmonitor-client', 'name' => 'NB OC Monitor Client',
+                'from' => (string) $this->plugin_version, 'to' => $release['version'], 'active' => true];
         }
 
         return $items;

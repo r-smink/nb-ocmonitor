@@ -9,3 +9,7 @@ Schedule::command('ocm:queue-checks --inventory')->dailyAt('03:15')->withoutOver
 Schedule::command('ocm:cleanup')->hourly();
 // PageSpeed draait in de scheduler zelf (alleen de publieke URL gaat naar Google; geen signer nodig).
 Schedule::command('ocm:pagespeed')->everyFiveMinutes()->withoutOverlapping(30);
+Schedule::command('ocm:monitor')->everyFiveMinutes()->withoutOverlapping(10);
+Schedule::command('ocm:visual')->everyMinute()->withoutOverlapping(15);
+Schedule::command('ocm:backups')->everyMinute()->withoutOverlapping(10);
+Schedule::command('ocm:queue-checks --users')->dailyAt('03:45')->withoutOverlapping();

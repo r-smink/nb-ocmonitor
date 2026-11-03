@@ -16,7 +16,7 @@ final class JobQueue
     /**
      * @param array<string, mixed> $args
      */
-    public static function enqueue(Site $site, string $command, array $args = [], ?User $requestedBy = null, bool $deduplicate = true): SiteJob
+    public static function enqueue(Site $site, string $command, array $args = [], ?User $requestedBy = null, bool $deduplicate = true, ?\DateTimeInterface $availableAt = null): SiteJob
     {
         if ($deduplicate) {
             $existing = SiteJob::query()
@@ -36,7 +36,7 @@ final class JobQueue
             'args' => $args,
             'status' => 'pending',
             'requested_by' => $requestedBy?->id,
-            'available_at' => now(),
+            'available_at' => $availableAt ?? now(),
         ]);
     }
 }

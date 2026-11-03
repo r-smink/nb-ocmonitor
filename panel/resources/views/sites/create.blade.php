@@ -8,7 +8,13 @@
       <form class="form" method="POST" action="{{ route('sites.store') }}">
         @csrf
         <label>Naam<input name="name" value="{{ old('name') }}" required maxlength="120" autofocus></label>
-        <label>Klant (optioneel)<input name="client_name" value="{{ old('client_name') }}" maxlength="120"></label>
+        <label>Klant (optioneel)
+          <select name="customer_id">
+            <option value="">Geen klant</option>
+            @foreach ($customers as $customer)<option value="{{ $customer->id }}" @selected((int) old('customer_id', request('klant')) === $customer->id)>{{ $customer->name }}</option>@endforeach
+          </select>
+        </label>
+        @can('manage-sites')<p class="note">Nieuwe klant? <a href="{{ route('customers.create') }}">Voeg eerst de klant toe</a>.</p>@endcan
         <label>URL van de site<input name="url" type="url" value="{{ old('url') }}" placeholder="https://www.klant.nl" required maxlength="255"></label>
         <p class="note">Gebruik exact de URL uit Instellingen → Algemeen → Siteadres (home_url). Alleen die host kan de koppelcode gebruiken.</p>
         <div class="actions"><button class="btn" type="submit">Aanmaken en koppelcode tonen <span class="arrow" aria-hidden="true">→</span></button></div>

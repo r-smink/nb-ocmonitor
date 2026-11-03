@@ -8,3 +8,6 @@ backups/
 *.pem
 .phpunit.result.cache
 *.zip
+
+# Ondertekende plugin-releases horen wel in git (het panel serveert ze aan de sites)
+!client-plugin/dist/*.zip

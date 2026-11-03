@@ -47,6 +47,20 @@ return [
             'report' => false,
         ],
 
+        // Backups vóór updates: DigitalOcean Spaces (S3-compatibel). Zie docs/DEPLOY-DIGITALOCEAN.md.
+        'backups' => [
+            'driver' => 's3',
+            'key' => env('OCM_SPACES_KEY'),
+            'secret' => env('OCM_SPACES_SECRET'),
+            'region' => env('OCM_SPACES_REGION', 'ams3'),
+            'bucket' => env('OCM_SPACES_BUCKET'),
+            'endpoint' => env('OCM_SPACES_ENDPOINT', 'https://' . env('OCM_SPACES_REGION', 'ams3') . '.digitaloceanspaces.com'),
+            'use_path_style_endpoint' => false,
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -23,12 +23,20 @@
       @endif
     </div>
     <form class="filters" method="GET" action="{{ route('sites.index') }}">
+      @include('partials.tag-select')
+      <select name="indeling" data-autosubmit aria-label="Indeling">
+        <option value="lijst" @selected($layout === 'lijst')>Eén lijst</option>
+        <option value="klant" @selected($layout === 'klant')>Per klant</option>
+        <option value="tag" @selected($layout === 'tag')>Per tag</option>
+      </select>
       <input type="search" name="q" value="{{ $q }}" placeholder="Zoek site of klant…" aria-label="Zoeken">
     </form>
   </div>
 
+  @foreach ($groups as $groupName => $groupSites)
+  @if ($groupName !== '')<h3 class="group-head">{{ $groupName }} <span class="badge">{{ count($groupSites) }}</span></h3>@endif
   <div class="grid">
-    @forelse ($sites as $site)
+    @forelse ($groupSites as $site)
       <a href="{{ route('sites.show', $site) }}" class="tile lvl-{{ $site->level() }}">
         <div class="tile-head">
           <span class="dot"></span>
@@ -39,6 +47,7 @@
             <span class="badge">{{ $site->client_name }}</span>
           @endif
         </div>
+        @include('partials.tags', ['tags' => $site->allTags()])
         <div class="tile-host">{{ $site->host }}</div>
         @php($issues = $site->issues())
         @if ($issues !== [])
@@ -65,4 +74,5 @@
       </div>
     @endforelse
   </div>
+  @endforeach
 @endsection

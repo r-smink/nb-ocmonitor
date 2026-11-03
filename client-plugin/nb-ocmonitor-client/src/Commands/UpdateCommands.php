@@ -8,6 +8,8 @@ use NextBuzz\OcMonitor\Client\CommandContext;
 use NextBuzz\OcMonitor\Client\CommandError;
 use NextBuzz\OcMonitor\Client\CommandRegistry;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
+use NextBuzz\OcMonitor\Client\Release;
+use NextBuzz\OcMonitor\Client\Settings;
 
 /**
  * Updates via de WordPress-upgraders (plan §4.2), scope "updates".
@@ -37,6 +39,7 @@ final class UpdateCommands
         $registry->add('update.theme', 'updates', [$this, 'themes']);
         $registry->add('update.core', 'updates', [$this, 'core']);
         $registry->add('update.translations', 'updates', [$this, 'translations']);
+        $registry->add('plugin.self_update', 'updates', [$this, 'selfUpdate']);
     }
 
     /**
@@ -121,6 +124,69 @@ final class UpdateCommands
         }
 
         return ['items' => $items, 'health_before' => $baseline];
+    }
+
+    /**
+     * Deze plugin zelf bijwerken naar een ondertekende release van het panel. De zip moet de
+     * opgegeven sha256 hebben én ondertekend zijn met de release-sleutel (Release::PUBLIC_KEY).
+     * Daarna dezelfde route als andere plugins: kopie, update, health check, zo nodig terugzetten.
+     *
+     * @param array<string, mixed> $args {version, sha256, signature}
+     * @return array<string, mixed>
+     */
+    public function selfUpdate(array $args, CommandContext $context): array
+    {
+        $release = UpdateArgs::selfUpdate($args);
+        $file = plugin_basename(NB_OCM_FILE);
+        if (version_compare($release['version'], NB_OCM_VERSION, '<=')) {
+            return ['items' => [self::item($file, NB_OCM_VERSION, NB_OCM_VERSION, 'up_to_date', 'Versie ' . NB_OCM_VERSION . ' is al gelijk of nieuwer')]];
+        }
+        $config = Settings::load();
+        if ($config === null) {
+            throw new CommandError('not_paired', 'De site is niet gekoppeld', 409);
+        }
+        $this->prepare();
+
+        $url = rtrim($config->panelUrl, '/') . '/api/plugin/nb-ocmonitor-client-' . $release['version'] . '.zip';
+        $tmp = download_url($url, 120);
+        if (is_wp_error($tmp)) {
+            throw new CommandError('download_failed', 'Download van de release mislukt: ' . $tmp->get_error_message(), 502);
+        }
+        try {
+            $bytes = (string) file_get_contents($tmp);
+            if (!hash_equals($release['sha256'], hash('sha256', $bytes))) {
+                throw new CommandError('checksum_mismatch', 'De gedownloade zip heeft een andere sha256 dan opgegeven', 422);
+            }
+            if (!Release::verify($bytes, $release['signature'])) {
+                $this->recorder->record('plugin.self_update_rejected', $file, NB_OCM_VERSION, $release['version'], 'failed', ['reason' => 'signature']);
+                throw new CommandError('signature_invalid', 'De release is niet ondertekend met de release-sleutel van Next Buzz; update geweigerd', 422);
+            }
+
+            // Het pakket als lokaal bestand aanbieden; WordPress pakt het dan uit zoals een gewone update.
+            $transient = get_site_transient('update_plugins');
+            $transient = is_object($transient) ? $transient : new \stdClass();
+            $transient->response = isset($transient->response) && is_array($transient->response) ? $transient->response : [];
+            $transient->response[$file] = (object) [
+                'slug' => dirname($file), 'plugin' => $file, 'new_version' => $release['version'], 'package' => $tmp, 'url' => $config->panelUrl,
+            ];
+            set_site_transient('update_plugins', $transient);
+
+            $item = $this->updateOne('plugin', $file, NB_OCM_VERSION, WP_PLUGIN_DIR . '/' . dirname($file), $this->healthCheck(), static function () use ($file): array {
+                $skin = new \WP_Ajax_Upgrader_Skin();
+                $result = (new \Plugin_Upgrader($skin))->bulk_upgrade([$file]);
+
+                return [$skin, is_array($result) ? ($result[$file] ?? null) : $result];
+            }, static function () use ($file): ?string {
+                wp_clean_plugins_cache(false);
+                $plugins = get_plugins();
+
+                return isset($plugins[$file]) ? (string) $plugins[$file]['Version'] : null;
+            });
+
+            return ['items' => [$item]];
+        } finally {
+            @unlink($tmp);
+        }
     }
 
     /**

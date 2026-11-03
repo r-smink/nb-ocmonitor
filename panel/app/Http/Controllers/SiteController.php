@@ -29,7 +29,7 @@ class SiteController extends Controller
 
     public function index(Request $request): View
     {
-        $all = Site::query()->orderBy('name')->get();
+        $all = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->orderBy('name')->get(), $request->integer('tag') ?: null);
         SiteIssues::load($all);
         $sites = $all;
         $q = trim((string) $request->query('q', ''));
@@ -44,19 +44,39 @@ class SiteController extends Controller
             $counts[$site->level()]++;
         }
 
-        return view('sites.index', ['sites' => $sites, 'counts' => $counts, 'q' => $q]);
+        // Indeling: één lijst, per klant of per tag.
+        $layout = in_array($request->query('indeling'), ['klant', 'tag'], true) ? (string) $request->query('indeling') : 'lijst';
+        $groups = match ($layout) {
+            'klant' => $sites->groupBy(fn (Site $s) => $s->customer?->name ?? ($s->client_name ?: 'Zonder klant'))->sortKeys()
+                ->sortBy(fn ($g, $name) => $name === 'Zonder klant' ? 1 : 0),
+            'tag' => (function () use ($sites) {
+                $out = [];
+                foreach ($sites as $site) {
+                    $tags = $site->allTags();
+                    foreach ($tags->isEmpty() ? [null] : $tags as $tag) {
+                        $out[$tag?->name ?? 'Zonder tag'][] = $site;
+                    }
+                }
+                ksort($out);
+
+                return collect($out)->map(fn ($list) => collect($list))->sortBy(fn ($g, $name) => $name === 'Zonder tag' ? 1 : 0);
+            })(),
+            default => collect(['' => $sites]),
+        };
+
+        return view('sites.index', ['groups' => $groups, 'sites' => $sites, 'counts' => $counts, 'q' => $q, 'layout' => $layout]);
     }
 
     public function create(): View
     {
-        return view('sites.create', ['pluginVersion' => PluginPackage::version()]);
+        return view('sites.create', ['pluginVersion' => PluginPackage::version(), 'customers' => \App\Models\Customer::query()->orderBy('name')->get(['id', 'name'])]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'client_name' => ['nullable', 'string', 'max:120'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'url' => ['required', 'string', 'max:255', 'url:' . (config('ocm.allow_http_sites') ? 'http,https' : 'https')],
         ], [
             'url.url' => 'Vul een volledige URL in die met https:// begint.',
@@ -76,7 +96,8 @@ class SiteController extends Controller
         $site = new Site([
             'site_id' => 'site_' . Str::lower(Str::random(20)),
             'name' => $data['name'],
-            'client_name' => $data['client_name'] ?? null,
+            'customer_id' => $data['customer_id'] ?? null,
+            'client_name' => isset($data['customer_id']) ? \App\Models\Customer::query()->whereKey($data['customer_id'])->value('name') : null,
             'url' => $url,
             'host' => $host,
         ]);
@@ -91,6 +112,7 @@ class SiteController extends Controller
 
     public function show(Site $site): View
     {
+        $site->load(['tags', 'customer.tags']);
         $pairingCode = null;
         if ($site->pairingIsOpen()) {
             $pairingCode = Pairing::createCode(
@@ -114,10 +136,108 @@ class SiteController extends Controller
             'queued' => Updates::queuedIds($site),
             'updatesBlocked' => $site->updatesBlockedReason(),
             'pagespeed' => PagespeedResult::latestPerSite()->get($site->id, collect()),
-            'pagespeedLastError' => $site->pagespeedResults()->whereNotNull('error')->where('measured_at', '>=', now()->subDay())->latest('measured_at')->first(),
+            'lastUpdated' => self::lastUpdated($site),
+            'uptime' => \App\Ocm\Monitoring\Monitor::stats($site, \Carbon\CarbonImmutable::now()->subDays(30), \Carbon\CarbonImmutable::now()),
+            'visual' => $site->visualChecks()->latest('id')->first(),
+            'backups' => \App\Models\Backup::query()->where('site_id', $site->id)->where(fn ($q) => $q->whereIn('status', ['pending', 'ready', 'restoring'])->orWhere('created_at', '>=', now()->subDays(7)))->latest('id')->limit(10)->get(),
+            'wpUsers' => collect((array) (($site->wp_users ?? [])['users'] ?? []))->map(fn ($u) => $u + ['site' => $site]),
+            // Alleen een fout tonen als dat per strategie nog de nieuwste meting is.
+            'pagespeedLastError' => $site->pagespeedResults()->where('measured_at', '>=', now()->subDay())->orderByDesc('id')->get()
+                ->unique('strategy')->first(fn (PagespeedResult $r) => $r->error !== null),
             'pagespeedHistory' => $site->pagespeedResults()->where('strategy', 'mobile')->whereNull('error')
                 ->where('measured_at', '>=', now()->subDays(120))->orderBy('measured_at')->pluck('performance')->filter(fn ($v) => $v !== null)->values()->all(),
         ]);
+    }
+
+    /**
+     * Wanneer elke plugin en elk thema voor het laatst is bijgewerkt: uit het wijzigingslog, en
+     * anders de bestandsdatum die de plugin (vanaf 0.3.0) in de inventaris meestuurt.
+     *
+     * @return array<string, \Carbon\CarbonInterface>
+     */
+    private static function lastUpdated(Site $site): array
+    {
+        $map = [];
+        foreach (['plugins' => 'file', 'themes' => 'stylesheet'] as $list => $idKey) {
+            foreach ((array) (($site->inventory ?? [])[$list] ?? []) as $item) {
+                if (isset($item[$idKey]) && is_int($item['updated_at'] ?? null)) {
+                    $map[rtrim($list, 's') . ':' . $item[$idKey]] = \Carbon\CarbonImmutable::createFromTimestamp($item['updated_at']);
+                }
+            }
+        }
+        $site->events()->whereIn('type', ['plugin.update', 'plugin.install', 'theme.update', 'theme.install'])->where('result', 'success')
+            ->selectRaw('type, object, max(occurred_at) as at')->groupBy('type', 'object')->get()
+            ->each(function ($row) use (&$map) {
+                $key = strtok($row->type, '.') . ':' . $row->object;
+                $at = \Carbon\CarbonImmutable::parse($row->at);
+                if (!isset($map[$key]) || $at->greaterThan($map[$key])) {
+                    $map[$key] = $at;
+                }
+            });
+
+        return $map;
+    }
+
+    public function reviewVisual(Request $request, Site $site, \App\Models\VisualCheck $check): RedirectResponse
+    {
+        abort_unless($check->site_id === $site->id, 404);
+        $check->update(['reviewed_at' => now(), 'reviewed_by' => $request->user()->id]);
+        \App\Ocm\Backups::deleteForVisualCheck($check);
+        Activity::log('visual_reviewed', ['check' => $check->id, 'percent' => $check->diff_percent], $site);
+
+        return back()->with('status', 'Visuele controle gemarkeerd als bekeken.');
+    }
+
+    public const CLEANUP_ITEMS = [
+        'revisions' => 'Revisies ouder dan 30 dagen',
+        'auto_drafts' => 'Automatische concepten ouder dan 7 dagen',
+        'trash' => 'Prullenbak ouder dan 30 dagen',
+        'spam' => 'Spamreacties',
+        'trashed_comments' => 'Reacties in de prullenbak',
+        'expired_transients' => 'Verlopen transients',
+        'orphan_postmeta' => 'Losse berichtgegevens',
+        'orphan_commentmeta' => 'Losse reactiegegevens',
+    ];
+
+    public function cleanup(Request $request, Site $site): RedirectResponse
+    {
+        $data = $request->validate(['items' => ['required', 'array'], 'items.*' => ['string', \Illuminate\Validation\Rule::in(array_keys(self::CLEANUP_ITEMS))]]);
+        if ($reason = $site->cleanupBlockedReason()) {
+            return back()->withErrors(['cleanup' => $reason]);
+        }
+        if (\App\Models\SiteJob::query()->where('site_id', $site->id)->where('command', 'db.cleanup')->whereIn('status', ['pending', 'running'])->exists()) {
+            return back()->with('status', 'Er staat al een opschoning in de wachtrij.');
+        }
+        \App\Ocm\Updates::queueCleanup($site, array_values(array_unique($data['items'])), $request->user());
+
+        return back()->with('status', 'Opschonen staat in de wachtrij' . (\App\Ocm\Backups::enabled() && \App\Ocm\Backups::supported($site) ? ', na een backup van de database.' : '.'));
+    }
+
+    public function restoreBackup(Request $request, Site $site, \App\Models\Backup $backup): RedirectResponse
+    {
+        abort_unless($backup->site_id === $site->id, 404);
+        $data = $request->validate(['database' => ['nullable', 'boolean'], 'confirm_orders' => ['nullable', 'boolean']]);
+        if ($backup->status !== 'ready' || $backup->deleted_at !== null) {
+            return back()->withErrors(['backup' => 'Deze backup kan niet (meer) teruggezet worden.']);
+        }
+        $parts = ['files'];
+        if (!empty($data['database'])) {
+            if ($backup->woocommerce && empty($data['confirm_orders'])) {
+                return back()->withErrors(['backup' => 'Dit is een webshop: bevestig dat bestellingen en klantgegevens van na de backup verloren gaan.']);
+            }
+            $parts[] = 'db';
+        }
+        \App\Ocm\Backups::restore($backup, $parts, $request->user());
+
+        return back()->with('status', 'Terugzetten van de backup van ' . $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') . ' staat in de wachtrij (' . (in_array('db', $parts, true) ? 'bestanden en database' : 'alleen bestanden') . ').');
+    }
+
+    public function deleteBackup(Site $site, \App\Models\Backup $backup): RedirectResponse
+    {
+        abort_unless($backup->site_id === $site->id, 404);
+        \App\Ocm\Backups::delete($backup, 'handmatig');
+
+        return back()->with('status', 'Backup verwijderd.');
     }
 
     public function regeneratePairing(Site $site): RedirectResponse

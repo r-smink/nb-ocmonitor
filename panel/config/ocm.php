@@ -10,6 +10,9 @@ return [
     // Pad naar de client-plugin-map waaruit de download-zip gebouwd wordt.
     'client_plugin_path' => env('OCM_CLIENT_PLUGIN_PATH', base_path('../client-plugin/nb-ocmonitor-client')),
 
+    // Ondertekende releases (scripts/release-plugin.php). Sites met 0.4.0+ werken zichzelf hiermee bij.
+    'client_plugin_dist' => env('OCM_CLIENT_PLUGIN_DIST', base_path('../client-plugin/dist')),
+
     // Alleen voor lokaal testen: sites via http toestaan.
     'allow_http_sites' => (bool) env('OCM_ALLOW_HTTP_SITES', false),
 
@@ -31,6 +34,31 @@ return [
         'drop_alert_points' => 10,
     ],
 
+    // Uptime, SSL en domein (ocm:monitor in de scheduler).
+    'monitoring' => [
+        'interval_minutes' => 5,
+        'timeout_seconds' => 20,
+        'ssl_warn_days' => 14,
+        'domain_warn_days' => 30,
+        'keep_days' => 120,
+    ],
+
+    // Visuele controle bij updates: screenshots via PageSpeed Insights (alleen met API-sleutel).
+    'visual' => [
+        'enabled' => (bool) env('OCM_VISUAL_CHECKS', true),
+        'threshold_percent' => (float) env('OCM_VISUAL_THRESHOLD', 15),
+        'hold_minutes' => 8,
+        'settle_seconds' => 60,
+    ],
+
+    // Backup vóór updates, in DigitalOcean Spaces (disk "backups" in config/filesystems.php).
+    'backups' => [
+        'enabled' => (bool) env('OCM_BACKUPS', true),
+        'keep_days' => (int) env('OCM_BACKUP_KEEP_DAYS', 7),
+        'link_minutes' => 180,
+        'max_minutes' => 90,
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),
@@ -42,7 +70,9 @@ return [
     'signer' => [
         'allowed_commands' => [
             'site.info', 'site.inventory', 'events.pull', 'events.ack',
-            'update.plugin', 'update.theme', 'update.core', 'update.translations',
+            'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update',
+            'backup.create', 'backup.restore', 'db.cleanup',
+            'users.list', 'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor',
         ],
         'max_jobs_per_site_per_minute' => 30,
         'job_lifetime_seconds' => 300,
@@ -53,6 +83,10 @@ return [
             'update.theme' => 600,
             'update.core' => 600,
             'update.translations' => 300,
+            'plugin.self_update' => 300,
+            'backup.create' => 1200,
+            'backup.restore' => 1200,
+            'db.cleanup' => 600,
         ],
         'max_response_bytes' => 5 * 1024 * 1024,
     ],

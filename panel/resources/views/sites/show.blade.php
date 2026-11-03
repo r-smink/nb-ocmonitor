@@ -2,6 +2,8 @@
 @section('title', $site->name)
 @if ($jobs->whereIn('status', ['pending', 'running'])->isNotEmpty())
   @section('refresh', '5')
+@elseif ($site->pagespeed_requested_at)
+  @section('refresh', '15')
 @endif
 @section('content')
   @php($level = $site->level())
@@ -11,9 +13,27 @@
       <span class="dot"></span>
       <h2>{{ $site->name }}</h2>
       <span class="lvl-label">{{ ['ok' => 'In orde', 'warn' => 'Aandacht', 'crit' => 'Kritiek', 'pending' => 'Niet gekoppeld'][$level] }}</span>
-      @if ($site->client_name)<span class="badge">{{ $site->client_name }}</span>@endif
+      @if ($site->customer)
+        <a class="badge" href="{{ route('customers.show', $site->customer) }}">{{ $site->customer->name }}</a>
+      @elseif ($site->client_name)
+        <span class="badge">{{ $site->client_name }}</span>
+      @endif
     </div>
-    <p class="dsub"><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> · {{ $site->site_id }}</p>
+    <p class="dsub"><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> · {{ $site->site_id }} @include('partials.tags', ['tags' => $site->allTags()])</p>
+    @can('manage-sites')
+      @php($allTags = \App\Models\Tag::query()->orderBy('name')->get())
+      @if ($allTags->isNotEmpty())
+        <details class="tag-edit">
+          <summary>Tags wijzigen</summary>
+          <form method="POST" action="{{ route('sites.tags', $site) }}" class="check-grid mt">
+            @csrf
+            @foreach ($allTags as $tag)<label><input type="checkbox" name="tags[]" value="{{ $tag->id }}" @checked($site->tags->contains('id', $tag->id))> <span class="tag {{ $tag->color }}">{{ $tag->name }}</span></label>@endforeach
+            <div><button class="btn ghost small" type="submit">Opslaan</button></div>
+          </form>
+          @if ($site->customer && $site->customer->tags->isNotEmpty())<p class="note">Via de klant: {{ $site->customer->tags->pluck('name')->implode(', ') }}.</p>@endif
+        </details>
+      @endif
+    @endcan
   </div>
 
   @php($issues = collect($site->issues()))
@@ -76,6 +96,30 @@
         <dt>PHP</dt><dd>{{ $site->php_version ?? '–' }}</dd>
         <dt>Plugin</dt><dd>{{ $site->plugin_version ?? '–' }}</dd>
         <dt>Laatst gezien</dt><dd>{{ $site->last_seen_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? '–' }}</dd>
+        <dt>Uptime (30 dagen)</dt>
+        <dd>
+          @if ($site->uptime_state === 'down')<span class="badge sec">offline{{ $site->down_since ? ' sinds ' . $site->down_since->timezone('Europe/Amsterdam')->format('d-m H:i') : '' }}</span>@endif
+          {{ $uptime['percent'] !== null ? number_format($uptime['percent'], 2, ',', '') . '%' : 'nog geen metingen' }}
+          @if ($uptime['incidents'] > 0)<span class="muted">· {{ $uptime['incidents'] }} storing(en), {{ $uptime['down_minutes'] }} min</span>@endif
+          @if ($site->response_ms)<span class="muted">· {{ $site->response_ms }} ms</span>@endif
+        </dd>
+        <dt>SSL</dt>
+        <dd>
+          @if ($site->ssl_expires_at)
+            <span @class(['issue-text', 'warn' => $site->ssl_expires_at->lt(now()->addDays(14)), 'crit' => $site->ssl_expires_at->lt(now()->addDays(3))])>tot {{ $site->ssl_expires_at->format('d-m-Y') }}</span>
+            <span class="muted">{{ $site->ssl_issuer }}</span>
+          @endif
+          @if ($site->ssl_error)<span class="issue-text crit">{{ $site->ssl_error }}</span>@endif
+          @if (!$site->ssl_expires_at && !$site->ssl_error)–@endif
+        </dd>
+        <dt>Domein</dt>
+        <dd>
+          @if ($site->domain_expires_at)
+            <span @class(['issue-text', 'warn' => $site->domain_expires_at->lt(now()->addDays(30))])>verloopt {{ $site->domain_expires_at->format('d-m-Y') }}</span>
+          @else
+            <span class="muted">{{ $site->domain_error ?? '–' }}</span>
+          @endif
+        </dd>
         <dt>Inventaris</dt><dd>{{ $site->inventory_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? '–' }}</dd>
         <dt>Gekoppeld</dt><dd>{{ $site->paired_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? 'nee' }}</dd>
         <dt>Site-sleutel</dt><dd class="mono">{{ $site->key_id ?? '–' }}</dd>
@@ -127,6 +171,23 @@
       <div class="alert warn mt">Bijwerken vanuit het panel kan hier niet: {{ $updatesBlocked }}.</div>
     @endif
 
+    @php($clientUpdate = $updates->get('client:nb-ocmonitor-client'))
+    @if ($clientUpdate)
+      <div class="alert warn">
+        Client-plugin {{ $clientUpdate['from'] }} → {{ $clientUpdate['to'] }} beschikbaar (ondertekende release).
+        @if ($canUpdate)
+          @if (in_array('nb-ocmonitor-client', $queued['client'] ?? [], true))
+            <span class="state idle">in wachtrij</span>
+          @else
+            <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline">
+              @csrf
+              <input type="hidden" name="type" value="client">
+              <button class="btn small" type="submit">Client-plugin bijwerken</button>
+            </form>
+          @endif
+        @endif
+      </div>
+    @endif
     @if (!empty($inventory['core']['update']) || (int) ($inventory['translations_pending'] ?? 0) > 0)
       <div class="panel">
         <div class="panel-head">
@@ -167,6 +228,8 @@
     @endif
 
     @php($plugins = collect($inventory['plugins'] ?? [])->sortBy(fn ($p) => (empty($p['update']) ? '1' : '0') . strtolower($p['name'] ?? '')))
+    @php($ago = fn (?\Carbon\CarbonInterface $at) => $at ? '<span title="' . e($at->timezone('Europe/Amsterdam')->format('d-m-Y H:i')) . '">' . e($at->timezone('Europe/Amsterdam')->format('d-m-Y')) . '</span>' : '<span class="muted">–</span>')
+    <div class="cols cols-wide">
     <div class="panel">
       <div class="panel-head">
         <h3>Plugins</h3><span class="badge">{{ $plugins->count() }}</span>
@@ -184,15 +247,15 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Plugin</th><th>Versie</th><th>Update</th><th>Actief</th><th>Auto-update</th><th></th></tr></thead>
+          <thead><tr><th>Plugin</th><th>Versie</th><th>Update</th><th>Actief</th><th>Laatst bijgewerkt</th><th></th></tr></thead>
           <tbody>
             @foreach ($plugins as $plugin)
               <tr>
-                <td>{{ $plugin['name'] ?? $plugin['file'] }} <span class="muted mono">{{ $plugin['slug'] ?? '' }}</span></td>
+                <td class="wrap">{{ $plugin['name'] ?? $plugin['file'] }}@if (!empty($plugin['auto_update'])) <span class="badge" title="Auto-update staat aan op de site">auto</span>@endif</td>
                 <td class="mono">{{ $plugin['version'] ?? '' }}</td>
                 <td @class(['lvl-warn' => !empty($plugin['update'])])>{{ $plugin['update']['version'] ?? '' }}</td>
                 <td>{{ !empty($plugin['active']) ? 'ja' : 'nee' }}</td>
-                <td>{{ !empty($plugin['auto_update']) ? 'aan' : 'uit' }}</td>
+                <td>{!! $ago($lastUpdated['plugin:' . ($plugin['file'] ?? '')] ?? null) !!}</td>
                 <td class="num">
                   @if (!empty($plugin['update']['version']) && isset($plugin['file']))
                     @if (in_array($plugin['file'], $queued['plugin'] ?? [], true))
@@ -216,6 +279,7 @@
     <div class="panel">
       <div class="panel-head">
         <h3>Thema's</h3><span class="badge">{{ count($inventory['themes'] ?? []) }}</span>
+        @if ($updates->where('type', 'theme')->isNotEmpty())<span class="badge sec">{{ $updates->where('type', 'theme')->count() }} update(s)</span>@endif
         @if ($canUpdate && $themeUpdates->count() > 1)
           <div class="right">
             <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline" data-confirm="Alle {{ $themeUpdates->count() }} thema's met een update bijwerken op {{ $site->name }}?">
@@ -229,7 +293,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Thema</th><th>Versie</th><th>Update</th><th>Actief</th><th></th></tr></thead>
+          <thead><tr><th>Thema</th><th>Versie</th><th>Update</th><th>Actief</th><th>Laatst bijgewerkt</th><th></th></tr></thead>
           <tbody>
             @foreach ($inventory['themes'] ?? [] as $theme)
               <tr>
@@ -237,6 +301,7 @@
                 <td class="mono">{{ $theme['version'] ?? '' }}</td>
                 <td @class(['lvl-warn' => !empty($theme['update'])])>{{ $theme['update']['version'] ?? '' }}</td>
                 <td>{{ !empty($theme['active']) ? 'ja' : '' }}</td>
+                <td>{!! $ago($lastUpdated['theme:' . ($theme['stylesheet'] ?? '')] ?? null) !!}</td>
                 <td class="num">
                   @if (!empty($theme['update']['version']) && isset($theme['stylesheet']))
                     @if (in_array($theme['stylesheet'], $queued['theme'] ?? [], true))
@@ -257,6 +322,10 @@
         </table>
       </div>
     </div>
+    </div>
+    @if ($updates->where('type', 'theme')->isEmpty() && collect($inventory['themes'] ?? [])->isNotEmpty())
+      <p class="note">Thema's worden bijgewerkt zodra WordPress op de site een update aanbiedt. Premium-thema's met een eigen updater (bijv. via een licentie) verschijnen hier pas als die updater de update aan WordPress doorgeeft.</p>
+    @endif
   @endif
 
   @if ($site->isPaired())
@@ -267,7 +336,7 @@
         @can('manage-sites')
           <div class="right">
             @if ($site->pagespeed_requested_at)
-              <span class="state idle">meting aangevraagd</span>
+              <span class="spinner" role="status" title="Meting loopt (duurt meestal 1 tot 5 minuten)"><span class="sr-only">Meting loopt</span></span>
             @else
               <form method="POST" action="{{ route('sites.pagespeed', $site) }}" class="inline">
                 @csrf
@@ -325,6 +394,149 @@
           <h4 class="mt">Trend prestaties mobiel</h4>
           @include('partials.spark', ['values' => $pagespeedHistory, 'class' => 'wide'])
         @endif
+      @endif
+    </div>
+  @endif
+
+  @if ($site->isPaired())
+    @php($cleanup = ($site->inventory ?? [])['cleanup'] ?? null)
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Database opschonen</h3>
+        @if (isset($cleanup['db_bytes']))<span class="hint">database {{ number_format($cleanup['db_bytes'] / 1048576, 1, ',', '.') }} MB · autoload {{ number_format(($cleanup['autoload_bytes'] ?? 0) / 1024, 0, ',', '.') }} kB</span>@endif
+      </div>
+      @if ($reason = $site->cleanupBlockedReason())
+        <p class="muted">{{ $reason }}.</p>
+      @elseif (!is_array($cleanup))
+        <p class="muted">Nog geen gegevens; vraag een inventaris op.</p>
+      @else
+        <form method="POST" action="{{ route('sites.cleanup', $site) }}" data-confirm="Deze gegevens definitief verwijderen op {{ $site->name }}?">
+          @csrf
+          <div class="check-grid">
+            @foreach (\App\Http\Controllers\SiteController::CLEANUP_ITEMS as $key => $label)
+              @php($n = (int) ($cleanup['counts'][$key] ?? 0))
+              <label><input type="checkbox" name="items[]" value="{{ $key }}" @checked($n > 0) @disabled($n === 0)> {{ $label }} <span class="muted">({{ number_format($n, 0, ',', '.') }})</span></label>
+            @endforeach
+          </div>
+          @can('manage-sites')<div class="row-actions mt"><button class="btn small" type="submit">Opschonen</button></div>@endcan
+        </form>
+        <p class="note mt">Maximaal 2000 per soort per keer. Media: {{ number_format($cleanup['media']['total'] ?? 0, 0, ',', '.') }} bestanden, waarvan {{ number_format($cleanup['media']['unattached'] ?? 0, 0, ',', '.') }} niet aan een bericht gekoppeld. Die worden niet automatisch verwijderd: page builders gebruiken vaak afbeeldingen die nergens "gekoppeld" zijn.</p>
+      @endif
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Backups vóór updates</h3>
+        <span class="hint">Database en de onderdelen die bijgewerkt worden. {{ config('ocm.backups.keep_days') }} dagen bewaard, of tot de visuele controle in orde is.</span>
+      </div>
+      @if (!\App\Ocm\Backups::enabled())
+        <p class="note">Staat uit: zet de Spaces-gegevens (OCM_SPACES_*) in .env. Updates gaan nu zonder backup vooraf.</p>
+      @elseif (!\App\Ocm\Backups::supported($site))
+        <p class="note">Vanaf client-plugin 0.5.0. Deze site heeft {{ $site->plugin_version ?? '?' }}; updates gaan zonder backup vooraf.</p>
+      @endif
+      @if ($backups->isNotEmpty())
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gemaakt</th><th>Inhoud</th><th class="num">Grootte</th><th>Status</th><th>Bewaard tot</th>@can('manage-sites')<th></th>@endcan</tr></thead>
+            <tbody>
+              @foreach ($backups as $backup)
+                <tr>
+                  <td>{{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}</td>
+                  <td class="wrap">{{ $backup->describe() }}@if ($backup->woocommerce) <span class="badge">webshop</span>@endif</td>
+                  <td class="num">{{ $backup->size() > 0 ? number_format($backup->size() / 1048576, 1, ',', '.') . ' MB' : '' }}</td>
+                  <td class="wrap">
+                    <span @class(['state', 'bad' => $backup->status === 'failed', 'idle' => in_array($backup->status, ['pending', 'restoring', 'deleted'], true)])>{{ ['pending' => 'wordt gemaakt', 'ready' => 'beschikbaar', 'restoring' => 'wordt teruggezet', 'deleted' => 'verwijderd', 'failed' => 'mislukt'][$backup->status] ?? $backup->status }}</span>
+                    @if ($backup->restored_at)<span class="muted">teruggezet {{ $backup->restored_at->timezone('Europe/Amsterdam')->format('d-m H:i') }}</span>@endif
+                    @if ($backup->error)<div class="note">{{ $backup->error }}</div>@endif
+                  </td>
+                  <td>{{ $backup->status === 'ready' ? $backup->expires_at?->timezone('Europe/Amsterdam')->format('d-m-Y') : '' }}</td>
+                  @can('manage-sites')
+                    <td class="num">
+                      @if ($backup->status === 'ready')
+                        <form method="POST" action="{{ route('sites.backup.restore', [$site, $backup]) }}" class="stack" data-confirm="Backup van {{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') }} terugzetten op {{ $site->name }}?">
+                          @csrf
+                          <label class="check-grid"><span><input type="checkbox" name="database" value="1" @checked(!$backup->woocommerce)> ook de database</span></label>
+                          @if ($backup->woocommerce)
+                            <label class="check-grid"><span><input type="checkbox" name="confirm_orders" value="1"> Ik begrijp dat bestellingen en klanten van na {{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') }} verloren gaan</span></label>
+                          @endif
+                          <div class="row-actions">
+                            <button class="btn small" type="submit">Terugzetten</button>
+                          </div>
+                        </form>
+                        <form method="POST" action="{{ route('sites.backup.delete', [$site, $backup]) }}" class="inline" data-confirm="Backup verwijderen?">
+                          @csrf
+                          @method('DELETE')
+                          <button class="btn ghost small" type="submit">Verwijderen</button>
+                        </form>
+                      @endif
+                    </td>
+                  @endcan
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      @endif
+    </div>
+  @endif
+
+  @if ($visual)
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Visuele controle na updates</h3>
+        <span class="hint">{{ $visual->created_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}</span>
+        @if ($visual->status === 'done')
+          <span @class(['badge', 'sec' => $visual->changed(), 'ok' => !$visual->changed()])>{{ number_format($visual->diff_percent, 1, ',', '') }}% veranderd</span>
+        @else
+          <span class="state idle">{{ ['before' => 'screenshot vooraf…', 'updating' => 'updates lopen…', 'skipped' => 'overgeslagen'][$visual->status] ?? $visual->status }}</span>
+        @endif
+        @can('manage-sites')
+          @if ($visual->changed() && !$visual->reviewed_at)
+            <div class="right">
+              <form method="POST" action="{{ route('sites.visual.review', [$site, $visual]) }}" class="inline">@csrf<button class="btn ghost small" type="submit">Bekeken, in orde</button></form>
+            </div>
+          @endif
+        @endcan
+      </div>
+      @if ($visual->error)<p class="note">{{ $visual->error }}</p>@endif
+      @if ($visual->before_image || $visual->after_image)
+        <div class="shots">
+          @foreach (['before_image' => 'Voor', 'after_image' => 'Na', 'diff_image' => 'Verschil'] as $field => $label)
+            @if ($visual->{$field})
+              <figure><figcaption>{{ $label }}</figcaption><img src="data:image/jpeg;base64,{{ $visual->{$field} }}" alt="{{ $label }} de updates" loading="lazy"></figure>
+            @endif
+          @endforeach
+        </div>
+        <p class="note mt">Screenshots via Google PageSpeed Insights (desktop). Wisselende inhoud zoals sliders of cookiebanners geeft ook verschil; controleer bij een hoog percentage de site zelf.</p>
+      @endif
+    </div>
+  @endif
+
+  @if ($site->isPaired())
+    <div class="panel">
+      <div class="panel-head">
+        <h3>WordPress-gebruikers</h3><span class="badge">{{ $wpUsers->count() }}</span>
+        @if ($site->wp_users_at)<span class="hint">opgehaald {{ $site->wp_users_at->diffForHumans() }}</span>@endif
+        @can('manage-sites')
+          @if ($site->usersBlockedReason() === null)
+            <div class="right">
+              <form method="POST" action="{{ route('sites.two-factor', $site) }}" class="row-actions">
+                @csrf
+                <label class="hint" for="tfa-mode">2FA afdwingen</label>
+                <select id="tfa-mode" name="mode" class="w-auto">
+                  @foreach (\App\Http\Controllers\WpUserController::TWO_FACTOR_MODES as $mode => $label)<option value="{{ $mode }}" @selected((($site->wp_users ?? [])['two_factor_mode'] ?? 'off') === $mode)>{{ $label }}</option>@endforeach
+                </select>
+                <button class="btn ghost small" type="submit">Opslaan</button>
+              </form>
+            </div>
+          @endif
+        @endcan
+      </div>
+      @if ($reason = $site->usersBlockedReason())
+        <p class="muted">{{ $reason }}.</p>
+      @else
+        @if (!empty(($site->wp_users ?? [])['two_factor_disabled']))<p class="note">2FA staat op de site uit via NB_OCM_DISABLE_2FA in wp-config.php.</p>@endif
+        @include('partials.wp-users-table', ['rows' => $wpUsers, 'showSite' => false])
       @endif
     </div>
   @endif

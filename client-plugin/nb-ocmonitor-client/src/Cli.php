@@ -6,6 +6,9 @@ namespace NextBuzz\OcMonitor\Client;
 
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
+use NextBuzz\OcMonitor\Client\Security\ClientIp;
+use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
+use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 
 /**
  * Beheer van NB OC Monitor via WP-CLI.
@@ -79,44 +82,83 @@ final class Cli
     }
 
     /**
-     * Toont of wijzigt welke acties het panel op deze site mag uitvoeren.
+     * Toont of wijzigt de inlogbeveiliging.
      *
      * ## OPTIONS
      *
-     * [--enable=<scope>]
-     * : Optionele scope aanzetten, bijv. updates.
+     * [--lockout=<on|off>]
+     * : Blokkade na te veel mislukte pogingen.
      *
-     * [--disable=<scope>]
-     * : Optionele scope uitzetten.
+     * [--max-attempts=<n>]
+     * : Pogingen voor een blokkade (3-50).
      *
+     * [--lockout-minutes=<n>]
+     * : Duur van een blokkade.
+     *
+     * [--xmlrpc=<auto|off|on>]
+     * : XML-RPC-login.
+     *
+     * [--hide-users=<on|off>]
+     * : Gebruikersnamen afschermen voor anonieme bezoekers.
+     *
+     * [--allow=<ip>]
+     * : IP-adres of CIDR-range toevoegen aan de uitzonderingen.
+     *
+     * [--two-factor=<off|admins|editors>]
+     * : Tweestapsverificatie afdwingen (code per e-mail voor wie geen 2FA-plugin heeft).
+     *
+     * [--unlock]
+     * : Alle blokkades opheffen.
+     *
+     * @subcommand login-security
      * @param string[] $args
      * @param array<string, mixed> $assoc
      */
-    public function scopes(array $args, array $assoc): void
+    public function loginSecurity(array $args, array $assoc): void
     {
-        $current = (array) (Settings::summary()['scopes'] ?? []);
-        if ($current === []) {
-            \WP_CLI::error('Niet gekoppeld.');
-            return;
+        if (isset($assoc['unlock'])) {
+            \WP_CLI::log(sprintf('%d blokkade(s) opgeheven.', LoginSecurity::unlockAll()));
         }
-        $wanted = $current;
-        foreach (['enable', 'disable'] as $mode) {
-            if (!isset($assoc[$mode])) {
-                continue;
+        $config = LoginSecurity::config();
+        $flag = static function (string $value): bool {
+            return in_array(strtolower($value), ['on', 'aan', '1', 'true', 'yes'], true);
+        };
+        $map = ['lockout' => 'lockout', 'max-attempts' => 'max_attempts', 'lockout-minutes' => 'lockout_minutes', 'xmlrpc' => 'xmlrpc', 'hide-users' => 'hide_users'];
+        $changed = false;
+        foreach ($map as $option => $key) {
+            if (isset($assoc[$option])) {
+                $config[$key] = in_array($key, ['lockout', 'hide_users'], true) ? $flag((string) $assoc[$option]) : $assoc[$option];
+                $changed = true;
             }
-            $scope = (string) $assoc[$mode];
-            if (!array_key_exists($scope, Scopes::OPTIONAL)) {
-                \WP_CLI::error('Onbekende optionele scope: ' . $scope . ' (kies uit ' . implode(', ', array_keys(Scopes::OPTIONAL)) . ')');
+        }
+        if (isset($assoc['two-factor'])) {
+            if (!isset(TwoFactor::MODES[(string) $assoc['two-factor']])) {
+                \WP_CLI::error('Kies off, admins of editors');
                 return;
             }
-            $wanted = $mode === 'enable' ? array_merge($wanted, [$scope]) : array_diff($wanted, [$scope]);
-        }
-        $change = Settings::setScopes(array_values($wanted));
-        if ($change !== null && $change['from'] !== $change['to']) {
-            $this->recorder->record('ocm.scopes_changed', 'scopes', implode(',', $change['from']), implode(',', $change['to']));
+            $change = TwoFactor::setMode((string) $assoc['two-factor']);
+            $this->recorder->record('ocm.two_factor_changed', 'two_factor', $change['from'], $change['to'], 'success', ['via' => 'wp-cli']);
             $this->recorder->flush();
         }
-        \WP_CLI::log('Scopes: ' . implode(', ', $change['to'] ?? $current));
+        if (isset($assoc['allow'])) {
+            if (!ClientIp::isValidRange((string) $assoc['allow'])) {
+                \WP_CLI::error('Ongeldig IP-adres of range: ' . $assoc['allow']);
+                return;
+            }
+            $config['allowlist'][] = (string) $assoc['allow'];
+            $changed = true;
+        }
+        if ($changed) {
+            $change = LoginSecurity::save($config);
+            if ($change['from'] !== $change['to']) {
+                $this->recorder->record('ocm.login_security_changed', 'login_security', null, null, 'success', ['via' => 'wp-cli']);
+                $this->recorder->flush();
+            }
+        }
+        \WP_CLI::log(sprintf('%-16s %s', 'two_factor', TwoFactor::disabledByConstant() ? 'uit (NB_OCM_DISABLE_2FA)' : TwoFactor::mode()));
+        foreach (LoginSecurity::summary() as $key => $value) {
+            \WP_CLI::log(sprintf('%-16s %s', $key, is_bool($value) ? ($value ? 'aan' : 'uit') : (string) $value));
+        }
     }
 
     /**

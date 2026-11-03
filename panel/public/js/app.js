@@ -31,6 +31,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Bevestiging bij één knop in een formulier met meerdere knoppen: <button data-confirm-button="...">
+  document.querySelectorAll('[data-confirm-button]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      if (!window.confirm(btn.dataset.confirmButton)) e.preventDefault();
+    });
+  });
+
   // Tabellen met klikbare rijen: <tr data-href="...">
   document.querySelectorAll('tr[data-href]').forEach(function (tr) {
     tr.addEventListener('click', function (e) {
