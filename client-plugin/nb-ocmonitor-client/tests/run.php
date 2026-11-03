@@ -21,6 +21,7 @@ use NextBuzz\OcMonitor\Client\Security\ClientIp;
 use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 use NextBuzz\OcMonitor\Client\Security\TrustedDevice;
 use NextBuzz\OcMonitor\Client\Commands\UserArgs;
+use NextBuzz\OcMonitor\Client\Commands\LicenseArgs;
 use NextBuzz\OcMonitor\Client\Release;
 use NextBuzz\OcMonitor\Client\Backup\BackupArgs;
 use NextBuzz\OcMonitor\Client\Backup\BackupCrypto;
@@ -343,9 +344,9 @@ test('antwoord kan niet voor een ander verzoek gebruikt worden', function () {
 // ---------------------------------------------------------------- scopes en update-argumenten
 
 test('scopes: updates en users staan altijd aan, ook bij oude configuraties', function () {
-    check(Scopes::normalize([]) === ['read', 'events', 'updates', 'users', 'maintenance']);
-    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates', 'users', 'maintenance']);
-    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates', 'users', 'maintenance']);
+    check(Scopes::normalize([]) === ['read', 'events', 'updates', 'users', 'maintenance', 'licenses']);
+    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates', 'users', 'maintenance', 'licenses']);
+    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates', 'users', 'maintenance', 'licenses']);
 });
 
 test('update-command zonder scope updates wordt geweigerd', function () {
@@ -569,6 +570,33 @@ test('database-import: alleen eigen statements, altijd naar tijdelijke tabellen'
     check(DatabaseDump::toTemporary('DROP TABLE IF EXISTS `wp_users`;')[0] === 'DROP TABLE IF EXISTS `nbocmtmp_wp_users`;');
     check(DatabaseDump::toTemporary('DROP DATABASE wordpress')[0] === null);
     check(DatabaseDump::toTemporary('UPDATE `wp_users` SET user_pass = 1')[0] === null);
+});
+
+// ---------------------------------------------------------------- licenties
+
+test('licentie-argumenten: vaste methodes, nette sleutel, alleen licentie-opties', function () {
+    check(LicenseArgs::activate(['adapter' => 'elementor_pro', 'key' => 'abc123def456']) === ['adapter' => 'elementor_pro', 'key' => 'abc123def456', 'option' => null]);
+    check(LicenseArgs::activate(['adapter' => 'option', 'key' => 'XXXX-YYYY', 'option' => 'frm_pro_license_key'])['option'] === 'frm_pro_license_key');
+    $bad = [
+        ['adapter' => 'eval', 'key' => 'abcd'],
+        ['adapter' => 'acf_pro', 'key' => "abc'; DROP"],
+        ['adapter' => 'acf_pro', 'key' => 'abcd', 'option' => 'x_license'],
+        ['adapter' => 'option', 'key' => 'abcd', 'option' => 'siteurl'],
+        ['adapter' => 'option', 'key' => 'abcd', 'option' => 'default_role'],
+        ['adapter' => 'option', 'key' => 'abcd', 'option' => 'nb_ocm_license'],
+        ['adapter' => 'option', 'key' => 'abcd', 'option' => 'License Key'],
+        ['adapter' => 'option', 'key' => 'abcd'],
+        ['adapter' => 'acf_pro', 'key' => 'abcd', 'code' => 'phpinfo()'],
+    ];
+    foreach ($bad as $i => $args) {
+        $threw = false;
+        try {
+            LicenseArgs::activate($args);
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'geval ' . $i);
+    }
 });
 
 foreach ($failures as $failure) {

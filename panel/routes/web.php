@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\PageSpeedController;
 use App\Http\Controllers\PluginDownloadController;
 use App\Http\Controllers\ReportController;
@@ -67,6 +68,16 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
 
     Route::get('/versies', [VersionController::class, 'index'])->name('versions.index');
+    Route::get('/licenties', [LicenseController::class, 'index'])->name('licenses.index');
+    Route::middleware('can:manage-sites')->group(function () {
+        Route::post('/licenties/producten', [LicenseController::class, 'storeProduct'])->name('licenses.products.store');
+        Route::put('/licenties/producten/{product}', [LicenseController::class, 'updateProduct'])->name('licenses.products.update');
+        Route::delete('/licenties/producten/{product}', [LicenseController::class, 'destroyProduct'])->name('licenses.products.destroy');
+        Route::post('/licenties/producten/{product}/sleutels', [LicenseController::class, 'storeLicense'])->name('licenses.store');
+        Route::delete('/licenties/sleutels/{license}', [LicenseController::class, 'destroyLicense'])->name('licenses.destroy');
+        Route::post('/licenties/producten/{product}/activeren', [LicenseController::class, 'activate'])->name('licenses.activate')->middleware('throttle:10,1');
+        Route::post('/licenties/producten/{product}/activeren/{site}', [LicenseController::class, 'activate'])->name('licenses.activate.site')->middleware('throttle:30,1');
+    });
     Route::get('/tags', [TagController::class, 'index'])->name('tags.index');
     Route::post('/tags', [TagController::class, 'store'])->name('tags.store')->can('manage-sites');
     Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update')->can('manage-sites');

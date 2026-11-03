@@ -137,6 +137,12 @@ final class SiteIssues
                 $add('warn', 'beschikbaarheid', "Domein verloopt over {$days} dagen (" . $site->domain_expires_at->format('d-m-Y') . ')');
             }
         }
+        foreach ((array) (($site->inventory ?? [])['licenses'] ?? []) as $key => $state) {
+            if (is_array($state) && ($state['active'] ?? null) === false) {
+                $name = ['elementor_pro' => 'Elementor Pro', 'acf_pro' => 'ACF Pro', 'rank_math_pro' => 'Rank Math Pro'][$key] ?? $key;
+                $add('warn', 'updates', "{$name}: licentie niet actief, dus geen updates");
+            }
+        }
         if ($visual !== null && $visual->changed()) {
             $add('warn', 'updates', 'Homepage zichtbaar veranderd na updates (' . number_format($visual->diff_percent, 0) . '%): controleer de site');
         }

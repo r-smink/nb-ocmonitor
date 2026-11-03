@@ -11,7 +11,7 @@ use NextBuzz\OcMonitor\Protocol\Base64Url;
 class Site extends Model
 {
     /** Gelijk aan Scopes::DEFAULT in de plugin; site.info geeft de werkelijke scopes terug. */
-    public const DEFAULT_SCOPES = ['read', 'events', 'updates', 'users', 'maintenance'];
+    public const DEFAULT_SCOPES = ['read', 'events', 'updates', 'users', 'maintenance', 'licenses'];
 
     protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host'];
 

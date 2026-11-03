@@ -29,6 +29,7 @@ final class ResultProcessor
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update' => $this->updated($site, $job, $result),
             'users.list' => $this->users($site, $result),
             'db.cleanup' => $this->cleaned($site, $job, $result),
+            'license.activate' => $this->licensed($site, $job, $result),
             'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
             'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
             'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
@@ -84,6 +85,15 @@ final class ResultProcessor
         ];
         $site->wp_users_at = now();
         $site->save();
+    }
+
+    /** @param array<string, mixed> $result */
+    private function licensed(Site $site, SiteJob $job, array $result): void
+    {
+        // De sleutel hoort niet in het jobarchief.
+        $job->update(['args' => ['adapter' => ($job->args ?? [])['adapter'] ?? null]]);
+        Activity::log('license_activated', ['job_id' => $job->job_id, 'adapter' => $result['adapter'] ?? null, 'active' => $result['active'] ?? null], $site, $job->requester);
+        JobQueue::enqueue($site, 'site.inventory', ['refresh' => true]);
     }
 
     /** @param array<string, mixed> $result */

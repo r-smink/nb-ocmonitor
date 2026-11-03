@@ -71,7 +71,7 @@ return [
         'allowed_commands' => [
             'site.info', 'site.inventory', 'events.pull', 'events.ack',
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update',
-            'backup.create', 'backup.restore', 'db.cleanup',
+            'backup.create', 'backup.restore', 'db.cleanup', 'license.activate',
             'users.list', 'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor',
         ],
         'max_jobs_per_site_per_minute' => 30,
@@ -87,6 +87,7 @@ return [
             'backup.create' => 1200,
             'backup.restore' => 1200,
             'db.cleanup' => 600,
+            'license.activate' => 120,
         ],
         'max_response_bytes' => 5 * 1024 * 1024,
     ],

@@ -5,8 +5,8 @@ Eigen beheerplatform voor de WordPress-sites van Next Buzz (in de geest van Infi
 | Map | Inhoud | Status |
 |---|---|---|
 | [`protocol/`](protocol/) | Ondertekend protocol (Ed25519) tussen panel en plugin, met testvectoren | Klaar (fase 0) |
-| [`client-plugin/`](client-plugin/nb-ocmonitor-client/) | WordPress-plugin `nb-ocmonitor-client`: koppelen, heartbeat, inventaris, registratie van alle wijzigingen, updates met rollback, versleutelde backup vóór updates, inlogbeveiliging, gebruikersbeheer en 2FA, zelf bijwerken (ondertekend), database opschonen | 0.6.0. Nog te testen op een echte WP-site |
-| [`panel/`](panel/) | Laravel-panel in ServerDash-stijl (standaard donker): login met verplichte 2FA, overzicht met beveiligings- en aandachtspunten, sites koppelen, bulk-updates, PageSpeed, klanten met onderhoudscontract en kalender, PDF-rapporten, uptime/SSL/domein, backups vóór updates (Spaces), visuele controle na updates, WP-gebruikers, versie-overzicht, tags en indeling per klant, database opschonen, plugin-download, signer, wijzigingslog, audit log | Fase 1, updates (fase 2) en PageSpeed (fase 3) |
+| [`client-plugin/`](client-plugin/nb-ocmonitor-client/) | WordPress-plugin `nb-ocmonitor-client`: koppelen, heartbeat, inventaris, registratie van alle wijzigingen, updates met rollback, versleutelde backup vóór updates, inlogbeveiliging, gebruikersbeheer en 2FA, zelf bijwerken (ondertekend), database opschonen, licenties activeren | 0.7.0. Nog te testen op een echte WP-site |
+| [`panel/`](panel/) | Laravel-panel in ServerDash-stijl (standaard donker): login met verplichte 2FA, overzicht met beveiligings- en aandachtspunten, sites koppelen, bulk-updates, PageSpeed, klanten met onderhoudscontract en kalender, PDF-rapporten, uptime/SSL/domein, backups vóór updates (Spaces), visuele controle na updates, WP-gebruikers, versie-overzicht, tags en indeling per klant, database opschonen, licenties van premium plugins, plugin-download, signer, wijzigingslog, audit log | Fase 1, updates (fase 2) en PageSpeed (fase 3) |
 | [`deploy/`](deploy/) + [`docker-compose.yml`](docker-compose.yml) | Docker-opzet: Caddy (HTTPS), app, signer, scheduler, MySQL | Klaar voor een droplet. Lokaal niet getest (geen Docker) |
 | [`docs/`](docs/) | [Protocol](docs/protocol.md), [dreigingsmodel](docs/threat-model.md), [installatie op DigitalOcean](docs/DEPLOY-DIGITALOCEAN.md) | |
 
@@ -24,8 +24,8 @@ docker compose up -d --build
 
 ```bash
 php -d extension=sodium protocol/tests/run.php                           # protocol (46)
-php -d extension=sodium client-plugin/nb-ocmonitor-client/tests/run.php  # plugin-kern (33)
-cd panel && php artisan test                                              # panel (59)
+php -d extension=sodium client-plugin/nb-ocmonitor-client/tests/run.php  # plugin-kern (34)
+cd panel && php artisan test                                              # panel (61)
 php scripts/sync-protocol.php --check                                     # plugin-kopie van het protocol actueel?
 ```
 
