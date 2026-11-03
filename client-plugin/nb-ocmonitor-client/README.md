@@ -1,6 +1,6 @@
 # NB OC Monitor Client (WordPress-plugin)
 
-Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.2.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, en updates van plugins, thema's, vertalingen en WordPress vanuit het panel.
+Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.3.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, en inlogbeveiliging.
 
 Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `sodium_compat` dat WordPress meelevert.
 
@@ -39,7 +39,19 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 
 ## Scopes
 
-`read` en `events` staan altijd aan. De optionele scope `updates` staat standaard aan bij nieuwe koppelingen. Bij sites die met 0.1.0 gekoppeld zijn, zet je hem aan onder **Extra → NB OC Monitor → Toegestane acties**, of met `wp nb-ocm scopes --enable=updates`. Het panel kan scopes niet zelf wijzigen. Een wijziging komt als `ocm.scopes_changed` in het wijzigingslog.
+`read`, `events` en `updates` staan altijd aan (sinds 0.3.0). Een beheerder van de site kan updates vanuit het panel niet meer uitzetten; wie de koppeling wil stoppen, ontkoppelt de site of zet `NB_OCM_DISABLED` in wp-config.php.
+
+## Inlogbeveiliging
+
+Instellingen onder **Extra → NB OC Monitor → Inlogbeveiliging**, of met `wp nb-ocm login-security`. Standaard aan:
+
+- Blokkade per IP-adres na 5 mislukte pogingen binnen 15 minuten, voor 30 minuten. Na drie blokkades op een dag: 24 uur. Een geblokkeerd IP komt er ook met het juiste wachtwoord niet in.
+- Het echte IP-adres achter Cloudflare (alleen als het verzoek echt van Cloudflare komt) of achter een proxy op de server. Een `X-Forwarded-For` van buitenaf wordt genegeerd.
+- Uitzonderingen per IP of CIDR-range (bijv. het kantoor). Opheffen: `wp nb-ocm login-security --unlock`.
+- XML-RPC-login uit, behalve als Jetpack actief is. Ook `system.multicall` en pingbacks uit.
+- Gebruikersnamen afgeschermd voor bezoekers die niet zijn ingelogd: geen `/wp-json/wp/v2/users`, geen `?author=1`, geen users-sitemap.
+
+Inloggen via wp-login.php, de blokeditor en de WordPress-app met een applicatiewachtwoord werken gewoon. Mislukte pogingen komen per uur als `login.failed_summary` in het wijzigingslog, met het kanaal (inlogpagina, XML-RPC, REST) en het aantal blokkades. IP-adressen worden alleen ingekort opgeslagen (/24 of /48).
 
 ## Updates (plan §4.2)
 

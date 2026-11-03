@@ -7,6 +7,7 @@ namespace NextBuzz\OcMonitor\Client\Commands;
 use NextBuzz\OcMonitor\Client\CommandContext;
 use NextBuzz\OcMonitor\Client\CommandError;
 use NextBuzz\OcMonitor\Client\CommandRegistry;
+use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 
@@ -91,13 +92,15 @@ final class SiteCommands
                 'active' => is_plugin_active($file),
                 'auto_update' => in_array($file, $autoUpdatePlugins, true),
                 'update' => $update ? ['version' => (string) ($update->new_version ?? ''), 'package_host' => self::host($update->package ?? '')] : null,
+                'updated_at' => self::mtime(WP_PLUGIN_DIR . '/' . $file),
             ];
         }
 
         $themes = [];
         $active = get_stylesheet();
         foreach (wp_get_themes() as $stylesheet => $theme) {
-            $update = $themeUpdates[$stylesheet] ?? null;
+            // Normaal een array; sommige premium-updaters zetten er een object in.
+            $update = isset($themeUpdates[$stylesheet]) ? (array) $themeUpdates[$stylesheet] : null;
             $themes[] = [
                 'stylesheet' => $stylesheet,
                 'name' => (string) $theme->get('Name'),
@@ -105,7 +108,8 @@ final class SiteCommands
                 'active' => $stylesheet === $active,
                 'parent' => $theme->parent() ? $theme->parent()->get_stylesheet() : null,
                 'auto_update' => in_array($stylesheet, $autoUpdateThemes, true),
-                'update' => $update ? ['version' => (string) ($update['new_version'] ?? '')] : null,
+                'update' => $update && !empty($update['new_version']) ? ['version' => (string) $update['new_version'], 'package_host' => self::host((string) ($update['package'] ?? ''))] : null,
+                'updated_at' => self::mtime($theme->get_stylesheet_directory() . '/style.css'),
             ];
         }
 
@@ -138,6 +142,7 @@ final class SiteCommands
                 'blog_public' => (bool) get_option('blog_public'),
                 'users_can_register' => (bool) get_option('users_can_register'),
                 'default_role' => (string) get_option('default_role'),
+                'login_security' => LoginSecurity::summary(),
                 'file_mods_allowed' => wp_is_file_mod_allowed('nb_ocm_updates'),
                 'plugin_version' => NB_OCM_VERSION,
             ],
@@ -194,6 +199,14 @@ final class SiteCommands
         $value = get_site_transient($transient);
 
         return is_object($value) && isset($value->{$field}) ? (array) $value->{$field} : [];
+    }
+
+    /** Wanneer de bestanden van een plugin of thema voor het laatst zijn geschreven (installatie of update). */
+    private static function mtime(string $file): ?int
+    {
+        $time = @filemtime($file);
+
+        return $time !== false ? (int) $time : null;
     }
 
     /** Alleen de host van een download-URL; volledige URL's kunnen licentiesleutels bevatten. */

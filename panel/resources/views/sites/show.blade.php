@@ -2,6 +2,8 @@
 @section('title', $site->name)
 @if ($jobs->whereIn('status', ['pending', 'running'])->isNotEmpty())
   @section('refresh', '5')
+@elseif ($site->pagespeed_requested_at)
+  @section('refresh', '15')
 @endif
 @section('content')
   @php($level = $site->level())
@@ -11,7 +13,11 @@
       <span class="dot"></span>
       <h2>{{ $site->name }}</h2>
       <span class="lvl-label">{{ ['ok' => 'In orde', 'warn' => 'Aandacht', 'crit' => 'Kritiek', 'pending' => 'Niet gekoppeld'][$level] }}</span>
-      @if ($site->client_name)<span class="badge">{{ $site->client_name }}</span>@endif
+      @if ($site->customer)
+        <a class="badge" href="{{ route('customers.show', $site->customer) }}">{{ $site->customer->name }}</a>
+      @elseif ($site->client_name)
+        <span class="badge">{{ $site->client_name }}</span>
+      @endif
     </div>
     <p class="dsub"><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> · {{ $site->site_id }}</p>
   </div>
@@ -167,6 +173,8 @@
     @endif
 
     @php($plugins = collect($inventory['plugins'] ?? [])->sortBy(fn ($p) => (empty($p['update']) ? '1' : '0') . strtolower($p['name'] ?? '')))
+    @php($ago = fn (?\Carbon\CarbonInterface $at) => $at ? '<span title="' . e($at->timezone('Europe/Amsterdam')->format('d-m-Y H:i')) . '">' . e($at->timezone('Europe/Amsterdam')->format('d-m-Y')) . '</span>' : '<span class="muted">–</span>')
+    <div class="cols cols-wide">
     <div class="panel">
       <div class="panel-head">
         <h3>Plugins</h3><span class="badge">{{ $plugins->count() }}</span>
@@ -184,15 +192,15 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Plugin</th><th>Versie</th><th>Update</th><th>Actief</th><th>Auto-update</th><th></th></tr></thead>
+          <thead><tr><th>Plugin</th><th>Versie</th><th>Update</th><th>Actief</th><th>Laatst bijgewerkt</th><th></th></tr></thead>
           <tbody>
             @foreach ($plugins as $plugin)
               <tr>
-                <td>{{ $plugin['name'] ?? $plugin['file'] }} <span class="muted mono">{{ $plugin['slug'] ?? '' }}</span></td>
+                <td class="wrap">{{ $plugin['name'] ?? $plugin['file'] }}@if (!empty($plugin['auto_update'])) <span class="badge" title="Auto-update staat aan op de site">auto</span>@endif</td>
                 <td class="mono">{{ $plugin['version'] ?? '' }}</td>
                 <td @class(['lvl-warn' => !empty($plugin['update'])])>{{ $plugin['update']['version'] ?? '' }}</td>
                 <td>{{ !empty($plugin['active']) ? 'ja' : 'nee' }}</td>
-                <td>{{ !empty($plugin['auto_update']) ? 'aan' : 'uit' }}</td>
+                <td>{!! $ago($lastUpdated['plugin:' . ($plugin['file'] ?? '')] ?? null) !!}</td>
                 <td class="num">
                   @if (!empty($plugin['update']['version']) && isset($plugin['file']))
                     @if (in_array($plugin['file'], $queued['plugin'] ?? [], true))
@@ -216,6 +224,7 @@
     <div class="panel">
       <div class="panel-head">
         <h3>Thema's</h3><span class="badge">{{ count($inventory['themes'] ?? []) }}</span>
+        @if ($updates->where('type', 'theme')->isNotEmpty())<span class="badge sec">{{ $updates->where('type', 'theme')->count() }} update(s)</span>@endif
         @if ($canUpdate && $themeUpdates->count() > 1)
           <div class="right">
             <form method="POST" action="{{ route('sites.updates', $site) }}" class="inline" data-confirm="Alle {{ $themeUpdates->count() }} thema's met een update bijwerken op {{ $site->name }}?">
@@ -229,7 +238,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Thema</th><th>Versie</th><th>Update</th><th>Actief</th><th></th></tr></thead>
+          <thead><tr><th>Thema</th><th>Versie</th><th>Update</th><th>Actief</th><th>Laatst bijgewerkt</th><th></th></tr></thead>
           <tbody>
             @foreach ($inventory['themes'] ?? [] as $theme)
               <tr>
@@ -237,6 +246,7 @@
                 <td class="mono">{{ $theme['version'] ?? '' }}</td>
                 <td @class(['lvl-warn' => !empty($theme['update'])])>{{ $theme['update']['version'] ?? '' }}</td>
                 <td>{{ !empty($theme['active']) ? 'ja' : '' }}</td>
+                <td>{!! $ago($lastUpdated['theme:' . ($theme['stylesheet'] ?? '')] ?? null) !!}</td>
                 <td class="num">
                   @if (!empty($theme['update']['version']) && isset($theme['stylesheet']))
                     @if (in_array($theme['stylesheet'], $queued['theme'] ?? [], true))
@@ -257,6 +267,10 @@
         </table>
       </div>
     </div>
+    </div>
+    @if ($updates->where('type', 'theme')->isEmpty() && collect($inventory['themes'] ?? [])->isNotEmpty())
+      <p class="note">Thema's worden bijgewerkt zodra WordPress op de site een update aanbiedt. Premium-thema's met een eigen updater (bijv. via een licentie) verschijnen hier pas als die updater de update aan WordPress doorgeeft.</p>
+    @endif
   @endif
 
   @if ($site->isPaired())
@@ -267,7 +281,7 @@
         @can('manage-sites')
           <div class="right">
             @if ($site->pagespeed_requested_at)
-              <span class="state idle">meting aangevraagd</span>
+              <span class="spinner" role="status" title="Meting loopt (duurt meestal 1 tot 5 minuten)"><span class="sr-only">Meting loopt</span></span>
             @else
               <form method="POST" action="{{ route('sites.pagespeed', $site) }}" class="inline">
                 @csrf

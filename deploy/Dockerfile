@@ -16,7 +16,9 @@ RUN composer dump-autoload --optimize --no-dev --no-scripts
 FROM serversideup/php:8.4-fpm-nginx
 
 USER root
-RUN install-php-extensions intl
+# gd: afbeeldingen in rapporten (mPDF). qpdf: geüploade PDF-achtergronden omzetten naar een vorm die FPDI kan lezen.
+RUN install-php-extensions intl gd \
+    && apt-get update && apt-get install -y --no-install-recommends qpdf && rm -rf /var/lib/apt/lists/*
 
 ENV OCM_CLIENT_PLUGIN_PATH=/var/www/client-plugin/nb-ocmonitor-client \
     PHP_OPCACHE_ENABLE=1 \

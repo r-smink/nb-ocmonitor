@@ -150,6 +150,8 @@ Beide bestanden krijgen rechten 600. **Zet ze direct in de wachtwoordkluis.** Ze
 
 Optioneel: zet voor PageSpeed een API-sleutel in `.env` (`OCM_PAGESPEED_API_KEY`). Maak die aan in Google Cloud (API's → PageSpeed Insights API → Inloggegevens) en beperk de sleutel tot die ene API. Zonder sleutel werkt het ook, maar met een laag quotum. De scheduler-container meet elke site eens per `OCM_PAGESPEED_INTERVAL_DAYS` dagen (standaard 7).
 
+Voor klantrapporten per e-mail: zet de `MAIL_*`-regels in `.env` (SMTP van je mailprovider) en voer `docker compose up -d --force-recreate` uit. Zonder SMTP blijft `MAIL_MAILER=log` staan: rapporten bekijken en downloaden werkt dan wel, versturen schrijft de mail alleen naar het log. Logo's, achtergronden en fonts voor de rapporten staan in de database en zitten dus in de gewone backup.
+
 ## 6. Starten
 
 ```bash

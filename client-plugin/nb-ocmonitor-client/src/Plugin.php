@@ -11,6 +11,7 @@ use NextBuzz\OcMonitor\Client\Events\EventPusher;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
 use NextBuzz\OcMonitor\Client\Events\EventStore;
 use NextBuzz\OcMonitor\Client\Events\VersionSnapshot;
+use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 
 final class Plugin
 {
@@ -32,6 +33,7 @@ final class Plugin
         $store = new EventStore();
         $recorder = new EventRecorder($store, new EventPusher(), new VersionSnapshot());
         $recorder->register();
+        (new LoginSecurity($recorder))->register();
         Cron::register($recorder, $store);
 
         $commands = new CommandRegistry();

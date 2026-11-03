@@ -182,6 +182,20 @@ final class SiteIssues
             if (($env['blog_public'] ?? true) === false) {
                 $add('info', 'prestaties', 'Verborgen voor zoekmachines');
             }
+            $login = $env['login_security'] ?? null;
+            if (is_array($login)) {
+                if (empty($login['lockout'])) {
+                    $add('info', 'beveiliging', 'Blokkade na mislukte inlogpogingen staat uit');
+                }
+                if (($login['xmlrpc'] ?? 'on') === 'on') {
+                    $add('info', 'beveiliging', 'Inloggen via XML-RPC staat aan' . (($login['xmlrpc_mode'] ?? '') === 'auto' ? ' (Jetpack is actief)' : ''));
+                }
+                if (empty($login['hide_users'])) {
+                    $add('info', 'beveiliging', 'Gebruikersnamen zijn openbaar op te vragen (REST API, ?author=)');
+                }
+            } elseif ($site->plugin_version !== null && version_compare($site->plugin_version, '0.3.0', '<')) {
+                $add('info', 'koppeling', 'Client-plugin ' . $site->plugin_version . ': werk bij naar 0.3.0 voor inlogbeveiliging');
+            }
         }
 
         $inactive = collect(($site->inventory ?? [])['plugins'] ?? [])->filter(fn ($p) => is_array($p) && empty($p['active']))->count();
@@ -207,6 +221,7 @@ final class SiteIssues
     {
         $external = 0;
         $failedLogins = 0;
+        $lockedIps = 0;
         $updates = []; // object => laatste update-event
 
         foreach ($events as $event) {
@@ -238,6 +253,7 @@ final class SiteIssues
                 case 'login.failed_summary':
                     if ($event->occurred_at->gte(now()->subDay())) {
                         $failedLogins += (int) (($event->data ?? [])['count'] ?? 0);
+                        $lockedIps += (int) (($event->data ?? [])['locked'] ?? 0);
                     }
                     break;
                 case 'plugin.rolled_back':
@@ -258,7 +274,9 @@ final class SiteIssues
             $add('warn', 'beveiliging', "{$external} wijziging" . ($external === 1 ? '' : 'en') . ' aan plugins/thema\'s buiten WordPress om (FTP of deploy?)');
         }
         if ($failedLogins >= 50) {
-            $add('warn', 'beveiliging', "{$failedLogins} mislukte inlogpogingen in 24 uur");
+            // Met actieve blokkade is het een aanval die al wordt tegengehouden: alleen ter info.
+            $protected = !empty(($site->inventory['environment']['login_security'] ?? [])['lockout']);
+            $add($protected ? 'info' : 'warn', 'beveiliging', "{$failedLogins} mislukte inlogpogingen in 24 uur" . ($lockedIps > 0 ? " ({$lockedIps}x een IP geblokkeerd)" : ''));
         }
     }
 }

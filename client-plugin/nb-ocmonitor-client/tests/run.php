@@ -17,6 +17,8 @@ use NextBuzz\OcMonitor\Client\Endpoint;
 use NextBuzz\OcMonitor\Client\EndpointResult;
 use NextBuzz\OcMonitor\Client\FailureLog;
 use NextBuzz\OcMonitor\Client\Scopes;
+use NextBuzz\OcMonitor\Client\Security\ClientIp;
+use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 use NextBuzz\OcMonitor\Client\SiteConfig;
 use NextBuzz\OcMonitor\Protocol\Canonical;
 use NextBuzz\OcMonitor\Protocol\Headers;
@@ -333,10 +335,10 @@ test('antwoord kan niet voor een ander verzoek gebruikt worden', function () {
 
 // ---------------------------------------------------------------- scopes en update-argumenten
 
-test('scopes: verplichte scopes altijd aan, onbekende scopes vallen weg', function () {
-    check(Scopes::normalize([]) === ['read', 'events']);
-    check(Scopes::normalize(['updates', 'admin', 'read', 1]) === ['read', 'events', 'updates']);
-    check(Scopes::normalize(Scopes::DEFAULT) === Scopes::DEFAULT);
+test('scopes: updates staat altijd aan, ook bij oude configuraties zonder updates', function () {
+    check(Scopes::normalize([]) === ['read', 'events', 'updates']);
+    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates']);
+    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates']);
 });
 
 test('update-command zonder scope updates wordt geweigerd', function () {
@@ -396,6 +398,38 @@ test('update-argumenten: padmanipulatie, verkeerde types en te veel items worden
         $threw = true;
     }
     check($threw, 'update.core accepteert geen argumenten');
+});
+
+// ---------------------------------------------------------------- inlogbeveiliging
+
+test('client-ip: proxy-headers alleen geloofd van Cloudflare of een private proxy', function () {
+    check(ClientIp::resolve(['REMOTE_ADDR' => '203.0.113.7', 'HTTP_X_FORWARDED_FOR' => '1.2.3.4']) === '203.0.113.7');
+    check(ClientIp::resolve(['REMOTE_ADDR' => '203.0.113.7', 'HTTP_CF_CONNECTING_IP' => '1.2.3.4']) === '203.0.113.7');
+    check(ClientIp::resolve(['REMOTE_ADDR' => '172.70.1.1', 'HTTP_CF_CONNECTING_IP' => '198.51.100.9']) === '198.51.100.9');
+    check(ClientIp::resolve(['REMOTE_ADDR' => '2606:4700::1', 'HTTP_CF_CONNECTING_IP' => '2001:db8::5']) === '2001:db8::5');
+    check(ClientIp::resolve(['REMOTE_ADDR' => '127.0.0.1', 'HTTP_X_FORWARDED_FOR' => '6.6.6.6, 198.51.100.9, 10.0.0.2']) === '198.51.100.9');
+    check(ClientIp::resolve(['REMOTE_ADDR' => '10.0.0.5', 'HTTP_X_FORWARDED_FOR' => 'onzin']) === '10.0.0.5');
+    check(ClientIp::resolve([]) === '0.0.0.0');
+});
+
+test('client-ip: ranges, validatie en inkorten', function () {
+    check(ClientIp::inRange('198.51.100.77', '198.51.100.0/24'));
+    check(!ClientIp::inRange('198.51.101.1', '198.51.100.0/24'));
+    check(ClientIp::inRange('10.1.2.3', '10.0.0.0/9'));
+    check(!ClientIp::inRange('10.200.0.1', '10.0.0.0/9'));
+    check(ClientIp::inRange('2001:db8::1', '2001:db8::/32'));
+    check(!ClientIp::inRange('2001:db8::1', '198.51.100.0/24'));
+    check(ClientIp::inRange('203.0.113.5', '203.0.113.5'));
+    check(ClientIp::isValidRange('2001:db8::/48') && !ClientIp::isValidRange('1.2.3.4/33') && !ClientIp::isValidRange('kantoor'));
+    check(ClientIp::anonymize('198.51.100.77') === '198.51.100.0/24');
+    check(ClientIp::anonymize('2001:db8:1234:5678::1') === '2001:db8:1234::/48');
+});
+
+test('inlogbeveiliging: instellingen worden begrensd en ongeldige waarden vallen terug', function () {
+    check(LoginSecurity::normalize(null) === LoginSecurity::DEFAULTS);
+    $c = LoginSecurity::normalize(['lockout' => '0', 'max_attempts' => 1, 'lockout_minutes' => 99999, 'xmlrpc' => 'hack', 'allowlist' => "198.51.100.1\nkantoor, 10.0.0.0/8 198.51.100.1"]);
+    check($c['lockout'] === false && $c['max_attempts'] === 3 && $c['lockout_minutes'] === 1440 && $c['xmlrpc'] === 'auto');
+    check($c['allowlist'] === ['198.51.100.1', '10.0.0.0/8'], json_encode($c['allowlist']));
 });
 
 foreach ($failures as $failure) {

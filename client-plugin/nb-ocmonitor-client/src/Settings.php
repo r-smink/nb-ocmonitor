@@ -109,25 +109,6 @@ final class Settings
         ], false);
     }
 
-    /**
-     * Zet de optionele scopes. Alleen vanuit WP-admin of WP-CLI, nooit via een panel-command.
-     *
-     * @param string[] $scopes
-     * @return array{from: string[], to: string[]}|null null als de site niet gekoppeld is
-     */
-    public static function setScopes(array $scopes): ?array
-    {
-        $config = get_option(self::OPTION);
-        if (!is_array($config) || empty($config['site_id'])) {
-            return null;
-        }
-        $from = Scopes::normalize((array) ($config['scopes'] ?? Scopes::REQUIRED));
-        $config['scopes'] = Scopes::normalize($scopes);
-        update_option(self::OPTION, $config, false);
-
-        return ['from' => $from, 'to' => $config['scopes']];
-    }
-
     public static function clear(): void
     {
         delete_option(self::OPTION);

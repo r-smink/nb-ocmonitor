@@ -5,36 +5,27 @@ declare(strict_types=1);
 namespace NextBuzz\OcMonitor\Client;
 
 /**
- * Welke groepen commands het panel op deze site mag uitvoeren. "read" en "events" zijn altijd aan;
- * de optionele scopes zet een beheerder van de site zelf aan of uit (WP-admin of WP-CLI).
+ * Welke groepen commands het panel op deze site mag uitvoeren. Sinds 0.3.0 staan lezen, het
+ * wijzigingslog en updates altijd aan: een beheerder van de site kan updates vanuit het panel
+ * niet meer uitzetten. Wie de koppeling helemaal wil stoppen, ontkoppelt of zet NB_OCM_DISABLED.
+ *
+ * Nieuwe groepen (bijv. gebruikersbeheer) komen hier als optionele scope bij.
  */
 final class Scopes
 {
-    public const REQUIRED = ['read', 'events'];
-
-    /** @var array<string, string> scope => uitleg voor de beheerder */
-    public const OPTIONAL = [
-        'updates' => 'Plugins, thema\'s, vertalingen en WordPress bijwerken. Alleen updates die WordPress zelf aanbiedt; het panel kan geen eigen pakketten sturen.',
-    ];
+    public const REQUIRED = ['read', 'events', 'updates'];
 
     /** Standaard voor nieuwe koppelingen. */
-    public const DEFAULT = ['read', 'events', 'updates'];
+    public const DEFAULT = self::REQUIRED;
 
     /**
-     * Verplichte scopes plus de bekende optionele scopes uit $scopes, in vaste volgorde.
+     * De vaste scopes; onbekende waarden uit oude configuraties vallen weg.
      *
      * @param mixed[] $scopes
      * @return string[]
      */
     public static function normalize(array $scopes): array
     {
-        $result = self::REQUIRED;
-        foreach (array_keys(self::OPTIONAL) as $scope) {
-            if (in_array($scope, $scopes, true)) {
-                $result[] = $scope;
-            }
-        }
-
-        return $result;
+        return self::REQUIRED;
     }
 }

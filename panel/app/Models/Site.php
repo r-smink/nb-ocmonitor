@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Ocm\SiteIssues;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use NextBuzz\OcMonitor\Protocol\Base64Url;
 
@@ -12,7 +13,7 @@ class Site extends Model
     /** Gelijk aan Scopes::DEFAULT in de plugin; site.info geeft de werkelijke scopes terug. */
     public const DEFAULT_SCOPES = ['read', 'events', 'updates'];
 
-    protected $fillable = ['site_id', 'name', 'client_name', 'url', 'host'];
+    protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host'];
 
     protected $hidden = ['pairing_secret', 'inventory'];
 
@@ -37,6 +38,11 @@ class Site extends Model
     public function getRouteKeyName(): string
     {
         return 'site_id';
+    }
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
     }
 
     public function events(): HasMany

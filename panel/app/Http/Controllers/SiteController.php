@@ -49,14 +49,14 @@ class SiteController extends Controller
 
     public function create(): View
     {
-        return view('sites.create', ['pluginVersion' => PluginPackage::version()]);
+        return view('sites.create', ['pluginVersion' => PluginPackage::version(), 'customers' => \App\Models\Customer::query()->orderBy('name')->get(['id', 'name'])]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'client_name' => ['nullable', 'string', 'max:120'],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'url' => ['required', 'string', 'max:255', 'url:' . (config('ocm.allow_http_sites') ? 'http,https' : 'https')],
         ], [
             'url.url' => 'Vul een volledige URL in die met https:// begint.',
@@ -76,7 +76,8 @@ class SiteController extends Controller
         $site = new Site([
             'site_id' => 'site_' . Str::lower(Str::random(20)),
             'name' => $data['name'],
-            'client_name' => $data['client_name'] ?? null,
+            'customer_id' => $data['customer_id'] ?? null,
+            'client_name' => isset($data['customer_id']) ? \App\Models\Customer::query()->whereKey($data['customer_id'])->value('name') : null,
             'url' => $url,
             'host' => $host,
         ]);
@@ -114,10 +115,42 @@ class SiteController extends Controller
             'queued' => Updates::queuedIds($site),
             'updatesBlocked' => $site->updatesBlockedReason(),
             'pagespeed' => PagespeedResult::latestPerSite()->get($site->id, collect()),
-            'pagespeedLastError' => $site->pagespeedResults()->whereNotNull('error')->where('measured_at', '>=', now()->subDay())->latest('measured_at')->first(),
+            'lastUpdated' => self::lastUpdated($site),
+            // Alleen een fout tonen als dat per strategie nog de nieuwste meting is.
+            'pagespeedLastError' => $site->pagespeedResults()->where('measured_at', '>=', now()->subDay())->orderByDesc('id')->get()
+                ->unique('strategy')->first(fn (PagespeedResult $r) => $r->error !== null),
             'pagespeedHistory' => $site->pagespeedResults()->where('strategy', 'mobile')->whereNull('error')
                 ->where('measured_at', '>=', now()->subDays(120))->orderBy('measured_at')->pluck('performance')->filter(fn ($v) => $v !== null)->values()->all(),
         ]);
+    }
+
+    /**
+     * Wanneer elke plugin en elk thema voor het laatst is bijgewerkt: uit het wijzigingslog, en
+     * anders de bestandsdatum die de plugin (vanaf 0.3.0) in de inventaris meestuurt.
+     *
+     * @return array<string, \Carbon\CarbonInterface>
+     */
+    private static function lastUpdated(Site $site): array
+    {
+        $map = [];
+        foreach (['plugins' => 'file', 'themes' => 'stylesheet'] as $list => $idKey) {
+            foreach ((array) (($site->inventory ?? [])[$list] ?? []) as $item) {
+                if (isset($item[$idKey]) && is_int($item['updated_at'] ?? null)) {
+                    $map[rtrim($list, 's') . ':' . $item[$idKey]] = \Carbon\CarbonImmutable::createFromTimestamp($item['updated_at']);
+                }
+            }
+        }
+        $site->events()->whereIn('type', ['plugin.update', 'plugin.install', 'theme.update', 'theme.install'])->where('result', 'success')
+            ->selectRaw('type, object, max(occurred_at) as at')->groupBy('type', 'object')->get()
+            ->each(function ($row) use (&$map) {
+                $key = strtok($row->type, '.') . ':' . $row->object;
+                $at = \Carbon\CarbonImmutable::parse($row->at);
+                if (!isset($map[$key]) || $at->greaterThan($map[$key])) {
+                    $map[$key] = $at;
+                }
+            });
+
+        return $map;
     }
 
     public function regeneratePairing(Site $site): RedirectResponse
