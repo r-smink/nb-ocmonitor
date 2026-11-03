@@ -50,6 +50,11 @@ class Customer extends Model
         return $this->hasMany(Site::class)->orderBy('name');
     }
 
+    public function tags(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class)->orderBy('name');
+    }
+
     public function runs(): HasMany
     {
         return $this->hasMany(MaintenanceRun::class);

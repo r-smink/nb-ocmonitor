@@ -7,7 +7,7 @@
       <p>Klanten met een onderhoudscontract, de kalender met geplande beurten en de rapporten die ze krijgen.</p>
     </div>
     @can('manage-sites')
-      <div class="right"><a class="btn" href="{{ route('customers.create') }}">Klant toevoegen</a></div>
+      <div class="right row-actions"><a class="btn ghost" href="{{ route('tags.index') }}">Tags</a><a class="btn" href="{{ route('customers.create') }}">Klant toevoegen</a></div>
     @endcan
   </div>
 
@@ -67,7 +67,7 @@
         <tbody>
           @forelse ($customers as $customer)
             <tr data-href="{{ route('customers.show', $customer) }}">
-              <td><a href="{{ route('customers.show', $customer) }}"><b>{{ $customer->name }}</b></a></td>
+              <td><a href="{{ route('customers.show', $customer) }}"><b>{{ $customer->name }}</b></a> @include('partials.tags', ['tags' => $customer->tags])</td>
               <td>{{ $customer->contact_name }}</td>
               <td>{{ $customer->email ?: '–' }}</td>
               <td>{{ $customer->contractLabel() }}</td>

@@ -1,6 +1,6 @@
 # NB OC Monitor Client (WordPress-plugin)
 
-Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.5.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, en een versleutelde backup vóór updates.
+Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.6.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, een versleutelde backup vóór updates, en database opschonen.
 
 Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `sodium_compat` dat WordPress meelevert.
 
@@ -38,6 +38,7 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 | `update.translations` | updates | Geen argumenten |
 | `backup.create` | updates | `{"backup_id", "plugins"?, "themes"?, "core"?, "uploads": {"db", "files"}}`: zie Backups |
 | `backup.restore` | updates | `{"backup_id", "parts": ["files"] / ["files","db"], "downloads", "sha256"}` |
+| `db.cleanup` | maintenance | `{"items": [...]}` uit: revisions (>30 dagen), auto_drafts (>7 dagen), trash (>30 dagen), spam, trashed_comments, expired_transients, orphan_postmeta, orphan_commentmeta. Maximaal 2000 per soort per keer. De inventaris bevat de tellingen (`cleanup`). Media worden alleen geteld, nooit verwijderd. |
 | `plugin.self_update` | updates | `{"version", "sha256", "signature"}`: zie Zelf bijwerken |
 | `users.list` | read | Beheerders, redacteuren en winkelmanagers met rol, 2FA, laatste login, sessies |
 | `users.lock` / `users.unlock` | users | `{"user_id"}`. Blokkeren beëindigt alle sessies; ook applicatiewachtwoorden werken niet meer |
@@ -48,7 +49,7 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 
 ## Scopes
 
-`read`, `events`, `updates` (sinds 0.3.0) en `users` (sinds 0.4.0) staan altijd aan. Een beheerder van de site kan updates vanuit het panel niet meer uitzetten; wie de koppeling wil stoppen, ontkoppelt de site of zet `NB_OCM_DISABLED` in wp-config.php.
+`read`, `events`, `updates` (sinds 0.3.0) en `users` (sinds 0.4.0) en `maintenance` (sinds 0.6.0) staan altijd aan. Een beheerder van de site kan updates vanuit het panel niet meer uitzetten; wie de koppeling wil stoppen, ontkoppelt de site of zet `NB_OCM_DISABLED` in wp-config.php.
 
 ## Inlogbeveiliging
 

@@ -1,7 +1,7 @@
 {
-    "version": "0.5.0",
-    "file": "nb-ocmonitor-client-0.5.0.zip",
-    "sha256": "be1a4ea618d1167df782a389b5219bfe107917c04d7775917e4555ddc85fb9d7",
-    "signature": "N6BEZuIQsH18FGGS7CfM7mlhQJyyKZbu1bS7pxwKYMOCNmuu66dGRuDjdPizUR7K95yh7f-JTpTku3PftogRDQ",
-    "built_at": "2026-11-03T10:11:01+00:00"
+    "version": "0.6.0",
+    "file": "nb-ocmonitor-client-0.6.0.zip",
+    "sha256": "d2dd5a11c1f897916e527b3b3e92b17b89511392111c29dea42bd88c50fd9dde",
+    "signature": "H7ZcVOGvrWMPAwcECvFbqWqqpzcubVYtieQtfY2xa08xrjXYljZS8GLwyO0oIm53feiK9KHBR00YZc7LBHwMBg",
+    "built_at": "2026-11-03T10:23:29+00:00"
 }

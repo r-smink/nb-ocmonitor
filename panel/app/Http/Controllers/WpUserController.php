@@ -31,7 +31,7 @@ class WpUserController extends Controller
 
     public function index(Request $request): View
     {
-        $sites = Site::query()->whereNotNull('public_key')->orderBy('name')->get();
+        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
         $filters = [
             'site' => (string) $request->query('site', ''),
             'role' => array_key_exists((string) $request->query('role'), self::ROLES) ? (string) $request->query('role') : '',

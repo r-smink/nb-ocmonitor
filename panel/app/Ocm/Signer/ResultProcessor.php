@@ -28,6 +28,7 @@ final class ResultProcessor
             'events.pull' => $this->events($site, $job, $result),
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update' => $this->updated($site, $job, $result),
             'users.list' => $this->users($site, $result),
+            'db.cleanup' => $this->cleaned($site, $job, $result),
             'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
             'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
             'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
@@ -83,6 +84,19 @@ final class ResultProcessor
         ];
         $site->wp_users_at = now();
         $site->save();
+    }
+
+    /** @param array<string, mixed> $result */
+    private function cleaned(Site $site, SiteJob $job, array $result): void
+    {
+        $deleted = array_map('intval', array_filter((array) ($result['deleted'] ?? []), 'is_numeric'));
+        Activity::log('cleanup_done', ['job_id' => $job->job_id, 'deleted' => $deleted, 'more' => !empty($result['more'])], $site, $job->requester);
+        if (is_array($result['stats'] ?? null)) {
+            $inventory = $site->inventory ?? [];
+            $inventory['cleanup'] = $result['stats'];
+            $site->inventory = $inventory;
+            $site->save();
+        }
     }
 
     /** @param array<string, mixed> $result */

@@ -28,7 +28,7 @@ class CustomerController extends Controller
         $month = $month instanceof CarbonImmutable ? $month->startOfMonth() : CarbonImmutable::now()->startOfMonth();
         $today = CarbonImmutable::today();
 
-        $customers = Customer::query()->with(['runs', 'sites'])->orderBy('name')->get();
+        $customers = Customer::query()->with(['runs', 'sites', 'tags'])->orderBy('name')->get();
         $gridStart = $month->startOfWeek(CarbonImmutable::MONDAY);
         $gridEnd = $month->endOfMonth()->endOfWeek(CarbonImmutable::SUNDAY);
 
@@ -276,6 +276,8 @@ class CustomerController extends Controller
 
     private function syncSites(Customer $customer, Request $request): void
     {
+        $tags = array_map('intval', array_filter((array) $request->input('tags', []), 'is_numeric'));
+        $customer->tags()->sync(\App\Models\Tag::query()->whereIn('id', $tags)->pluck('id')->all());
         $ids = array_map('intval', (array) $request->input('sites', []));
         Site::query()->where('customer_id', $customer->id)->whereNotIn('id', $ids)->update(['customer_id' => null]);
         Site::query()->whereIn('id', $ids)->update(['customer_id' => $customer->id, 'client_name' => $customer->name]);

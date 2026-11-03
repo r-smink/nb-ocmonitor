@@ -11,7 +11,7 @@ use NextBuzz\OcMonitor\Protocol\Base64Url;
 class Site extends Model
 {
     /** Gelijk aan Scopes::DEFAULT in de plugin; site.info geeft de werkelijke scopes terug. */
-    public const DEFAULT_SCOPES = ['read', 'events', 'updates', 'users'];
+    public const DEFAULT_SCOPES = ['read', 'events', 'updates', 'users', 'maintenance'];
 
     protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host'];
 
@@ -51,6 +51,30 @@ class Site extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function tags(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class)->orderBy('name');
+    }
+
+    /** Eigen tags plus die van de klant. @return \Illuminate\Support\Collection<int, Tag> */
+    public function allTags(): \Illuminate\Support\Collection
+    {
+        return $this->tags->concat($this->customer?->tags ?? collect())->unique('id')->sortBy('name')->values();
+    }
+
+    /** Database opschonen vanuit het panel: plugin 0.6.0+ en scope maintenance. */
+    public function cleanupBlockedReason(): ?string
+    {
+        if (!$this->isPaired()) {
+            return 'Site is niet gekoppeld';
+        }
+        if ($this->plugin_version === null || version_compare($this->plugin_version, '0.6.0', '<')) {
+            return 'Vanaf client-plugin 0.6.0 (deze site: ' . ($this->plugin_version ?? '?') . ')';
+        }
+
+        return $this->hasScope('maintenance') ? null : 'Opschonen staat niet aan op de site';
     }
 
     public function events(): HasMany

@@ -39,6 +39,7 @@
 
   <div class="toolbar">
     <form class="filters" method="GET" action="{{ route('wp-users.index') }}">
+      @include('partials.tag-select')
       <select name="site" data-autosubmit aria-label="Website">
         <option value="">Alle websites</option>
         @foreach ($sites as $site)<option value="{{ $site->site_id }}" @selected($filters['site'] === $site->site_id)>{{ $site->name }}</option>@endforeach

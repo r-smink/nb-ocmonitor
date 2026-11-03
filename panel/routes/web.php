@@ -11,7 +11,9 @@ use App\Http\Controllers\PluginDownloadController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\UpdateController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VersionController;
 use App\Http\Controllers\WpUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -63,6 +65,14 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/sites/{site}/backups/{backup}/terugzetten', [SiteController::class, 'restoreBackup'])->name('sites.backup.restore')->can('manage-sites')->middleware('throttle:10,1');
     Route::delete('/sites/{site}/backups/{backup}', [SiteController::class, 'deleteBackup'])->name('sites.backup.delete')->can('manage-sites');
     Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
+
+    Route::get('/versies', [VersionController::class, 'index'])->name('versions.index');
+    Route::get('/tags', [TagController::class, 'index'])->name('tags.index');
+    Route::post('/tags', [TagController::class, 'store'])->name('tags.store')->can('manage-sites');
+    Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update')->can('manage-sites');
+    Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy')->can('manage-sites');
+    Route::post('/sites/{site}/tags', [TagController::class, 'site'])->name('sites.tags')->can('manage-sites');
+    Route::post('/sites/{site}/opschonen', [SiteController::class, 'cleanup'])->name('sites.cleanup')->can('manage-sites')->middleware('throttle:10,1');
 
     Route::get('/rapporten', [ReportController::class, 'index'])->name('reports.index');
     Route::put('/rapporten', [ReportController::class, 'update'])->name('reports.update')->can('manage-sites');

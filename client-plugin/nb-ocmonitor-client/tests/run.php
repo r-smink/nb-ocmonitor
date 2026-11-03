@@ -343,9 +343,9 @@ test('antwoord kan niet voor een ander verzoek gebruikt worden', function () {
 // ---------------------------------------------------------------- scopes en update-argumenten
 
 test('scopes: updates en users staan altijd aan, ook bij oude configuraties', function () {
-    check(Scopes::normalize([]) === ['read', 'events', 'updates', 'users']);
-    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates', 'users']);
-    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates', 'users']);
+    check(Scopes::normalize([]) === ['read', 'events', 'updates', 'users', 'maintenance']);
+    check(Scopes::normalize(['read', 'events']) === ['read', 'events', 'updates', 'users', 'maintenance']);
+    check(Scopes::normalize(['admin', 1]) === ['read', 'events', 'updates', 'users', 'maintenance']);
 });
 
 test('update-command zonder scope updates wordt geweigerd', function () {

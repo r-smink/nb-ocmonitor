@@ -123,6 +123,21 @@ td .spark { width: 120px; height: 26px; }
 .asset-list { display: grid; gap: 10px; }
 .asset-list .asset { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
 .asset-list .asset b { min-width: 190px; }
+.tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--info-50); color: var(--info-500); vertical-align: middle; }
+.tag.green { background: var(--ok-bg); color: var(--ok-fg); }
+.tag.orange { background: var(--warn-bg); color: var(--warn-fg); }
+.tag.red { background: var(--crit-bg); color: var(--crit-fg); }
+.tag.purple { background: rgba(124, 58, 237, .12); color: #7c3aed; }
+[data-theme="dark"] .tag.purple { color: #b794f6; }
+.tag.gray { background: var(--surface-sunken); color: var(--text-muted); }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 0; }
+.dsub .tags { display: inline-flex; margin: 0 0 0 6px; }
+.group-head { margin: 26px 0 10px; display: flex; gap: 8px; align-items: center; }
+.tag-edit { margin: 6px 0 12px; font-size: var(--text-sm); }
+.tag-edit summary { cursor: pointer; color: var(--text-muted); font-size: var(--text-xs); font-weight: 600; }
+.ver.crit { color: var(--crit); font-weight: 700; }
+.ver.warn { color: var(--warn-fg); font-weight: 700; }
+.dist { display: flex; gap: 8px; flex-wrap: wrap; }
 .shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .shots figure { margin: 0; display: grid; gap: 6px; }
 .shots figcaption { font-size: var(--text-xs); font-weight: 700; color: var(--text-muted); }

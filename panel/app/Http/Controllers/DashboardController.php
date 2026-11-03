@@ -13,7 +13,7 @@ class DashboardController extends Controller
 {
     public function index(Request $request): View
     {
-        $sites = Site::query()->orderBy('name')->get();
+        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->orderBy('name')->get(), $request->integer('tag') ?: null);
         SiteIssues::load($sites);
 
         $category = array_key_exists((string) $request->query('cat'), SiteIssues::CATEGORIES) ? (string) $request->query('cat') : null;

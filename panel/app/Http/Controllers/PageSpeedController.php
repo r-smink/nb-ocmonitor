@@ -11,9 +11,9 @@ use Illuminate\View\View;
 
 class PageSpeedController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $sites = Site::query()->whereNotNull('public_key')->orderBy('name')->get();
+        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
         $latest = PagespeedResult::latestPerSite();
         $history = PagespeedResult::query()->where('strategy', 'mobile')->whereNull('error')
             ->where('measured_at', '>=', now()->subDays(120))->orderBy('measured_at')

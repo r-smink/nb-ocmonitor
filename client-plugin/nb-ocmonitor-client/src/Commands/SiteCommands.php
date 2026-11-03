@@ -133,6 +133,7 @@ final class SiteCommands
                 return ['file' => $file, 'name' => (string) $data['Name'], 'version' => (string) $data['Version']];
             }, array_keys(get_mu_plugins()), get_mu_plugins()),
             'themes' => $themes,
+            'cleanup' => CleanupCommands::stats(),
             'translations_pending' => count(wp_get_translation_updates()),
             'users' => ['total' => (int) $users['total_users'], 'by_role' => $users['avail_roles']],
             'environment' => [

@@ -8,6 +8,8 @@
     </div>
   </div>
 
+  @include('partials.tag-filter')
+
   @unless ($hasKey)
     <div class="alert warn">
       Er is geen API-sleutel ingesteld. De metingen werken wel, maar Google beperkt het aantal sterk.

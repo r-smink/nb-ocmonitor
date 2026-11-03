@@ -19,6 +19,7 @@ final class Updates
         'core' => 'update.core',
         'translations' => 'update.translations',
         'client' => 'plugin.self_update',
+        'cleanup' => 'db.cleanup',
     ];
 
     private const ARG_NAMES = ['plugin' => 'plugins', 'theme' => 'themes'];
@@ -94,6 +95,7 @@ final class Updates
     {
         $visual = Visual::enabled();
         $backup = Backups::enabled() && Backups::supported($site);
+        $visual = $visual && $command !== 'db.cleanup';
         $visualHold = $visual && !\App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'updating')->exists();
         // Met backup: vasthouden tot de backup er is (releaseReady). De dag is alleen een vangnet;
         // Backups::tick weigert de updates al veel eerder als de backup niet lukt.
@@ -102,7 +104,7 @@ final class Updates
         if ($job->status !== 'pending') {
             return $job;
         }
-        if ($visual) {
+        if ($visual && $command !== 'db.cleanup') {
             Visual::attach($site, $job);
         }
         if ($backup) {
@@ -114,6 +116,19 @@ final class Updates
                 default => [],
             });
         }
+
+        return $job;
+    }
+
+    /**
+     * Database opschonen, met (als dat aan staat) eerst een backup van de database.
+     *
+     * @param string[] $items
+     */
+    public static function queueCleanup(Site $site, array $items, ?User $user): SiteJob
+    {
+        $job = self::enqueue($site, 'db.cleanup', ['items' => array_values($items)], $user, false);
+        Activity::log('cleanup_requested', ['job_id' => $job->job_id, 'items' => $items], $site, $user);
 
         return $job;
     }
@@ -166,6 +181,7 @@ final class Updates
                     'core' => ['wordpress'],
                     'translations' => ['translations'],
                     'client' => ['nb-ocmonitor-client'],
+                    'cleanup' => ['cleanup'],
                     default => array_values((array) (($job->args ?? [])[self::ARG_NAMES[$type]] ?? [])),
                 };
                 $result[$job->site_id][$type] = array_merge($result[$job->site_id][$type] ?? [], $ids);

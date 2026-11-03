@@ -17,7 +17,7 @@ class UpdateController extends Controller
 
     public function index(Request $request): View
     {
-        $sites = Site::query()->whereNotNull('public_key')->orderBy('name')->get();
+        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
         $open = Updates::openJobs($sites);
 
         $rows = collect();
@@ -37,6 +37,7 @@ class UpdateController extends Controller
             'component' => (string) $request->query('component', ''),
             'site' => (string) $request->query('site', ''),
             'q' => trim((string) $request->query('q', '')),
+            'tag' => $request->integer('tag') ?: null,
         ];
         $base = $rows->filter(fn ($r) => ($filters['type'] === null || $r['type'] === $filters['type'])
             && ($filters['site'] === '' || $r['site']->site_id === $filters['site'])

@@ -29,6 +29,12 @@ final class SiteIssues
     public const EVENT_WINDOW_DAYS = 14;
 
     /** Einde van de beveiligingsupdates per PHP-versie (php.net/supported-versions). */
+    /** Einde van de beveiligingsupdates voor een PHP-versie (bijv. "8.1"), of null als onbekend. */
+    public static function phpEol(string $minor): ?string
+    {
+        return self::PHP_EOL[$minor] ?? (version_compare($minor, '7.4', '<') ? '2000-01-01' : null);
+    }
+
     private const PHP_EOL = [
         '7.4' => '2022-11-28', '8.0' => '2023-11-26', '8.1' => '2025-12-31',
         '8.2' => '2026-12-31', '8.3' => '2027-12-31', '8.4' => '2028-12-31', '8.5' => '2029-12-31',

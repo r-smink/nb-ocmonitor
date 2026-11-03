@@ -61,6 +61,18 @@
         <span class="hint">De opmaak stel je in onder <a href="{{ route('reports.index') }}">Rapporten</a>.</span>
       </div>
       <label class="check-grid"><span><input type="checkbox" name="report_enabled" value="1" @checked(old('report_enabled', $customer->report_enabled))> Deze klant krijgt een rapport na elke onderhoudsbeurt</span></label>
+      <h4 class="mt">Tags</h4>
+      @php($tagIds = array_map('intval', old('tags', $customer->exists ? $customer->tags->pluck('id')->all() : [])))
+      @php($allTags = \App\Models\Tag::query()->orderBy('name')->get())
+      @if ($allTags->isEmpty())
+        <p class="muted">Nog geen tags. <a href="{{ route('tags.index') }}">Tags aanmaken</a></p>
+      @else
+        <div class="check-grid">
+          @foreach ($allTags as $tag)<label><input type="checkbox" name="tags[]" value="{{ $tag->id }}" @checked(in_array($tag->id, $tagIds, true))> <span class="tag {{ $tag->color }}">{{ $tag->name }}</span></label>@endforeach
+        </div>
+        <p class="note">Tags van de klant gelden ook voor al zijn websites.</p>
+      @endif
+
       <h4 class="mt">Wat er in het rapport staat</h4>
       <div class="check-grid">
         @foreach (\App\Models\Customer::REPORT_SECTIONS as $key => $label)

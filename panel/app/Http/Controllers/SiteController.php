@@ -29,7 +29,7 @@ class SiteController extends Controller
 
     public function index(Request $request): View
     {
-        $all = Site::query()->orderBy('name')->get();
+        $all = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->orderBy('name')->get(), $request->integer('tag') ?: null);
         SiteIssues::load($all);
         $sites = $all;
         $q = trim((string) $request->query('q', ''));
@@ -44,7 +44,27 @@ class SiteController extends Controller
             $counts[$site->level()]++;
         }
 
-        return view('sites.index', ['sites' => $sites, 'counts' => $counts, 'q' => $q]);
+        // Indeling: één lijst, per klant of per tag.
+        $layout = in_array($request->query('indeling'), ['klant', 'tag'], true) ? (string) $request->query('indeling') : 'lijst';
+        $groups = match ($layout) {
+            'klant' => $sites->groupBy(fn (Site $s) => $s->customer?->name ?? ($s->client_name ?: 'Zonder klant'))->sortKeys()
+                ->sortBy(fn ($g, $name) => $name === 'Zonder klant' ? 1 : 0),
+            'tag' => (function () use ($sites) {
+                $out = [];
+                foreach ($sites as $site) {
+                    $tags = $site->allTags();
+                    foreach ($tags->isEmpty() ? [null] : $tags as $tag) {
+                        $out[$tag?->name ?? 'Zonder tag'][] = $site;
+                    }
+                }
+                ksort($out);
+
+                return collect($out)->map(fn ($list) => collect($list))->sortBy(fn ($g, $name) => $name === 'Zonder tag' ? 1 : 0);
+            })(),
+            default => collect(['' => $sites]),
+        };
+
+        return view('sites.index', ['groups' => $groups, 'sites' => $sites, 'counts' => $counts, 'q' => $q, 'layout' => $layout]);
     }
 
     public function create(): View
@@ -92,6 +112,7 @@ class SiteController extends Controller
 
     public function show(Site $site): View
     {
+        $site->load(['tags', 'customer.tags']);
         $pairingCode = null;
         if ($site->pairingIsOpen()) {
             $pairingCode = Pairing::createCode(
@@ -165,6 +186,31 @@ class SiteController extends Controller
         Activity::log('visual_reviewed', ['check' => $check->id, 'percent' => $check->diff_percent], $site);
 
         return back()->with('status', 'Visuele controle gemarkeerd als bekeken.');
+    }
+
+    public const CLEANUP_ITEMS = [
+        'revisions' => 'Revisies ouder dan 30 dagen',
+        'auto_drafts' => 'Automatische concepten ouder dan 7 dagen',
+        'trash' => 'Prullenbak ouder dan 30 dagen',
+        'spam' => 'Spamreacties',
+        'trashed_comments' => 'Reacties in de prullenbak',
+        'expired_transients' => 'Verlopen transients',
+        'orphan_postmeta' => 'Losse berichtgegevens',
+        'orphan_commentmeta' => 'Losse reactiegegevens',
+    ];
+
+    public function cleanup(Request $request, Site $site): RedirectResponse
+    {
+        $data = $request->validate(['items' => ['required', 'array'], 'items.*' => ['string', \Illuminate\Validation\Rule::in(array_keys(self::CLEANUP_ITEMS))]]);
+        if ($reason = $site->cleanupBlockedReason()) {
+            return back()->withErrors(['cleanup' => $reason]);
+        }
+        if (\App\Models\SiteJob::query()->where('site_id', $site->id)->where('command', 'db.cleanup')->whereIn('status', ['pending', 'running'])->exists()) {
+            return back()->with('status', 'Er staat al een opschoning in de wachtrij.');
+        }
+        \App\Ocm\Updates::queueCleanup($site, array_values(array_unique($data['items'])), $request->user());
+
+        return back()->with('status', 'Opschonen staat in de wachtrij' . (\App\Ocm\Backups::enabled() && \App\Ocm\Backups::supported($site) ? ', na een backup van de database.' : '.'));
     }
 
     public function restoreBackup(Request $request, Site $site, \App\Models\Backup $backup): RedirectResponse

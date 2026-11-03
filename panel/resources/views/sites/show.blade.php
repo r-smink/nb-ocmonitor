@@ -19,7 +19,21 @@
         <span class="badge">{{ $site->client_name }}</span>
       @endif
     </div>
-    <p class="dsub"><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> · {{ $site->site_id }}</p>
+    <p class="dsub"><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> · {{ $site->site_id }} @include('partials.tags', ['tags' => $site->allTags()])</p>
+    @can('manage-sites')
+      @php($allTags = \App\Models\Tag::query()->orderBy('name')->get())
+      @if ($allTags->isNotEmpty())
+        <details class="tag-edit">
+          <summary>Tags wijzigen</summary>
+          <form method="POST" action="{{ route('sites.tags', $site) }}" class="check-grid mt">
+            @csrf
+            @foreach ($allTags as $tag)<label><input type="checkbox" name="tags[]" value="{{ $tag->id }}" @checked($site->tags->contains('id', $tag->id))> <span class="tag {{ $tag->color }}">{{ $tag->name }}</span></label>@endforeach
+            <div><button class="btn ghost small" type="submit">Opslaan</button></div>
+          </form>
+          @if ($site->customer && $site->customer->tags->isNotEmpty())<p class="note">Via de klant: {{ $site->customer->tags->pluck('name')->implode(', ') }}.</p>@endif
+        </details>
+      @endif
+    @endcan
   </div>
 
   @php($issues = collect($site->issues()))
@@ -385,6 +399,31 @@
   @endif
 
   @if ($site->isPaired())
+    @php($cleanup = ($site->inventory ?? [])['cleanup'] ?? null)
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Database opschonen</h3>
+        @if (isset($cleanup['db_bytes']))<span class="hint">database {{ number_format($cleanup['db_bytes'] / 1048576, 1, ',', '.') }} MB · autoload {{ number_format(($cleanup['autoload_bytes'] ?? 0) / 1024, 0, ',', '.') }} kB</span>@endif
+      </div>
+      @if ($reason = $site->cleanupBlockedReason())
+        <p class="muted">{{ $reason }}.</p>
+      @elseif (!is_array($cleanup))
+        <p class="muted">Nog geen gegevens; vraag een inventaris op.</p>
+      @else
+        <form method="POST" action="{{ route('sites.cleanup', $site) }}" data-confirm="Deze gegevens definitief verwijderen op {{ $site->name }}?">
+          @csrf
+          <div class="check-grid">
+            @foreach (\App\Http\Controllers\SiteController::CLEANUP_ITEMS as $key => $label)
+              @php($n = (int) ($cleanup['counts'][$key] ?? 0))
+              <label><input type="checkbox" name="items[]" value="{{ $key }}" @checked($n > 0) @disabled($n === 0)> {{ $label }} <span class="muted">({{ number_format($n, 0, ',', '.') }})</span></label>
+            @endforeach
+          </div>
+          @can('manage-sites')<div class="row-actions mt"><button class="btn small" type="submit">Opschonen</button></div>@endcan
+        </form>
+        <p class="note mt">Maximaal 2000 per soort per keer. Media: {{ number_format($cleanup['media']['total'] ?? 0, 0, ',', '.') }} bestanden, waarvan {{ number_format($cleanup['media']['unattached'] ?? 0, 0, ',', '.') }} niet aan een bericht gekoppeld. Die worden niet automatisch verwijderd: page builders gebruiken vaak afbeeldingen die nergens "gekoppeld" zijn.</p>
+      @endif
+    </div>
+
     <div class="panel">
       <div class="panel-head">
         <h3>Backups vóór updates</h3>

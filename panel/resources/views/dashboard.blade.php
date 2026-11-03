@@ -14,6 +14,7 @@
       @if ($levels['pending'] > 0)<span class="chip">{{ $levels['pending'] }} niet gekoppeld</span>@endif
     </div>
   </div>
+  @include('partials.tag-filter')
 
   <div class="stats">
     <a href="{{ route('dashboard', ['cat' => 'beveiliging']) }}" @class(['stat', 'lvl-crit' => $issueCounts['security_crit'] > 0, 'lvl-warn' => $issueCounts['security'] > 0 && $issueCounts['security_crit'] === 0])>
