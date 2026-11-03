@@ -12,4 +12,5 @@ Schedule::command('ocm:pagespeed')->everyFiveMinutes()->withoutOverlapping(30);
 Schedule::command('ocm:monitor')->everyFiveMinutes()->withoutOverlapping(10);
 Schedule::command('ocm:visual')->everyMinute()->withoutOverlapping(15);
 Schedule::command('ocm:backups')->everyMinute()->withoutOverlapping(10);
+Schedule::command('ocm:vulnerabilities')->dailyAt('04:30')->withoutOverlapping(60);
 Schedule::command('ocm:queue-checks --users')->dailyAt('03:45')->withoutOverlapping();

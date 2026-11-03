@@ -63,6 +63,7 @@ final class SiteIssues
         $events = collect();
         $pagespeed = collect();
         $visual = collect();
+        $vulns = Vulnerabilities::index(array_keys(Vulnerabilities::componentKeys($paired)));
         if ($ids !== []) {
             $visual = \App\Models\VisualCheck::query()->whereIn('site_id', $ids)->where('status', 'done')->whereNull('reviewed_at')
                 ->where('after_at', '>=', now()->subDays(7))->orderByDesc('id')
@@ -80,7 +81,7 @@ final class SiteIssues
         }
 
         foreach ($sites as $site) {
-            $site->setIssues(self::forSite($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $visual->get($site->id)));
+            $site->setIssues(self::forSite($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $visual->get($site->id), $vulns));
         }
     }
 
@@ -89,7 +90,7 @@ final class SiteIssues
      * @param Collection<int, PagespeedResult> $pagespeed mobiel, nieuwste eerst
      * @return list<array{level: string, category: string, text: string}>
      */
-    public static function forSite(Site $site, Collection $events, Collection $pagespeed, ?\App\Models\VisualCheck $visual = null): array
+    public static function forSite(Site $site, Collection $events, Collection $pagespeed, ?\App\Models\VisualCheck $visual = null, ?Collection $vulns = null): array
     {
         if (!$site->isPaired()) {
             return [['level' => 'info', 'category' => 'koppeling', 'text' => $site->pairingIsOpen() ? 'Wacht op koppeling' : 'Koppelcode verlopen']];
@@ -136,6 +137,18 @@ final class SiteIssues
             } elseif ($days <= (int) config('ocm.monitoring.domain_warn_days', 30)) {
                 $add('warn', 'beschikbaarheid', "Domein verloopt over {$days} dagen (" . $site->domain_expires_at->format('d-m-Y') . ')');
             }
+        }
+        // Kwetsbaarheden (Wordfence Intelligence), één melding per onderdeel met de ernstigste bovenaan.
+        $rank = ['crit' => 0, 'warn' => 1, 'info' => 2];
+        foreach (collect(Vulnerabilities::forSite($site, $vulns))->groupBy(fn ($m) => $m['component']['type'] . ':' . $m['component']['slug']) as $matches) {
+            $worst = $matches->sortBy(fn ($m) => $rank[$m['vulnerability']->level()] . str_pad((string) (100 - (int) (($m['vulnerability']->cvss_score ?? 0) * 10)), 3, '0', STR_PAD_LEFT))->first();
+            $c = $worst['component'];
+            $v = $worst['vulnerability'];
+            $fixed = $matches->pluck('fixed')->filter()->sort('version_compare')->last();
+            $text = ($matches->count() === 1 ? 'Kwetsbaarheid' : $matches->count() . ' kwetsbaarheden') . " in {$c['name']} {$c['version']}"
+                . ($v->cvss_score !== null ? ' (CVSS ' . number_format($v->cvss_score, 1) . ')' : '')
+                . ($fixed ? ": bijwerken naar {$fixed}" : ': nog geen oplossing');
+            $add($v->level(), 'beveiliging', $text);
         }
         foreach ((array) (($site->inventory ?? [])['licenses'] ?? []) as $key => $state) {
             if (is_array($state) && ($state['active'] ?? null) === false) {

@@ -158,6 +158,8 @@ Backups vóór updates (DigitalOcean Spaces):
 
 Sites met client-plugin 0.5.0 of nieuwer maken dan vóór elke update een backup van de database en de onderdelen die bijgewerkt worden. Die is versleuteld met een sleutel die alleen op de site zelf staat (de site uploadt rechtstreeks via een tijdelijke link; de Spaces-sleutel komt nooit op een klantsite). Een backup blijft 7 dagen staan, of tot je de visuele controle op "Bekeken, in orde" zet. Mislukt de backup, dan gaan de updates niet door.
 
+Kwetsbaarheden: maak een gratis account op wordfence.com, maak onder Account → Integrations een API-sleutel voor de Vulnerability Data Feed en zet die in `.env` als `OCM_WORDFENCE_API_KEY`. De scheduler haalt de feed elke nacht om 04:30 op; de eerste keer direct met `docker compose exec scheduler php artisan ocm:vulnerabilities`. Gebruik is gratis, ook zakelijk; het panel en de rapporten vermelden Wordfence als bron.
+
 Monitoring: de scheduler controleert elke 5 minuten de homepage van elke site, het SSL-certificaat twee keer per dag en de domeinregistratie (RDAP) wekelijks. Visuele controle bij updates werkt alleen met `OCM_PAGESPEED_API_KEY`; uitzetten met `OCM_VISUAL_CHECKS=false`, drempel met `OCM_VISUAL_THRESHOLD` (standaard 15%).
 
 Nieuwe versie van de client-plugin: maak lokaal `php scripts/release-plugin.php` (de release-sleutel staat alleen op je eigen computer, in `~/.nb-ocm/`), commit `client-plugin/dist/` en deploy. Sites met 0.4.0 of nieuwer krijgen de update dan aangeboden onder Updates → OC-plugin. **Bewaar de release-sleutel ook in een wachtwoordkluis**: zonder die sleutel kunnen sites niet meer via het panel bijgewerkt worden.

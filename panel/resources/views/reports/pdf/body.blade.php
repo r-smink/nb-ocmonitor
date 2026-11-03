@@ -100,6 +100,7 @@
     @if ($sec['issues'] !== [])
       <p><b>Aandachtspunten:</b></p>
       <ul>@foreach ($sec['issues'] as $issue)<li>{{ $issue }}</li>@endforeach</ul>
+      @if (($sec['vulnerabilities'] ?? 0) > 0)<p class="small muted">{{ \App\Ocm\Vulnerabilities::ATTRIBUTION }}</p>@endif
     @else
       <p class="ok">Geen openstaande beveiligingsproblemen gevonden.</p>
     @endif

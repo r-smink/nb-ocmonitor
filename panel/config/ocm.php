@@ -59,6 +59,12 @@ return [
         'max_minutes' => 90,
     ],
 
+    // Wordfence Intelligence Vulnerability Data Feed (v3): gratis API-sleutel via wordfence.com → Account → Integrations.
+    'vulnerabilities' => [
+        'api_key' => env('OCM_WORDFENCE_API_KEY'),
+        'endpoint' => env('OCM_WORDFENCE_FEED', 'https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production'),
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),

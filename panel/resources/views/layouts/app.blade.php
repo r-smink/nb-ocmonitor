@@ -21,6 +21,7 @@
       @php($navUpdates = (int) \App\Models\Site::query()->whereNotNull('public_key')->sum('updates_count'))
       <a href="{{ route('updates.index') }}" @class(['active' => request()->routeIs('updates.*')])>Updates @if ($navUpdates > 0)<span class="nav-badge">{{ $navUpdates }}</span>@endif</a>
       <a href="{{ route('pagespeed.index') }}" @class(['active' => request()->routeIs('pagespeed.*')])>PageSpeed</a>
+      <a href="{{ route('vulnerabilities.index') }}" @class(['active' => request()->routeIs('vulnerabilities.*')])>Kwetsbaarheden</a>
       <a href="{{ route('versions.index') }}" @class(['active' => request()->routeIs('versions.*')])>Versies</a>
       <a href="{{ route('licenses.index') }}" @class(['active' => request()->routeIs('licenses.*')])>Licenties</a>
       <a href="{{ route('wp-users.index') }}" @class(['active' => request()->routeIs('wp-users.*')])>WP-gebruikers</a>

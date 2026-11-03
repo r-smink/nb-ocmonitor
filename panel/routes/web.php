@@ -68,6 +68,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
 
     Route::get('/versies', [VersionController::class, 'index'])->name('versions.index');
+    Route::get('/kwetsbaarheden', [\App\Http\Controllers\VulnerabilityController::class, 'index'])->name('vulnerabilities.index');
     Route::get('/licenties', [LicenseController::class, 'index'])->name('licenses.index');
     Route::middleware('can:manage-sites')->group(function () {
         Route::post('/licenties/producten', [LicenseController::class, 'storeProduct'])->name('licenses.products.store');

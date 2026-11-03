@@ -138,6 +138,7 @@ final class ReportData
                 'locked' => (int) $failed->sum(fn (SiteEvent $e) => (int) ($e->data['locked'] ?? 0)),
                 'channels' => $channels,
                 'issues' => $issues,
+                'vulnerabilities' => count(\App\Ocm\Vulnerabilities::forSite($site)),
                 'login_security' => is_array($login) ? $login : null,
             ],
             'pagespeed' => $psi,
