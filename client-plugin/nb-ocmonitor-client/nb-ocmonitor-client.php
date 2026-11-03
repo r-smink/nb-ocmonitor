@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       NB OC Monitor Client
  * Description:       Koppelt deze site aan het NB OC Monitor-panel van Next Buzz voor beheer en monitoring. Alle verzoeken zijn ondertekend (Ed25519).
- * Version:           0.4.0
+ * Version:           0.5.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Next Buzz
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') || exit;
 
-define('NB_OCM_VERSION', '0.4.0');
+define('NB_OCM_VERSION', '0.5.0');
 define('NB_OCM_FILE', __FILE__);
 
 if (version_compare(PHP_VERSION, '7.4', '<')) {

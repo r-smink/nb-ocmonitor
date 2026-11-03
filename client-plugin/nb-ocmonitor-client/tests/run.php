@@ -22,6 +22,9 @@ use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 use NextBuzz\OcMonitor\Client\Security\TrustedDevice;
 use NextBuzz\OcMonitor\Client\Commands\UserArgs;
 use NextBuzz\OcMonitor\Client\Release;
+use NextBuzz\OcMonitor\Client\Backup\BackupArgs;
+use NextBuzz\OcMonitor\Client\Backup\BackupCrypto;
+use NextBuzz\OcMonitor\Client\Backup\DatabaseDump;
 use NextBuzz\OcMonitor\Client\SiteConfig;
 use NextBuzz\OcMonitor\Protocol\Base64Url;
 use NextBuzz\OcMonitor\Protocol\Canonical;
@@ -493,6 +496,79 @@ test('vertrouwd apparaat: verloopt, en vervalt na een nieuw wachtwoord', functio
     check(!TrustedDevice::valid($cookie, 6, $hash, 1000, 'geheim'), 'andere gebruiker');
     check(!TrustedDevice::valid($cookie, 5, '$P$Bzzzzzzzzzzzzzzzzzzzzzzzzzz', 1000, 'geheim'), 'nieuw wachtwoord');
     check(!TrustedDevice::valid('9999.' . str_repeat('0', 64), 5, $hash, 1000, 'geheim'), 'vervalste mac');
+});
+
+// ---------------------------------------------------------------- backups
+
+test('backup-versleuteling: terug te lezen, en gewijzigde of afgekapte bestanden worden geweigerd', function () {
+    $dir = sys_get_temp_dir() . '/nbocm-test-' . bin2hex(random_bytes(4));
+    mkdir($dir);
+    $plain = random_bytes(2500000); // drie blokken
+    file_put_contents("$dir/in", $plain);
+    $key = BackupCrypto::generateKey();
+    BackupCrypto::encryptFile("$dir/in", "$dir/enc", $key);
+    check(strpos((string) file_get_contents("$dir/enc"), substr($plain, 1000, 64)) === false, 'versleuteld');
+    BackupCrypto::decryptFile("$dir/enc", "$dir/out", $key);
+    check(file_get_contents("$dir/out") === $plain, 'gelijk na ontsleutelen');
+
+    $cases = [
+        'andere sleutel' => static function () use ($dir) { copy("$dir/enc", "$dir/x"); return BackupCrypto::generateKey(); },
+        'gewijzigd' => static function () use ($dir, $key) { $b = file_get_contents("$dir/enc"); $b[2000] = chr(ord($b[2000]) ^ 1); file_put_contents("$dir/x", $b); return $key; },
+        'afgekapt' => static function () use ($dir, $key) { file_put_contents("$dir/x", substr((string) file_get_contents("$dir/enc"), 0, 1048700)); return $key; },
+        'aangevuld' => static function () use ($dir, $key) { file_put_contents("$dir/x", file_get_contents("$dir/enc") . 'x'); return $key; },
+    ];
+    foreach ($cases as $name => $prepare) {
+        $k = $prepare();
+        $threw = false;
+        try {
+            BackupCrypto::decryptFile("$dir/x", "$dir/out2", $k);
+        } catch (\RuntimeException $e) {
+            $threw = true;
+        }
+        check($threw && !file_exists("$dir/out2"), $name);
+    }
+    array_map('unlink', glob("$dir/*"));
+    rmdir($dir);
+});
+
+test('backup-argumenten: alleen https, geen sleutel van het panel, geen padmanipulatie', function () {
+    $links = ['db' => ['url' => 'https://ams3.digitaloceanspaces.com/b/db?X-Amz=1', 'headers' => ['Host' => 'x']], 'files' => ['url' => 'https://ams3.digitaloceanspaces.com/b/f', 'headers' => []]];
+    $ok = BackupArgs::create(['backup_id' => 'bk_' . str_repeat('a', 20), 'plugins' => ['akismet/akismet.php'], 'core' => true, 'uploads' => $links]);
+    check($ok['plugins'] === ['akismet/akismet.php'] && $ok['themes'] === [] && $ok['core'] === true);
+    $bad = [
+        ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => $links, 'key' => 'panelsleutel'],
+        ['backup_id' => '../x', 'uploads' => $links],
+        ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => ['db' => ['url' => 'http://evil.example/x'], 'files' => $links['files']]],
+        ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => ['db' => $links['db']]],
+        ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => ['db' => ['url' => 'https://x.example/a', 'headers' => ["X\r\nEvil" => 'a']], 'files' => $links['files']]],
+        ['backup_id' => 'bk_' . str_repeat('a', 20), 'plugins' => ['../../wp-config.php'], 'uploads' => $links],
+    ];
+    foreach ($bad as $i => $args) {
+        $threw = false;
+        try {
+            BackupArgs::create($args);
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'create ' . $i);
+    }
+    $r = BackupArgs::restore(['backup_id' => 'bk_' . str_repeat('b', 20), 'parts' => ['files'], 'downloads' => ['files' => $links['files']], 'sha256' => ['files' => str_repeat('c', 64), 'db' => str_repeat('d', 64)]]);
+    check($r['parts'] === ['files'] && array_keys($r['sha256']) === ['files']);
+    $threw = false;
+    try {
+        BackupArgs::restore(['backup_id' => 'bk_' . str_repeat('b', 20), 'parts' => ['files', 'db'], 'downloads' => ['files' => $links['files']], 'sha256' => ['files' => str_repeat('c', 64)]]);
+    } catch (CommandError $e) {
+        $threw = true;
+    }
+    check($threw, 'db zonder link of sha256');
+});
+
+test('database-import: alleen eigen statements, altijd naar tijdelijke tabellen', function () {
+    check(DatabaseDump::toTemporary('INSERT INTO `wp_posts` VALUES (1)') === ['INSERT INTO `nbocmtmp_wp_posts` VALUES (1)', 'wp_posts']);
+    check(DatabaseDump::toTemporary('CREATE TABLE `wp_options` (x int)')[0] === 'CREATE TABLE `nbocmtmp_wp_options` (x int)');
+    check(DatabaseDump::toTemporary('DROP TABLE IF EXISTS `wp_users`;')[0] === 'DROP TABLE IF EXISTS `nbocmtmp_wp_users`;');
+    check(DatabaseDump::toTemporary('DROP DATABASE wordpress')[0] === null);
+    check(DatabaseDump::toTemporary('UPDATE `wp_users` SET user_pass = 1')[0] === null);
 });
 
 foreach ($failures as $failure) {

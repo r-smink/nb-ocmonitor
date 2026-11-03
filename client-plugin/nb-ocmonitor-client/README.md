@@ -1,6 +1,6 @@
 # NB OC Monitor Client (WordPress-plugin)
 
-Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.4.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, en zichzelf bijwerken met ondertekende releases.
+Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.5.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, en een versleutelde backup vóór updates.
 
 Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `sodium_compat` dat WordPress meelevert.
 
@@ -36,6 +36,8 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 | `update.theme` | updates | `{"themes": ["stylesheet", …]}`, maximaal 10 |
 | `update.core` | updates | Geen argumenten: de update die WordPress zelf aanbiedt |
 | `update.translations` | updates | Geen argumenten |
+| `backup.create` | updates | `{"backup_id", "plugins"?, "themes"?, "core"?, "uploads": {"db", "files"}}`: zie Backups |
+| `backup.restore` | updates | `{"backup_id", "parts": ["files"] / ["files","db"], "downloads", "sha256"}` |
 | `plugin.self_update` | updates | `{"version", "sha256", "signature"}`: zie Zelf bijwerken |
 | `users.list` | read | Beheerders, redacteuren en winkelmanagers met rol, 2FA, laatste login, sessies |
 | `users.lock` / `users.unlock` | users | `{"user_id"}`. Blokkeren beëindigt alle sessies; ook applicatiewachtwoorden werken niet meer |
@@ -65,6 +67,13 @@ Inloggen via wp-login.php, de blokeditor en de WordPress-app met een applicatiew
 - De laatste actieve beheerder kan niet geblokkeerd of teruggezet worden.
 - 2FA afdwingen (`security.two_factor`, of in WP-admin / `wp nb-ocm login-security --two-factor=admins`): wie Two Factor, Wordfence Login Security of WP 2FA gebruikt, merkt niets. Anderen krijgen na het wachtwoord een code van 6 cijfers per e-mail (10 minuten geldig, 5 pogingen), met de optie om het apparaat 30 dagen te vertrouwen. Een nieuw wachtwoord maakt vertrouwde apparaten ongeldig.
 - Noodstop als mail niet werkt: `define('NB_OCM_DISABLE_2FA', true);` in wp-config.php.
+
+## Backups vóór updates
+
+- Inhoud: de database (alle tabellen met het WordPress-prefix, zonder de eigen tabellen en opties van deze plugin) en de mappen van de onderdelen die bijgewerkt worden; bij een WordPress-update ook `wp-admin`, `wp-includes` en de PHP-bestanden in de root (nooit `wp-config.php`). Uploads zitten er niet in: die verandert een update niet.
+- Versleuteld met libsodium secretstream (XChaCha20-Poly1305). De sleutel staat alleen op de site (`nb_ocm_backup_key`, of `NB_OCM_BACKUP_KEY` in wp-config.php). Het panel stuurt alleen tijdelijke https-links om te uploaden en downloaden.
+- Terugzetten: eerst de bestanden (oude map tijdelijk bewaard, bij een fout teruggezet), dan de database. Die wordt eerst in tijdelijke tabellen (`nbocmtmp_*`) geïmporteerd en pas daarna in één `RENAME TABLE` omgewisseld; mislukt de import, dan blijft de site zoals hij was. De huidige koppeling blijft behouden.
+- Vereist de PHP-extensies zip en curl. Grote databases kunnen op goedkope hosting tegen tijdslimieten aanlopen (de plugin vraagt 20 minuten).
 
 ## Zelf bijwerken
 

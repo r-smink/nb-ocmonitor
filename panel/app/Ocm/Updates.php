@@ -93,13 +93,49 @@ final class Updates
     private static function enqueue(Site $site, string $command, array $args, ?User $user, bool $deduplicate = true): SiteJob
     {
         $visual = Visual::enabled();
-        $hold = $visual && !\App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'updating')->exists();
-        $job = JobQueue::enqueue($site, $command, $args, $user, $deduplicate, $hold ? Visual::holdUntil() : null);
+        $backup = Backups::enabled() && Backups::supported($site);
+        $visualHold = $visual && !\App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'updating')->exists();
+        // Met backup: vasthouden tot de backup er is (releaseReady). De dag is alleen een vangnet;
+        // Backups::tick weigert de updates al veel eerder als de backup niet lukt.
+        $until = $backup ? now()->addDay() : ($visualHold ? Visual::holdUntil() : null);
+        $job = JobQueue::enqueue($site, $command, $args, $user, $deduplicate, $until);
+        if ($job->status !== 'pending') {
+            return $job;
+        }
         if ($visual) {
             Visual::attach($site, $job);
         }
+        if ($backup) {
+            Backups::attach($site, $job, match ($command) {
+                'update.plugin' => ['plugins' => $args['plugins'] ?? []],
+                'update.theme' => ['themes' => $args['themes'] ?? []],
+                'update.core' => ['core' => true],
+                'plugin.self_update' => ['plugins' => ['nb-ocmonitor-client/nb-ocmonitor-client.php']],
+                default => [],
+            });
+        }
 
         return $job;
+    }
+
+    /**
+     * Geeft vastgehouden update-jobs vrij zodra hun backup klaar is en de screenshot vooraf er is.
+     */
+    public static function releaseReady(Site $site): void
+    {
+        $held = SiteJob::query()->where('site_id', $site->id)->where('status', 'pending')
+            ->whereIn('command', array_values(self::COMMANDS))->where('available_at', '>', now())->get(['id']);
+        if ($held->isEmpty()) {
+            return;
+        }
+        $waitingBackups = \App\Models\Backup::query()->where('site_id', $site->id)->where('status', 'pending')->get(['update_job_ids'])
+            ->flatMap(fn ($b) => $b->update_job_ids ?? [])->all();
+        $waitingVisual = \App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'before')->get(['job_ids'])
+            ->flatMap(fn ($c) => $c->job_ids ?? [])->all();
+        $ready = $held->pluck('id')->reject(fn ($id) => in_array($id, $waitingBackups, true) || in_array($id, $waitingVisual, true))->all();
+        if ($ready !== []) {
+            SiteJob::query()->whereIn('id', $ready)->update(['available_at' => now()]);
+        }
     }
 
     /**

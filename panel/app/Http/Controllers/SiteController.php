@@ -118,6 +118,7 @@ class SiteController extends Controller
             'lastUpdated' => self::lastUpdated($site),
             'uptime' => \App\Ocm\Monitoring\Monitor::stats($site, \Carbon\CarbonImmutable::now()->subDays(30), \Carbon\CarbonImmutable::now()),
             'visual' => $site->visualChecks()->latest('id')->first(),
+            'backups' => \App\Models\Backup::query()->where('site_id', $site->id)->where(fn ($q) => $q->whereIn('status', ['pending', 'ready', 'restoring'])->orWhere('created_at', '>=', now()->subDays(7)))->latest('id')->limit(10)->get(),
             'wpUsers' => collect((array) (($site->wp_users ?? [])['users'] ?? []))->map(fn ($u) => $u + ['site' => $site]),
             // Alleen een fout tonen als dat per strategie nog de nieuwste meting is.
             'pagespeedLastError' => $site->pagespeedResults()->where('measured_at', '>=', now()->subDay())->orderByDesc('id')->get()
@@ -160,9 +161,37 @@ class SiteController extends Controller
     {
         abort_unless($check->site_id === $site->id, 404);
         $check->update(['reviewed_at' => now(), 'reviewed_by' => $request->user()->id]);
+        \App\Ocm\Backups::deleteForVisualCheck($check);
         Activity::log('visual_reviewed', ['check' => $check->id, 'percent' => $check->diff_percent], $site);
 
         return back()->with('status', 'Visuele controle gemarkeerd als bekeken.');
+    }
+
+    public function restoreBackup(Request $request, Site $site, \App\Models\Backup $backup): RedirectResponse
+    {
+        abort_unless($backup->site_id === $site->id, 404);
+        $data = $request->validate(['database' => ['nullable', 'boolean'], 'confirm_orders' => ['nullable', 'boolean']]);
+        if ($backup->status !== 'ready' || $backup->deleted_at !== null) {
+            return back()->withErrors(['backup' => 'Deze backup kan niet (meer) teruggezet worden.']);
+        }
+        $parts = ['files'];
+        if (!empty($data['database'])) {
+            if ($backup->woocommerce && empty($data['confirm_orders'])) {
+                return back()->withErrors(['backup' => 'Dit is een webshop: bevestig dat bestellingen en klantgegevens van na de backup verloren gaan.']);
+            }
+            $parts[] = 'db';
+        }
+        \App\Ocm\Backups::restore($backup, $parts, $request->user());
+
+        return back()->with('status', 'Terugzetten van de backup van ' . $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') . ' staat in de wachtrij (' . (in_array('db', $parts, true) ? 'bestanden en database' : 'alleen bestanden') . ').');
+    }
+
+    public function deleteBackup(Site $site, \App\Models\Backup $backup): RedirectResponse
+    {
+        abort_unless($backup->site_id === $site->id, 404);
+        \App\Ocm\Backups::delete($backup, 'handmatig');
+
+        return back()->with('status', 'Backup verwijderd.');
     }
 
     public function regeneratePairing(Site $site): RedirectResponse

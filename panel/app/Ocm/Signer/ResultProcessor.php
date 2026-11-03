@@ -28,6 +28,8 @@ final class ResultProcessor
             'events.pull' => $this->events($site, $job, $result),
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update' => $this->updated($site, $job, $result),
             'users.list' => $this->users($site, $result),
+            'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
+            'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
             'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
             default => null,
         };

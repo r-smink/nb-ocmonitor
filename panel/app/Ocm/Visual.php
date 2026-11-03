@@ -52,7 +52,7 @@ final class Visual
             } catch (\Throwable $e) {
                 $check->forceFill(['status' => 'skipped', 'error' => 'Eerste screenshot mislukt: ' . mb_substr($e->getMessage(), 0, 400)])->save();
             }
-            SiteJob::query()->whereIn('id', $check->job_ids ?? [])->where('status', 'pending')->update(['available_at' => now()]);
+            Updates::releaseReady($check->site);
         }
 
         foreach (VisualCheck::query()->with('site')->where('status', 'updating')->get() as $check) {

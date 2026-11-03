@@ -51,6 +51,14 @@ return [
         'settle_seconds' => 60,
     ],
 
+    // Backup vóór updates, in DigitalOcean Spaces (disk "backups" in config/filesystems.php).
+    'backups' => [
+        'enabled' => (bool) env('OCM_BACKUPS', true),
+        'keep_days' => (int) env('OCM_BACKUP_KEEP_DAYS', 7),
+        'link_minutes' => 180,
+        'max_minutes' => 90,
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),
@@ -63,6 +71,7 @@ return [
         'allowed_commands' => [
             'site.info', 'site.inventory', 'events.pull', 'events.ack',
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update',
+            'backup.create', 'backup.restore',
             'users.list', 'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor',
         ],
         'max_jobs_per_site_per_minute' => 30,
@@ -75,6 +84,8 @@ return [
             'update.core' => 600,
             'update.translations' => 300,
             'plugin.self_update' => 300,
+            'backup.create' => 1200,
+            'backup.restore' => 1200,
         ],
         'max_response_bytes' => 5 * 1024 * 1024,
     ],

@@ -76,7 +76,7 @@ Body van een command (JSON): `{"command": "...", "args": {...}, "job_id": "...",
 6. Pas daarna wordt de nonce verbruikt (atomair, bewaard tot `ts + venster + 1`). Een al gebruikte nonce betekent `replay`.
 7. Daarna, in de plugin: het JSON-schema van de body, `expires_at`, het command in de allowlist en binnen de scopes van de site.
 
-   Scopes: `read`, `events`, `updates` (commands `update.*` en `plugin.self_update`) en `users` (commands `users.*` behalve `users.list`, en `security.two_factor`) staan altijd aan: `updates` sinds plugin 0.3.0, `users` sinds 0.4.0. `plugin.self_update` installeert alleen een zip met een geldige handtekening van de release-sleutel, die niet op de panel-server staat. Update-commands accepteren alleen namen van geïnstalleerde componenten, nooit een pakket-URL.
+   Scopes: `read`, `events`, `updates` (commands `update.*`, `backup.*` en `plugin.self_update`) en `users` (commands `users.*` behalve `users.list`, en `security.two_factor`) staan altijd aan: `updates` sinds plugin 0.3.0, `users` sinds 0.4.0. `plugin.self_update` installeert alleen een zip met een geldige handtekening van de release-sleutel, die niet op de panel-server staat. Update-commands accepteren alleen namen van geïnstalleerde componenten, nooit een pakket-URL.
 
 Antwoorden ondertekent de site met haar eigen sleutel (`Signer::signResponse`). Het panel verifieert ze met `Verifier::verifyResponse` en accepteert **geen** ongesigneerd antwoord. Het antwoord is gebonden aan de nonce van het verzoek, dus het panel hoeft daar zelf geen nonce voor op te slaan.
 

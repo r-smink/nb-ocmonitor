@@ -60,6 +60,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/wp-gebruikers/2fa', [WpUserController::class, 'twoFactor'])->name('wp-users.two-factor')->can('manage-sites')->middleware('throttle:10,1');
     Route::post('/sites/{site}/2fa', [WpUserController::class, 'twoFactor'])->name('sites.two-factor')->can('manage-sites')->middleware('throttle:20,1');
     Route::post('/sites/{site}/wp-gebruikers/{userId}', [WpUserController::class, 'action'])->whereNumber('userId')->name('wp-users.action')->can('manage-sites')->middleware('throttle:30,1');
+    Route::post('/sites/{site}/backups/{backup}/terugzetten', [SiteController::class, 'restoreBackup'])->name('sites.backup.restore')->can('manage-sites')->middleware('throttle:10,1');
+    Route::delete('/sites/{site}/backups/{backup}', [SiteController::class, 'deleteBackup'])->name('sites.backup.delete')->can('manage-sites');
     Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
 
     Route::get('/rapporten', [ReportController::class, 'index'])->name('reports.index');

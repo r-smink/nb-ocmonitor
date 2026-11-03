@@ -384,6 +384,63 @@
     </div>
   @endif
 
+  @if ($site->isPaired())
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Backups vóór updates</h3>
+        <span class="hint">Database en de onderdelen die bijgewerkt worden. {{ config('ocm.backups.keep_days') }} dagen bewaard, of tot de visuele controle in orde is.</span>
+      </div>
+      @if (!\App\Ocm\Backups::enabled())
+        <p class="note">Staat uit: zet de Spaces-gegevens (OCM_SPACES_*) in .env. Updates gaan nu zonder backup vooraf.</p>
+      @elseif (!\App\Ocm\Backups::supported($site))
+        <p class="note">Vanaf client-plugin 0.5.0. Deze site heeft {{ $site->plugin_version ?? '?' }}; updates gaan zonder backup vooraf.</p>
+      @endif
+      @if ($backups->isNotEmpty())
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gemaakt</th><th>Inhoud</th><th class="num">Grootte</th><th>Status</th><th>Bewaard tot</th>@can('manage-sites')<th></th>@endcan</tr></thead>
+            <tbody>
+              @foreach ($backups as $backup)
+                <tr>
+                  <td>{{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}</td>
+                  <td class="wrap">{{ $backup->describe() }}@if ($backup->woocommerce) <span class="badge">webshop</span>@endif</td>
+                  <td class="num">{{ $backup->size() > 0 ? number_format($backup->size() / 1048576, 1, ',', '.') . ' MB' : '' }}</td>
+                  <td class="wrap">
+                    <span @class(['state', 'bad' => $backup->status === 'failed', 'idle' => in_array($backup->status, ['pending', 'restoring', 'deleted'], true)])>{{ ['pending' => 'wordt gemaakt', 'ready' => 'beschikbaar', 'restoring' => 'wordt teruggezet', 'deleted' => 'verwijderd', 'failed' => 'mislukt'][$backup->status] ?? $backup->status }}</span>
+                    @if ($backup->restored_at)<span class="muted">teruggezet {{ $backup->restored_at->timezone('Europe/Amsterdam')->format('d-m H:i') }}</span>@endif
+                    @if ($backup->error)<div class="note">{{ $backup->error }}</div>@endif
+                  </td>
+                  <td>{{ $backup->status === 'ready' ? $backup->expires_at?->timezone('Europe/Amsterdam')->format('d-m-Y') : '' }}</td>
+                  @can('manage-sites')
+                    <td class="num">
+                      @if ($backup->status === 'ready')
+                        <form method="POST" action="{{ route('sites.backup.restore', [$site, $backup]) }}" class="stack" data-confirm="Backup van {{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') }} terugzetten op {{ $site->name }}?">
+                          @csrf
+                          <label class="check-grid"><span><input type="checkbox" name="database" value="1" @checked(!$backup->woocommerce)> ook de database</span></label>
+                          @if ($backup->woocommerce)
+                            <label class="check-grid"><span><input type="checkbox" name="confirm_orders" value="1"> Ik begrijp dat bestellingen en klanten van na {{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') }} verloren gaan</span></label>
+                          @endif
+                          <div class="row-actions">
+                            <button class="btn small" type="submit">Terugzetten</button>
+                          </div>
+                        </form>
+                        <form method="POST" action="{{ route('sites.backup.delete', [$site, $backup]) }}" class="inline" data-confirm="Backup verwijderen?">
+                          @csrf
+                          @method('DELETE')
+                          <button class="btn ghost small" type="submit">Verwijderen</button>
+                        </form>
+                      @endif
+                    </td>
+                  @endcan
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      @endif
+    </div>
+  @endif
+
   @if ($visual)
     <div class="panel">
       <div class="panel-head">
