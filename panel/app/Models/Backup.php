@@ -45,6 +45,9 @@ class Backup extends Model
     public function describe(): string
     {
         $c = $this->components ?? [];
+        if (!empty($c['full'])) {
+            return 'volledige site (database en alle bestanden)';
+        }
         $parts = array_filter([
             'database',
             !empty($c['plugins']) ? count($c['plugins']) . ' plugin' . (count($c['plugins']) === 1 ? '' : 's') : null,

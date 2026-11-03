@@ -25,7 +25,6 @@ final class Menu
         'wp-users' => ['WP-gebruikers', 'wp-users.index', ['wp-users.*', 'sites.two-factor'], false],
         'reports' => ['Rapporten', 'reports.index', ['reports.*', 'customers.report', 'customers.report.send'], false],
         'activity' => ['Activiteit', 'activity.index', ['activity.*'], false],
-        'users' => ['Gebruikers', 'users.index', ['users.*'], true],
     ];
 
     public static function state(string $key): string

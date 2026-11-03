@@ -139,6 +139,42 @@ class BackupsTest extends TestCase
         Storage::disk('backups')->assertMissing($second->path('db'));
     }
 
+    public function test_updates_after_a_full_backup_reuse_it(): void
+    {
+        $site = $this->site('0.8.0', false);
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$site->site_id}/backups/volledig")->assertRedirect()->assertSessionHas('status');
+        $full = Backup::query()->sole();
+        $create = SiteJob::query()->where('command', 'backup.create')->sole();
+        $this->assertTrue($create->args['full']);
+        $this->assertFalse($create->available_at->isFuture(), 'volledige backup start meteen');
+
+        // Acht losse updates kort daarna: geen extra backups, wachten op de volledige backup.
+        foreach (range(1, 8) as $i) {
+            $this->post("/sites/{$site->site_id}/updates", ['type' => $i % 2 ? 'plugin' : 'theme', 'ids' => [$i % 2 ? 'a/a.php' : 'astra']]);
+        }
+        $this->assertSame(1, Backup::query()->count());
+        $this->assertSame(1, SiteJob::query()->where('command', 'backup.create')->count());
+        $updates = SiteJob::query()->whereIn('command', ['update.plugin', 'update.theme'])->get();
+        $this->assertTrue($updates->every(fn ($j) => $j->available_at->isFuture()));
+
+        $this->finish($create, $site, ['backup_id' => $full->backup_id, 'db_size' => 10, 'files_size' => 900, 'db_sha256' => str_repeat('a', 64), 'files_sha256' => str_repeat('b', 64)]);
+        $this->assertTrue(SiteJob::query()->whereIn('command', ['update.plugin', 'update.theme'])->get()->every(fn ($j) => !$j->available_at->isFuture()));
+        $this->get('/sites/' . $site->site_id)->assertSee('volledige site (database en alle bestanden)')->assertSee('gebruiken deze backup');
+
+        // Nieuwe update terwijl de volledige backup klaar is: direct door.
+        $site->forceFill(['inventory' => $site->inventory])->save();
+        SiteJob::query()->whereIn('command', ['update.plugin', 'update.theme'])->update(['status' => 'done']);
+        $this->post("/sites/{$site->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $this->assertFalse(SiteJob::query()->where('command', 'update.plugin')->where('status', 'pending')->sole()->available_at->isFuture());
+
+        // Na de bewaartermijn voor hergebruik weer een eigen backup.
+        $this->travel(4)->hours();
+        SiteJob::query()->where('command', 'update.plugin')->update(['status' => 'done']);
+        $this->post("/sites/{$site->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $this->assertSame(2, Backup::query()->count());
+    }
+
     public function test_older_plugins_update_without_backup(): void
     {
         $site = $this->site('0.4.0', false);

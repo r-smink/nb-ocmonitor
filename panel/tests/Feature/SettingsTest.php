@@ -15,7 +15,8 @@ class SettingsTest extends TestCase
     {
         $site = $this->makePairedSite();
         $this->actingAs($this->makeUser());
-        $this->get('/')->assertSee('WP-gebruikers')->assertSee('Instellingen');
+        $this->get('/')->assertSee('WP-gebruikers')->assertSee('Instellingen')->assertDontSee('>Gebruikers<', false);
+        $this->get('/gebruikers')->assertOk()->assertSee('Portalgebruikers')->assertSee('Algemeen en menu');
 
         $this->put('/instellingen', ['menu' => ['wp-users' => 'off', 'versions' => 'hidden', 'sites' => 'off']])->assertRedirect();
 

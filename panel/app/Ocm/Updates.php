@@ -115,6 +115,8 @@ final class Updates
                 'plugin.self_update' => ['plugins' => ['nb-ocmonitor-client/nb-ocmonitor-client.php']],
                 default => [],
             });
+            // Hoort de update bij een backup die al klaar is (volledige backup), dan meteen vrijgeven.
+            self::releaseReady($site);
         }
 
         return $job;

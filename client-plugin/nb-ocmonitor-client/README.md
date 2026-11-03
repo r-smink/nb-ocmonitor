@@ -1,6 +1,6 @@
 # NB OC Monitor Client (WordPress-plugin)
 
-Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.7.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, een versleutelde backup vóór updates, database opschonen, en licenties van premium plugins activeren.
+Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.8.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, een versleutelde backup vóór updates, database opschonen, en licenties van premium plugins activeren.
 
 Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `sodium_compat` dat WordPress meelevert.
 
@@ -36,7 +36,7 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 | `update.theme` | updates | `{"themes": ["stylesheet", …]}`, maximaal 10 |
 | `update.core` | updates | Geen argumenten: de update die WordPress zelf aanbiedt |
 | `update.translations` | updates | Geen argumenten |
-| `backup.create` | updates | `{"backup_id", "plugins"?, "themes"?, "core"?, "uploads": {"db", "files"}}`: zie Backups |
+| `backup.create` | updates | `{"backup_id", "plugins"?, "themes"?, "core"?, "full"?, "uploads": {"db", "files"}}`: zie Backups. `full`: alle plugins, thema's, WordPress en de rest van wp-content (uploads, talen, mu-plugins), zonder caches en backups van andere plugins |
 | `backup.restore` | updates | `{"backup_id", "parts": ["files"] / ["files","db"], "downloads", "sha256"}` |
 | `db.cleanup` | maintenance | `{"items": [...]}` uit: revisions (>30 dagen), auto_drafts (>7 dagen), trash (>30 dagen), spam, trashed_comments, expired_transients, orphan_postmeta, orphan_commentmeta. Maximaal 2000 per soort per keer. De inventaris bevat de tellingen (`cleanup`). Media worden alleen geteld, nooit verwijderd. |
 | `license.activate` | licenses | `{"adapter": "elementor_pro"\|"acf_pro"\|"option", "key", "option"?}`. Elementor Pro: zoals `wp elementor-pro license activate`. ACF Pro: `acf_pro_activate_license()`. option: zet de sleutel in een optie waarvan de naam "license"/"licence" bevat (nooit een WordPress-optie). De inventaris bevat de status (`licenses`) voor Elementor Pro, ACF Pro en Rank Math Pro (accountkoppeling). |

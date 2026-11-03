@@ -18,11 +18,14 @@ final class BackupArgs
 {
     /**
      * @param array<string, mixed> $args
-     * @return array{backup_id: string, plugins: string[], themes: string[], core: bool, uploads: array<string, array{url: string, headers: array<string, string>}>}
+     * @return array{backup_id: string, plugins: string[], themes: string[], core: bool, full: bool, uploads: array<string, array{url: string, headers: array<string, string>}>}
      */
     public static function create(array $args): array
     {
-        self::only($args, ['backup_id', 'plugins', 'themes', 'core', 'uploads']);
+        self::only($args, ['backup_id', 'plugins', 'themes', 'core', 'full', 'uploads']);
+        if (isset($args['full']) && !is_bool($args['full'])) {
+            throw new CommandError('bad_request', 'full moet true of false zijn');
+        }
         $plugins = isset($args['plugins']) && $args['plugins'] !== [] ? UpdateArgs::plugins(['plugins' => $args['plugins']]) : [];
         $themes = isset($args['themes']) && $args['themes'] !== [] ? UpdateArgs::themes(['themes' => $args['themes']]) : [];
         if (isset($args['core']) && !is_bool($args['core'])) {
@@ -34,6 +37,7 @@ final class BackupArgs
             'plugins' => $plugins,
             'themes' => $themes,
             'core' => !empty($args['core']),
+            'full' => !empty($args['full']),
             'uploads' => self::links($args['uploads'] ?? null, ['db', 'files']),
         ];
     }

@@ -8,6 +8,11 @@
     </div>
   </div>
 
+  <nav class="tabs-nav mt">
+    <a href="{{ route('settings.show') }}" @class(['on' => request()->routeIs('settings.*')])>Algemeen en menu</a>
+    <a href="{{ route('users.index') }}" @class(['on' => request()->routeIs('users.*')])>Portalgebruikers</a>
+  </nav>
+
   @php($field = fn (string $key) => \App\Ocm\AppSettings::FIELDS[$key])
   <form method="POST" action="{{ route('settings.update') }}" class="form">
     @csrf
@@ -56,7 +61,7 @@
       <section class="panel">
         <h3>Updates en backups</h3>
         <div class="stack mt">
-          @foreach (['update_chunk', 'backups_enabled', 'backup_keep_days', 'visual_enabled', 'visual_threshold'] as $key)
+          @foreach (['update_chunk', 'backups_enabled', 'backup_keep_days', 'backup_full_reuse_hours', 'visual_enabled', 'visual_threshold'] as $key)
             @include('settings.field', ['key' => $key])
           @endforeach
         </div>

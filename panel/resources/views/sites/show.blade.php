@@ -428,7 +428,20 @@
       <div class="panel-head">
         <h3>Backups vóór updates</h3>
         <span class="hint">Database en de onderdelen die bijgewerkt worden. {{ config('ocm.backups.keep_days') }} dagen bewaard, of tot de visuele controle in orde is.</span>
+        @can('manage-sites')
+          @if (\App\Ocm\Backups::enabled() && \App\Ocm\Backups::supportsFull($site))
+            <div class="right">
+              <form method="POST" action="{{ route('sites.backup.full', $site) }}" class="inline" data-confirm="Volledige backup maken van {{ $site->name }}? Bij grote sites kan dat even duren.">
+                @csrf
+                <button class="btn ghost small" type="submit">Volledige backup maken</button>
+              </form>
+            </div>
+          @endif
+        @endcan
       </div>
+      @if ($recentFull = \App\Ocm\Backups::recentFull($site))
+        <p class="note">Volledige backup van {{ $recentFull->created_at->timezone('Europe/Amsterdam')->format('H:i') }} {{ $recentFull->status === 'ready' ? 'staat klaar' : 'wordt gemaakt' }}: updates tot {{ $recentFull->created_at->addHours((int) config('ocm.backups.full_reuse_hours'))->timezone('Europe/Amsterdam')->format('H:i') }} gebruiken deze backup.</p>
+      @endif
       @if (!\App\Ocm\Backups::enabled())
         <p class="note">Staat uit: zet de Spaces-gegevens (OCM_SPACES_*) in .env. Updates gaan nu zonder backup vooraf.</p>
       @elseif (!\App\Ocm\Backups::supported($site))

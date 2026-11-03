@@ -40,8 +40,51 @@ final class Backups
      *
      * @param array{plugins?: string[], themes?: string[], core?: bool} $components
      */
+    public static function supportsFull(Site $site): bool
+    {
+        return $site->plugin_version !== null && version_compare($site->plugin_version, '0.8.0', '>=');
+    }
+
+    /** Recente volledige backup (in de wachtrij of klaar) die updates kunnen gebruiken in plaats van een eigen backup. */
+    public static function recentFull(Site $site): ?Backup
+    {
+        $hours = (int) config('ocm.backups.full_reuse_hours', 3);
+        if ($hours <= 0) {
+            return null;
+        }
+
+        return Backup::query()->where('site_id', $site->id)->whereIn('status', ['pending', 'ready'])
+            ->where('created_at', '>=', now()->subHours($hours))->latest('id')->get()
+            ->first(fn (Backup $b) => !empty($b->components['full']));
+    }
+
+    /** Volledige backup op verzoek: database, alle plugins en thema's, WordPress en de rest van wp-content. */
+    public static function full(Site $site, ?User $user): Backup
+    {
+        $backup = Backup::query()->create([
+            'backup_id' => 'bk_' . Str::lower(Str::random(20)),
+            'site_id' => $site->id,
+            'status' => 'pending',
+            'components' => ['plugins' => [], 'themes' => [], 'core' => true, 'full' => true],
+            'update_job_ids' => [],
+            'woocommerce' => collect((array) (($site->inventory ?? [])['plugins'] ?? []))->contains(fn ($p) => ($p['file'] ?? '') === 'woocommerce/woocommerce.php'),
+        ]);
+        $backup->setRelation('site', $site);
+        $job = JobQueue::enqueue($site, 'backup.create', self::createArgs($backup), $user, false);
+        $backup->update(['job_id' => $job->id]);
+        Activity::log('backup_full_requested', ['backup_id' => $backup->backup_id], $site, $user);
+
+        return $backup;
+    }
+
     public static function attach(Site $site, SiteJob $updateJob, array $components): Backup
     {
+        // Is er net een volledige backup gemaakt (of bezig), dan die gebruiken: geen losse backup per update.
+        if ($full = self::recentFull($site)) {
+            $full->update(['update_job_ids' => array_values(array_unique(array_merge($full->update_job_ids ?? [], [$updateJob->id])))]);
+
+            return $full;
+        }
         $backup = Backup::query()->where('site_id', $site->id)->where('status', 'pending')
             ->whereHas('job', fn ($q) => $q->where('status', 'pending'))->latest('id')->first();
 
@@ -87,6 +130,7 @@ final class Backups
             'plugins' => $c['plugins'] ?? [],
             'themes' => $c['themes'] ?? [],
             'core' => !empty($c['core']),
+            'full' => !empty($c['full']),
             'uploads' => $links,
         ], fn ($v) => $v !== [] && $v !== false);
     }
@@ -165,7 +209,7 @@ final class Backups
     {
         $jobs = $check->job_ids ?? [];
         Backup::query()->where('site_id', $check->site_id)->where('status', 'ready')->get()
-            ->filter(fn (Backup $b) => array_intersect($b->update_job_ids ?? [], $jobs) !== [])
+            ->filter(fn (Backup $b) => empty($b->components['full']) && array_intersect($b->update_job_ids ?? [], $jobs) !== [])
             ->each(fn (Backup $b) => self::delete($b, 'visuele controle in orde'));
     }
 

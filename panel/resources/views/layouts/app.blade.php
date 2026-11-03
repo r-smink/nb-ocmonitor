@@ -16,13 +16,12 @@
     <a class="brand" href="{{ route('dashboard') }}"><span class="logo" role="img" aria-label="Next Buzz"></span>{{ \App\Ocm\AppSettings::get('app_name') ?: 'OC Monitor' }}</a>
     <nav>
       @foreach (\App\Ocm\Menu::visible() as $item)
-        @continue($item['key'] === 'users' && !auth()->user()->can('manage-users'))
         <a href="{{ route($item['route']) }}" @class(['active' => request()->routeIs(...$item['patterns'])])>{{ $item['label'] }}@if ($item['key'] === 'updates')@php($navUpdates = (int) \App\Models\Site::query()->whereNotNull('public_key')->sum('updates_count'))@if ($navUpdates > 0) <span class="nav-badge">{{ $navUpdates }}</span>@endif @endif</a>
       @endforeach
     </nav>
     <div class="top-right">
       <a href="{{ route('plugin.download') }}" class="btn ghost small" title="Download de client-plugin voor WordPress">Plugin</a>
-      @can('manage-users')<a href="{{ route('settings.show') }}" @class(['btn', 'ghost', 'small', 'active' => request()->routeIs('settings.*')]) title="Instellingen">Instellingen</a>@endcan
+      @can('manage-users')<a href="{{ route('settings.show') }}" @class(['btn', 'ghost', 'small', 'active' => request()->routeIs('settings.*', 'users.*')]) title="Instellingen en portalgebruikers">Instellingen</a>@endcan
       <a href="{{ route('account.show') }}" class="btn ghost small">{{ auth()->user()->name }}</a>
       <button id="themeToggle" class="theme-toggle" type="button" aria-label="Wissel tussen licht en donker thema">
         <svg class="sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E8A317" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1 1M17.4 17.4l1 1M18.4 5.6l-1 1M6.6 17.4l-1 1"></path></svg>

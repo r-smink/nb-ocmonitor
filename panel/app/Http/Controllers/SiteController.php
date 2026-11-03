@@ -232,6 +232,19 @@ class SiteController extends Controller
         return back()->with('status', 'Terugzetten van de backup van ' . $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') . ' staat in de wachtrij (' . (in_array('db', $parts, true) ? 'bestanden en database' : 'alleen bestanden') . ').');
     }
 
+    public function fullBackup(Request $request, Site $site): RedirectResponse
+    {
+        if (!\App\Ocm\Backups::enabled() || !\App\Ocm\Backups::supportsFull($site)) {
+            return back()->withErrors(['backup' => 'Volledige backups kunnen vanaf client-plugin 0.8.0, met Spaces ingesteld.']);
+        }
+        if (\App\Models\Backup::query()->where('site_id', $site->id)->where('status', 'pending')->get()->contains(fn ($b) => !empty($b->components['full']))) {
+            return back()->with('status', 'Er wordt al een volledige backup gemaakt.');
+        }
+        \App\Ocm\Backups::full($site, $request->user());
+
+        return back()->with('status', 'Volledige backup staat in de wachtrij. Updates in de komende ' . config('ocm.backups.full_reuse_hours') . ' uur gebruiken deze backup.');
+    }
+
     public function deleteBackup(Site $site, \App\Models\Backup $backup): RedirectResponse
     {
         abort_unless($backup->site_id === $site->id, 404);

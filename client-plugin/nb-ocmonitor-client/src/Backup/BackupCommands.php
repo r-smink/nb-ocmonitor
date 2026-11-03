@@ -20,6 +20,9 @@ final class BackupCommands
 {
     public const KEY_OPTION = 'nb_ocm_backup_key';
     private const WORK_DIR = 'nb-ocm-backups';
+    /** Niet in een volledige backup: caches, tijdelijke mappen en backups van andere plugins. */
+    private const SKIP_CONTENT = ['plugins', 'themes', 'cache', 'upgrade', 'upgrade-temp-backup', 'nb-ocm-backups', 'nb-ocm-rollback',
+        'updraft', 'ai1wm-backups', 'backups-dup-lite', 'backups-dup-pro', 'wpvividbackups', 'et-cache', 'litespeed', 'wflogs', 'debug.log'];
 
     private EventRecorder $recorder;
 
@@ -121,11 +124,18 @@ final class BackupCommands
     }
 
     /**
-     * @param array{plugins: string[], themes: string[], core: bool, backup_id: string} $a
-     * @return array<string, string[]>
+     * @param array{plugins: string[], themes: string[], core: bool, full: bool, backup_id: string} $a
+     * @return array<string, mixed>
      */
     private function zipComponents(string $path, array $a): array
     {
+        if ($a['full']) {
+            // Alles: alle plugins, alle thema's, WordPress zelf en de rest van wp-content (uploads, talen, mu-plugins).
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+            $a['plugins'] = array_keys(get_plugins());
+            $a['themes'] = array_keys(wp_get_themes());
+            $a['core'] = true;
+        }
         if (!class_exists('ZipArchive')) {
             throw new \RuntimeException('PHP-extensie zip ontbreekt op de server');
         }
@@ -133,9 +143,12 @@ final class BackupCommands
         if ($zip->open($path, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
             throw new \RuntimeException('Kan zip niet maken');
         }
-        $done = ['plugins' => [], 'themes' => [], 'core' => []];
+        $done = ['plugins' => [], 'themes' => [], 'core' => [], 'content' => [], 'full' => $a['full']];
         foreach ($a['plugins'] as $file) {
             $dir = dirname($file);
+            if (in_array($dir === '.' ? $file : $dir, $done['plugins'], true)) {
+                continue;
+            }
             if ($dir === '.') {
                 if (is_file(WP_PLUGIN_DIR . '/' . $file)) {
                     $zip->addFile(WP_PLUGIN_DIR . '/' . $file, 'plugins/' . $file);
@@ -164,6 +177,19 @@ final class BackupCommands
                 }
             }
             $done['core'][] = 'root';
+        }
+        if ($a['full']) {
+            foreach (scandir(WP_CONTENT_DIR) ?: [] as $entry) {
+                if ($entry === '.' || $entry === '..' || in_array($entry, self::SKIP_CONTENT, true) || is_link(WP_CONTENT_DIR . '/' . $entry)) {
+                    continue;
+                }
+                if (is_dir(WP_CONTENT_DIR . '/' . $entry)) {
+                    self::addDir($zip, WP_CONTENT_DIR . '/' . $entry, 'content/' . $entry);
+                } else {
+                    $zip->addFile(WP_CONTENT_DIR . '/' . $entry, 'content/' . $entry);
+                }
+                $done['content'][] = $entry;
+            }
         }
         $zip->addFromString('manifest.json', (string) wp_json_encode(['backup_id' => $a['backup_id'], 'created' => time(), 'components' => $done]));
         if (!$zip->close()) {
@@ -195,6 +221,9 @@ final class BackupCommands
         }
         $zip->close();
         $components = (array) ($manifest['components'] ?? []);
+        // Klassen die we na het terugzetten nog nodig hebben vooraf laden: de pluginmap kan zo vervangen worden.
+        class_exists(DatabaseDump::class);
+        class_exists(BackupCrypto::class);
 
         $targets = [];
         foreach ((array) ($components['plugins'] ?? []) as $name) {
@@ -217,6 +246,14 @@ final class BackupCommands
                 throw new \RuntimeException('Kan ' . basename($to) . ' niet terugzetten');
             }
             self::removeDir($old);
+        }
+        foreach ((array) ($components['content'] ?? []) as $entry) {
+            $entry = basename((string) $entry);
+            if ($entry === '' || in_array($entry, self::SKIP_CONTENT, true)) {
+                continue;
+            }
+            $from = $extractTo . '/content/' . $entry;
+            is_dir($from) ? self::copyDir($from, WP_CONTENT_DIR . '/' . $entry) : (is_file($from) ? copy($from, WP_CONTENT_DIR . '/' . $entry) : null);
         }
         if (in_array('wp-admin', (array) ($components['core'] ?? []), true)) {
             foreach (['wp-admin', 'wp-includes'] as $dir) {

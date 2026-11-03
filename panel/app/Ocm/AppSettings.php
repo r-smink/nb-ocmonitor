@@ -31,6 +31,7 @@ final class AppSettings
         'visual_threshold' => ['Visuele controle: melding vanaf (% veranderd)', 'float', 'ocm.visual.threshold_percent', 1, 90],
         'backups_enabled' => ['Backup vóór updates', 'bool', 'ocm.backups.enabled', null, null],
         'backup_keep_days' => ['Backups bewaren (dagen)', 'int', 'ocm.backups.keep_days', 1, 30],
+        'backup_full_reuse_hours' => ['Na een volledige backup: zoveel uur geen losse backups per update', 'int', 'ocm.backups.full_reuse_hours', 0, 48],
         'update_chunk' => ['Updates: onderdelen per opdracht', 'int', 'ocm.updates.chunk_size', 1, 10],
     ];
 

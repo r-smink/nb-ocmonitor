@@ -55,6 +55,8 @@ return [
     'backups' => [
         'enabled' => (bool) env('OCM_BACKUPS', true),
         'keep_days' => (int) env('OCM_BACKUP_KEEP_DAYS', 7),
+        // Updates binnen zoveel uur na een volledige backup gebruiken die backup (geen losse backup per update).
+        'full_reuse_hours' => (int) env('OCM_BACKUP_FULL_REUSE_HOURS', 3),
         'link_minutes' => 180,
         'max_minutes' => 90,
     ],

@@ -1,12 +1,16 @@
 @extends('layouts.app')
-@section('title', 'Gebruikers')
+@section('title', 'Portalgebruikers')
 @section('content')
   <div class="page-head">
     <div>
-      <h1>Gebruikers</h1>
-      <p>Iedereen logt in met wachtwoord en verplichte tweestapsverificatie.</p>
+      <h1>Instellingen</h1>
+      <p>Portalgebruikers: wie kan inloggen op OC Monitor. Iedereen logt in met wachtwoord en verplichte tweestapsverificatie.</p>
     </div>
   </div>
+  <nav class="tabs-nav mt">
+    <a href="{{ route('settings.show') }}" @class(['on' => request()->routeIs('settings.*')])>Algemeen en menu</a>
+    <a href="{{ route('users.index') }}" @class(['on' => request()->routeIs('users.*')])>Portalgebruikers</a>
+  </nav>
 
   <div class="panel">
     <div class="table-wrap">

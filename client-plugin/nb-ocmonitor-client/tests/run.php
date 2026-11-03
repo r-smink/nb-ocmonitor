@@ -535,7 +535,8 @@ test('backup-versleuteling: terug te lezen, en gewijzigde of afgekapte bestanden
 test('backup-argumenten: alleen https, geen sleutel van het panel, geen padmanipulatie', function () {
     $links = ['db' => ['url' => 'https://ams3.digitaloceanspaces.com/b/db?X-Amz=1', 'headers' => ['Host' => 'x']], 'files' => ['url' => 'https://ams3.digitaloceanspaces.com/b/f', 'headers' => []]];
     $ok = BackupArgs::create(['backup_id' => 'bk_' . str_repeat('a', 20), 'plugins' => ['akismet/akismet.php'], 'core' => true, 'uploads' => $links]);
-    check($ok['plugins'] === ['akismet/akismet.php'] && $ok['themes'] === [] && $ok['core'] === true);
+    check($ok['plugins'] === ['akismet/akismet.php'] && $ok['themes'] === [] && $ok['core'] === true && $ok['full'] === false);
+    check(BackupArgs::create(['backup_id' => 'bk_' . str_repeat('a', 20), 'full' => true, 'uploads' => $links])['full'] === true);
     $bad = [
         ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => $links, 'key' => 'panelsleutel'],
         ['backup_id' => '../x', 'uploads' => $links],
