@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/next-buzz-design-system-3d895184-2b99-4714-9b5e-747fbe267173/styles.css">
+<style>
+:root{
+  --ok:#1F9D55; --warn:#E8A317; --crit:#E22830; --pending:#9B9B98;
+  --crit-bg:#FDECEC; --crit-border:#E22830; --crit-fg:#9E171D; --crit-soft:#F4A7AA;
+  --warn-bg:#FBF1DA; --warn-border:#E8A317; --warn-fg:#8A5D06; --warn-soft:#EEDDB0;
+  --ok-bg:#E8F6EE; --ok-fg:#157347;
+}
+[data-ocm-theme="dark"]{
+  --surface-page:#1b1a17; --surface-alt:#141310; --surface-card:#26241f; --surface-sunken:#302d27;
+  --text-strong:#F7F6F3; --text-default:#E7E6E1; --text-muted:#A9A7A1; --text-subtle:#8A867E;
+  --border-subtle:#38342c; --border-default:#454036; --border-strong:#A9A7A1;
+  --red-50:#2c1416; --red-200:#5e2327; --red-700:#F4A7AA; --text-link:#ED777C;
+  --crit-bg:#2c1416; --crit-fg:#F4A7AA; --crit-soft:#5e2327;
+  --warn-bg:#2a2410; --warn-fg:#E8C877; --warn-soft:#5a4a1f;
+  --ok-bg:#14321f; --ok-fg:#86efac;
+  --info-50:rgba(42,111,219,.18); --info-500:#8db4f0;
+  --shadow-xs:0 1px 2px rgba(0,0,0,.3); --shadow-sm:0 2px 8px rgba(0,0,0,.35); --shadow-lg:0 18px 48px rgba(0,0,0,.5);
+}
+body{margin:0;background:var(--surface-alt);font-family:var(--font-body,system-ui,sans-serif)}
+*{box-sizing:border-box}
+</style>
+</helmet>
+<div data-ocm-theme="{{ themeAttr }}" style="display:flex;min-height:100vh;background:var(--surface-alt);color:var(--text-default)">
+  <aside style="width:240px;flex:none;background:var(--surface-card);border-right:1px solid var(--border-subtle);padding:18px 14px;display:flex;flex-direction:column;gap:3px;position:sticky;top:0;align-self:flex-start;height:100vh;overflow:auto">
+    <a style="display:flex;align-items:center;gap:10px;font-family:var(--font-heading);font-weight:800;font-size:18px;color:var(--text-strong);padding:4px 8px 14px"><span style="width:26px;height:26px;background:url(public/img/nextbuzz-arrow.png) center/contain no-repeat"></span>OC Monitor</a>
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface-sunken);border-radius:999px;padding:8px 12px;margin-bottom:10px;color:var(--text-subtle)">{{ icSearch }}<span style="font-size:13px">Zoek site of klant…</span></div>
+    <sc-for list="{{ navGroups }}" as="g" hint-placeholder-count="3">
+      <span style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);padding:12px 10px 5px">{{ g.label }}</span>
+      <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+        <a onClick="{{ it.onClick }}" style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;font-size:13.5px;cursor:pointer;font-weight:{{ it.itemWeight }};color:{{ it.itemColor }};background:{{ it.itemBg }}">{{ it.iconEl }}<span style="flex:1">{{ it.label }}</span><sc-if value="{{ it.hasCount }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:{{ it.countBg }};color:{{ it.countColor }}">{{ it.count }}</span></sc-if></a>
+      </sc-for>
+    </sc-for>
+    <div style="margin-top:auto;display:flex;align-items:center;gap:8px;padding:12px 10px 2px;color:var(--text-subtle);font-size:12px"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok)"></span>25 van 26 sites verbonden</div>
+  </aside>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <header style="display:flex;align-items:center;gap:14px;padding:13px 26px;border-bottom:1px solid var(--border-subtle);background:var(--surface-card);position:sticky;top:0;z-index:5">
+      <div style="min-width:0"><div style="font-family:var(--font-heading);font-weight:800;font-size:19px;color:var(--text-strong)">{{ pageTitle }}</div></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:9px">
+        <button onClick="{{ toggleTheme }}" style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;border:1px solid var(--border-default);background:transparent;color:var(--text-muted);font:600 12.5px var(--font-body);padding:8px 13px;border-radius:999px">{{ themeIconEl }}{{ themeLabel }}</button>
+        <span style="width:38px;height:38px;border-radius:999px;display:grid;place-items:center;background:var(--surface-sunken);color:var(--text-muted)">{{ icBell }}</span>
+        <button style="display:inline-flex;align-items:center;gap:7px;font-family:var(--font-body);font-weight:700;font-size:13.5px;padding:9px 15px;border-radius:999px;border:0;cursor:pointer;background:var(--red-500);color:#fff;box-shadow:var(--shadow-brand)">{{ icPlus }}Site</button>
+        <span style="width:38px;height:38px;border-radius:999px;display:grid;place-items:center;background:var(--red-500);color:#fff;font-weight:700;font-size:14px">R</span>
+      </div>
+    </header>
+
+    <div style="padding:24px 28px 40px;max-width:1240px;width:100%">
+      <!-- ===== OVERZICHT ===== -->
+      <sc-if value="{{ isOverzicht }}" hint-placeholder-val="{{ true }}">
+        <div style="margin-bottom:20px"><p style="margin:0;color:var(--text-muted);font-size:15px">Alles wat vandaag je aandacht vraagt, de zwaarste bovenaan.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:22px">
+          <sc-for list="{{ statCards }}" as="s" hint-placeholder-count="4">
+            <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-top:3px solid {{ s.accent }};border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--surface-sunken);color:{{ s.accent }}">{{ s.iconEl }}</span><span style="font-size:13px;font-weight:600;color:var(--text-muted)">{{ s.label }}</span></div>
+              <span style="font-family:var(--font-heading);font-weight:800;font-size:34px;line-height:1;color:{{ s.accent }};font-variant-numeric:tabular-nums">{{ s.value }}</span>
+              <span style="font-size:11.5px;color:var(--text-subtle);line-height:1.4">{{ s.sub }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:18px;box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border-subtle)"><h3 style="margin:0;font-family:var(--font-heading);font-weight:800;font-size:18px;color:var(--text-strong)">Aandachtspunten</h3><span style="font-size:12px;font-weight:700;color:#fff;background:var(--red-500);padding:3px 10px;border-radius:999px">{{ openCount }} open</span></div>
+          <div style="padding:8px 10px">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px 6px;font-family:var(--font-heading);font-weight:800;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--crit)"><span style="width:7px;height:7px;border-radius:50%;background:var(--crit)"></span>Nu oplossen</div>
+            <sc-for list="{{ critIssues }}" as="t" hint-placeholder-count="2">
+              <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;margin:2px;border-radius:12px;background:{{ t.bg }};opacity:{{ t.rowOpacity }}">
+                <span style="width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;background:var(--surface-card);color:{{ t.accent }}">{{ t.iconEl }}</span>
+                <div style="min-width:0;flex:1"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:{{ t.accent }}">{{ t.cat }}</span><span style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ t.site }}</span></div><div style="font-size:13px;color:var(--text-muted);margin-top:2px;text-decoration:{{ t.titleDeco }}">{{ t.text }}</div></div>
+                <button onClick="{{ t.onAction }}" style="flex:none;display:inline-flex;align-items:center;gap:7px;font-family:var(--font-body);font-weight:700;font-size:13px;padding:9px 15px;border-radius:999px;border:0;cursor:pointer;background:{{ t.btnBg }};color:{{ t.btnColor }}">{{ t.actionIconEl }}{{ t.actionLabel }}</button>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px 6px;font-family:var(--font-heading);font-weight:800;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--warn-fg)"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span>Deze week</div>
+            <sc-for list="{{ warnIssues }}" as="t" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;margin:2px;border-radius:12px;background:var(--surface-alt);border:1px solid var(--border-subtle);opacity:{{ t.rowOpacity }}">
+                <span style="width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;background:{{ t.bg }};color:{{ t.accent }}">{{ t.iconEl }}</span>
+                <div style="min-width:0;flex:1"><div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><span style="font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:{{ t.accent }}">{{ t.cat }}</span><span style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ t.site }}</span></div><div style="font-size:13px;color:var(--text-muted);margin-top:2px;text-decoration:{{ t.titleDeco }}">{{ t.text }}</div></div>
+                <button onClick="{{ t.onAction }}" style="flex:none;display:inline-flex;align-items:center;gap:7px;font-family:var(--font-body);font-weight:700;font-size:13px;padding:9px 15px;border-radius:999px;cursor:pointer;background:{{ t.btnBg }};border:{{ t.btnBorder }};color:{{ t.btnColor }}">{{ t.actionIconEl }}{{ t.actionLabel }}</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px">
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Meest voorkomende updates</h3><span onClick="{{ goUpdates }}" style="margin-left:auto;font-size:12px;color:var(--text-link);font-weight:600;cursor:pointer">Alle updates →</span></div>
+            <div style="display:grid;gap:7px">
+              <sc-for list="{{ topComponents }}" as="c" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:11px;background:var(--surface-alt)">
+                  <div style="min-width:0;flex:1"><span style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ c.name }}</span> <span style="font-size:12px;color:var(--text-subtle)">{{ c.type }} · {{ c.sites }} sites</span></div>
+                  <span style="font-family:var(--font-mono);font-size:12px;color:var(--warn-fg);font-weight:700">{{ c.to }}</span>
+                  <button onClick="{{ c.onAction }}" style="flex:none;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:7px 13px;border-radius:999px;border:0;cursor:pointer;background:{{ c.btnBg }};color:{{ c.btnColor }}">{{ c.btnLabel }}</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px">
+            <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Recente wijzigingen</h3><span onClick="{{ goSites }}" style="margin-left:auto;font-size:12px;color:var(--text-link);font-weight:600;cursor:pointer">Alle activiteit →</span></div>
+            <div>
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 4px;border-bottom:1px solid var(--surface-sunken)">
+                  <span style="width:8px;height:8px;border-radius:50%;flex:none;background:{{ e.dotColor }}"></span>
+                  <div style="min-width:0;flex:1"><div style="font-weight:700;font-size:13px;color:var(--text-default)">{{ e.site }}</div><div style="font-size:12.5px;color:var(--text-muted)">{{ e.text }}</div></div>
+                  <span style="font-size:11.5px;color:var(--text-subtle);white-space:nowrap">{{ e.t }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <!-- ===== SITES ===== -->
+      <sc-if value="{{ isSites }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px">
+          <p style="margin:0;color:var(--text-muted);font-size:15px">Gekoppelde WordPress-sites, problemen bovenaan.</p>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ siteCounts }}" as="c" hint-placeholder-count="4">
+              <span style="display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:600;background:var(--surface-card);border:1px solid var(--border-subtle);color:var(--text-default)"><span style="width:8px;height:8px;border-radius:50%;background:{{ c.dot }}"></span>{{ c.n }} {{ c.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px">
+          <sc-for list="{{ sites }}" as="s" hint-placeholder-count="8">
+            <div style="display:flex;flex-direction:column;gap:12px;background:var(--surface-card);border:1px solid var(--border-subtle);border-left:4px solid {{ s.accent }};border-radius:15px;padding:16px 17px;box-shadow:var(--shadow-sm)">
+              <div style="display:flex;align-items:center;gap:9px"><span style="width:10px;height:10px;border-radius:50%;flex:none;background:{{ s.accent }}"></span><span style="font-family:var(--font-heading);font-weight:700;font-size:15px;color:var(--text-strong);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span><span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--surface-sunken);color:var(--text-muted);white-space:nowrap">{{ s.client }}</span></div>
+              <sc-if value="{{ s.issue }}" hint-placeholder-val="{{ true }}"><div style="font-size:12.5px;font-weight:600;padding:7px 11px;border-radius:9px;background:{{ s.issueBg }};color:{{ s.issueColor }}">{{ s.issue }}</div></sc-if>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px 16px;font-size:12.5px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-subtle)">WordPress</span><b style="color:var(--text-strong);font-variant-numeric:tabular-nums">{{ s.wp }}</b></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-subtle)">PHP</span><b style="color:var(--text-strong);font-variant-numeric:tabular-nums">{{ s.php }}</b></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-subtle)">Updates</span><b style="color:{{ s.updatesColor }};font-variant-numeric:tabular-nums">{{ s.updates }}</b></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--text-subtle)">Status</span><b style="color:var(--text-strong)">{{ s.levelLabel }}</b></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:4px"><span style="font-size:11.5px;color:var(--text-subtle)">Laatst gezien {{ s.seen }}</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--text-link);cursor:pointer">Openen {{ icArrow }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== UPDATES ===== -->
+      <sc-if value="{{ isUpdates }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px">
+          <p style="margin:0;color:var(--text-muted);font-size:15px">Elke update maakt eerst een kopie; na afloop volgt een health check met automatische rollback.</p>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ updCounts }}" as="c" hint-placeholder-count="3">
+              <span style="padding:7px 13px;border-radius:999px;font-size:13px;font-weight:700;background:{{ c.bg }};color:{{ c.fg }}">{{ c.n }} {{ c.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px;margin-bottom:20px">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:14px"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Per plugin en thema</h3><span style="font-size:12.5px;color:var(--text-subtle)">Eén klik werkt een component op alle sites bij.</span></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:13px">
+            <sc-for list="{{ updComponents }}" as="c" hint-placeholder-count="6">
+              <div style="display:flex;flex-direction:column;gap:10px;background:var(--surface-alt);border:1px solid var(--border-subtle);border-radius:13px;padding:14px 15px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font-weight:700;font-size:14.5px;color:var(--text-strong)">{{ c.name }}</span><sc-if value="{{ c.secBadge }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--crit-bg);color:var(--crit-fg)">beveiliging</span></sc-if></div>
+                <div style="font-size:12.5px;color:var(--text-subtle)">{{ c.type }} · {{ c.sites }} sites · naar <span style="font-family:var(--font-mono);color:var(--warn-fg);font-weight:700">{{ c.to }}</span></div>
+                <button onClick="{{ c.onAction }}" style="font-family:var(--font-body);font-weight:700;font-size:13px;padding:9px 14px;border-radius:999px;border:0;cursor:pointer;background:{{ c.btnBg }};color:{{ c.btnColor }}">{{ c.btnLabel }}</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border-subtle)"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Updates per site</h3></div>
+          <sc-for list="{{ updRows }}" as="r" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--surface-sunken)">
+              <div style="min-width:0;flex:1"><span style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ r.site }}</span></div>
+              <div style="min-width:0;flex:1.3;display:flex;align-items:center;gap:8px"><span style="font-size:13.5px;color:var(--text-default)">{{ r.comp }}</span><sc-if value="{{ r.secTag }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--crit-bg);color:var(--crit-fg)">beveiliging</span></sc-if></div>
+              <div style="flex:none;font-size:12.5px"><span style="font-family:var(--font-mono);color:var(--text-muted)">{{ r.from }}</span> <span style="color:var(--text-subtle)">→</span> <span style="font-family:var(--font-mono);color:var(--warn-fg);font-weight:700">{{ r.to }}</span></div>
+              <button onClick="{{ r.onAction }}" style="flex:none;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;background:{{ r.btnBg }};color:{{ r.btnColor }}">{{ r.btnLabel }}</button>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== KLANTEN ===== -->
+      <sc-if value="{{ isKlanten }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:20px"><p style="margin:0;color:var(--text-muted);font-size:15px">Klanten met een onderhoudscontract, de kalender met geplande beurten en de rapporten die ze krijgen.</p></div>
+        <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:20px">
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Onderhoudskalender</h3><span style="margin-left:auto;font-weight:700;font-size:14px;color:var(--text-default);text-transform:capitalize">{{ calMonth }}</span></div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border-subtle);border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden">
+              <sc-for list="{{ calWeeks }}" as="w" hint-placeholder-count="6">
+                <sc-for list="{{ w.days }}" as="d" hint-placeholder-count="7">
+                  <div style="background:{{ d.cellBg }};min-height:78px;padding:6px 7px;display:grid;align-content:start;gap:3px">
+                    <span style="justify-self:start;font-size:11px;font-weight:700;padding:0 6px;border-radius:999px;color:{{ d.dayColor }};background:{{ d.dayBg }}">{{ d.n }}</span>
+                    <sc-for list="{{ d.items }}" as="it" hint-placeholder-count="0">
+                      <span style="font-size:10.5px;font-weight:600;line-height:1.3;padding:2px 6px;border-radius:6px;background:{{ it.bg }};color:{{ it.fg }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ it.c }}</span>
+                    </sc-for>
+                  </div>
+                </sc-for>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:10px;font-size:11.5px;color:var(--text-subtle)"><span>Blauw = gepland</span><span>Groen = afgerond</span><span>Rood = achterstallig</span></div>
+          </div>
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px">
+            <h3 style="margin:0 0 12px;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Eerstvolgend onderhoud</h3>
+            <div style="display:grid;gap:8px">
+              <sc-for list="{{ upcoming }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;background:var(--surface-alt)">
+                  <div style="min-width:0;flex:1"><div style="font-weight:700;font-size:13.5px;color:var(--text-strong)">{{ r.customer }}</div><div style="font-size:12px;font-weight:{{ r.dateWeight }};color:{{ r.dateColor }}">{{ r.date }}{{ r.note }}</div></div>
+                  <span style="font-size:12px;color:var(--text-subtle);white-space:nowrap">{{ r.sites }} sites · {{ r.updates }} upd.</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:10px"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Alle klanten</h3></div>
+          <sc-for list="{{ customers }}" as="c" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:14px;padding:13px 18px;border-bottom:1px solid var(--surface-sunken);flex-wrap:wrap">
+              <div style="min-width:160px;flex:1"><div style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ c.name }}</div><div style="font-size:12px;color:var(--text-subtle)">{{ c.contact }} · {{ c.email }}</div></div>
+              <span style="flex:none;font-size:12.5px;color:var(--text-muted)">{{ c.contract }}</span>
+              <span style="flex:none;font-size:12.5px;color:var(--text-subtle)">sinds {{ c.since }}</span>
+              <span style="flex:none;font-size:12.5px;color:var(--text-muted)">{{ c.sites }} sites</span>
+              <span style="flex:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:{{ c.reportBg }};color:{{ c.reportColor }}">rapport {{ c.reportLabel }}</span>
+              <button onClick="{{ c.onAction }}" style="flex:none;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;cursor:pointer;background:{{ c.btnBg }};border:{{ c.btnBorder }};color:{{ c.btnColor }}">{{ c.btnLabel }}</button>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== PAGESPEED ===== -->
+      <sc-if value="{{ isPagespeed }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:20px"><p style="margin:0;color:var(--text-muted);font-size:15px">Google PageSpeed Insights per site, slechtste mobiele score bovenaan. Groen ≥ 90, oranje ≥ 50.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px">
+          <sc-for list="{{ psiRows }}" as="r" hint-placeholder-count="6">
+            <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:15px;box-shadow:var(--shadow-sm);padding:16px 18px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="font-family:var(--font-heading);font-weight:700;font-size:15px;color:var(--text-strong);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.site }}</span><button onClick="{{ r.onAction }}" style="flex:none;font-family:var(--font-body);font-weight:600;font-size:12px;padding:7px 13px;border-radius:999px;border:1px solid var(--border-default);background:transparent;color:var(--text-default);cursor:pointer">{{ r.psiLabel }}</button></div>
+              <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="display:grid;place-items:center;width:52px;height:52px;border-radius:50%;font-family:var(--font-heading);font-weight:800;font-size:19px;background:{{ r.mobCls.bg }};color:{{ r.mobCls.fg }}">{{ r.mob }}</span><span style="font-size:10.5px;color:var(--text-subtle);font-weight:600">mobiel</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="display:grid;place-items:center;width:52px;height:52px;border-radius:50%;font-family:var(--font-heading);font-weight:800;font-size:19px;background:{{ r.deskCls.bg }};color:{{ r.deskCls.fg }}">{{ r.desk }}</span><span style="font-size:10.5px;color:var(--text-subtle);font-weight:600">desktop</span></div>
+                <div style="display:flex;gap:7px;margin-left:auto">
+                  <span style="display:grid;place-items:center;width:34px;height:34px;border-radius:9px;font-weight:700;font-size:12px;background:{{ r.a11yCls.bg }};color:{{ r.a11yCls.fg }}" title="Toegankelijkheid">{{ r.a11y }}</span>
+                  <span style="display:grid;place-items:center;width:34px;height:34px;border-radius:9px;font-weight:700;font-size:12px;background:{{ r.bpCls.bg }};color:{{ r.bpCls.fg }}" title="Best practices">{{ r.bp }}</span>
+                  <span style="display:grid;place-items:center;width:34px;height:34px;border-radius:9px;font-weight:700;font-size:12px;background:{{ r.seoCls.bg }};color:{{ r.seoCls.fg }}" title="SEO">{{ r.seo }}</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:18px;font-size:12px;color:var(--text-muted)"><span>LCP <b style="color:var(--text-default)">{{ r.lcp }}</b></span><span>CLS <b style="color:var(--text-default)">{{ r.cls }}</b></span><span style="margin-left:auto;color:var(--text-subtle)">{{ r.seen }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== KWETSBAARHEDEN ===== -->
+      <sc-if value="{{ isKwetsbaarheden }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px">
+          <p style="margin:0;color:var(--text-muted);font-size:15px">Bekende beveiligingslekken in de geïnstalleerde versies, de ernstigste bovenaan. Feed via Wordfence.</p>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <sc-for list="{{ vulnCounts }}" as="c" hint-placeholder-count="3">
+              <span style="display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:600;background:var(--surface-card);border:1px solid var(--border-subtle);color:var(--text-default)"><span style="width:8px;height:8px;border-radius:50%;background:{{ c.cls }}"></span>{{ c.n }} {{ c.label }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:grid;gap:11px">
+          <sc-for list="{{ vulns }}" as="v" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:15px;background:var(--surface-card);border:1px solid var(--border-subtle);border-left:4px solid {{ v.scoreCls.fg }};border-radius:13px;padding:14px 16px;box-shadow:var(--shadow-xs)">
+              <span style="flex:none;display:grid;place-items:center;width:46px;height:46px;border-radius:11px;font-family:var(--font-heading);font-weight:800;font-size:15px;background:{{ v.scoreCls.bg }};color:{{ v.scoreCls.fg }}">{{ v.score }}</span>
+              <div style="min-width:0;flex:1">
+                <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:3px"><span style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ v.site }}</span><span style="font-size:12.5px;color:var(--text-muted)">{{ v.comp }} {{ v.typeLabel }} <span style="font-family:var(--font-mono);color:var(--text-subtle)">{{ v.ver }}</span></span></div>
+                <div style="font-size:13px;color:var(--text-muted)">{{ v.title }} <span style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-subtle)">{{ v.cve }}</span></div>
+              </div>
+              <div style="flex:none;text-align:right"><div style="font-size:11px;color:var(--text-subtle);margin-bottom:5px">fix in <span style="font-family:var(--font-mono);color:var(--warn-fg);font-weight:700">{{ v.fix }}</span></div><button onClick="{{ v.onAction }}" style="font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;background:{{ v.btnBg }};color:{{ v.btnColor }}">{{ v.btnLabel }}</button></div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== VERSIES ===== -->
+      <sc-if value="{{ isVersies }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:20px"><p style="margin:0;color:var(--text-muted);font-size:15px">PHP, WordPress en de client-plugin per site. Rood: geen beveiligingsupdates meer. Oranje: binnen 6 maanden of niet de nieuwste WordPress.</p></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px"><h3 style="margin:0 0 12px;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">PHP</h3><div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ phpDist }}" as="c" hint-placeholder-count="4"><span style="padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700;background:{{ c.bg }};color:{{ c.fg }}">PHP {{ c.v }}: {{ c.n }}</span></sc-for></div></div>
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px"><h3 style="margin:0 0 12px;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">WordPress</h3><div style="display:flex;flex-wrap:wrap;gap:8px"><sc-for list="{{ wpDist }}" as="c" hint-placeholder-count="4"><span style="padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700;background:{{ c.bg }};color:{{ c.fg }}">WP {{ c.v }}: {{ c.n }}</span></sc-for></div></div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border-subtle)"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Per site</h3></div>
+          <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle);white-space:nowrap">Site</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">PHP</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">WordPress</th>
+              <th style="text-align:right;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Plugins</th>
+              <th style="text-align:right;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Updates</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Thema</th>
+              <th style="text-align:right;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">DB-grootte</th>
+            </tr></thead>
+            <tbody><sc-for list="{{ versRows }}" as="r" hint-placeholder-count="7">
+              <tr>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-weight:700;color:var(--text-strong)">{{ r.site }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);color:{{ r.phpColor }};font-weight:{{ r.phpWeight }}">{{ r.php }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);color:{{ r.wpColor }};font-weight:{{ r.wpWeight }}">{{ r.wp }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);text-align:right;font-variant-numeric:tabular-nums;color:var(--text-default)">{{ r.plugins }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);text-align:right;font-variant-numeric:tabular-nums;color:var(--text-default)">{{ r.updates }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted)">{{ r.theme }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);text-align:right;font-variant-numeric:tabular-nums;color:var(--text-muted)">{{ r.dbmb }}</td>
+              </tr>
+            </sc-for></tbody>
+          </table></div>
+        </div>
+      </sc-if>
+
+      <!-- ===== LICENTIES ===== -->
+      <sc-if value="{{ isLicenties }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:20px"><p style="margin:0;color:var(--text-muted);font-size:15px">Betaalde plugins krijgen alleen updates als de licentie op de site actief is. Hier staan jullie sleutels versleuteld, met per site de status.</p></div>
+        <div style="display:grid;gap:18px">
+          <sc-for list="{{ licProducts }}" as="p" hint-placeholder-count="3">
+            <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:18px 20px">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+                <h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">{{ p.name }}</h3>
+                <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-subtle)">{{ p.file }}</span>
+                <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--surface-sunken);color:var(--text-muted)">{{ p.sites }} sites</span>
+                <sc-if value="{{ p.inactiveBadge }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--crit-bg);color:var(--crit-fg)">{{ p.inactive }} zonder licentie</span></sc-if>
+                <span style="font-size:12px;color:var(--text-subtle)">{{ p.method }}</span>
+                <sc-if value="{{ p.canActivate }}" hint-placeholder-val="{{ true }}"><button onClick="{{ p.onAction }}" style="margin-left:auto;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;background:{{ p.btnBg }};color:{{ p.btnColor }}">{{ p.btnLabel }}</button></sc-if>
+              </div>
+              <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:20px">
+                <div>
+                  <h4 style="margin:0 0 8px;font-size:13px;font-weight:700;color:var(--text-muted)">Sites</h4>
+                  <div style="display:grid;gap:6px"><sc-for list="{{ p.installs }}" as="i" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:9px;background:var(--surface-alt)">
+                      <span style="flex:1;font-size:13px;color:var(--text-default)">{{ i.site }}</span>
+                      <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">{{ i.ver }}</span>
+                      <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:{{ i.bg }};color:{{ i.fg }}">{{ i.label }}</span>
+                    </div>
+                  </sc-for></div>
+                </div>
+                <div>
+                  <h4 style="margin:0 0 8px;font-size:13px;font-weight:700;color:var(--text-muted)">Sleutels</h4>
+                  <div style="display:grid;gap:6px"><sc-for list="{{ p.keys }}" as="k" hint-placeholder-count="1">
+                    <div style="padding:10px 12px;border-radius:9px;background:var(--surface-alt)">
+                      <div style="font-weight:700;font-size:13px;color:var(--text-strong);margin-bottom:3px">{{ k.label }}</div>
+                      <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">{{ k.masked }}</div>
+                      <div style="font-size:11.5px;color:var(--text-subtle);margin-top:4px">{{ k.seats }} sites · verloopt {{ k.expires }}</div>
+                    </div>
+                  </sc-for></div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== WP-GEBRUIKERS ===== -->
+      <sc-if value="{{ isWpgebruikers }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px">
+          <p style="margin:0;color:var(--text-muted);font-size:15px">Beheerders, redacteuren en winkelmanagers op alle gekoppelde sites. Het panel maakt geen gebruikers aan en kiest geen wachtwoorden.</p>
+          <div style="margin-left:auto;display:flex;gap:8px"><sc-for list="{{ wpTotals }}" as="c" hint-placeholder-count="3"><span style="padding:7px 13px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:{{ c.bg }};color:{{ c.fg }}">{{ c.n }} {{ c.label }}</span></sc-for></div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="min-width:0;flex:1"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Tweestapsverificatie op alle sites</h3><p style="margin:4px 0 0;font-size:13px;color:var(--text-muted)">Zet 2FA (beheerders of iedereen) uit op elke gekoppelde site; wie al een 2FA-plugin heeft, merkt niets.</p></div>
+          <span style="padding:9px 14px;border-radius:10px;background:var(--surface-sunken);color:var(--text-default);font-size:13px;font-weight:600">Alleen beheerders ▾</span>
+          <button style="font-family:var(--font-body);font-weight:700;font-size:13px;padding:10px 16px;border-radius:999px;border:0;cursor:pointer;background:var(--red-500);color:#fff">Instellen op alle sites</button>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border-subtle)"><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Gebruikers</h3></div>
+          <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Site</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Gebruiker</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Rol</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">2FA</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Laatst ingelogd</th>
+              <th style="text-align:right;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Sessies</th>
+            </tr></thead>
+            <tbody><sc-for list="{{ wpUsers }}" as="u" hint-placeholder-count="6">
+              <tr>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-link);font-weight:600">{{ u.site }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken)"><div style="font-weight:700;color:var(--text-strong)">{{ u.login }}</div><div style="font-size:12px;color:var(--text-subtle)">{{ u.email }}</div></td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-default)">{{ u.roles }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken)"><span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:{{ u.twofaBg }};color:{{ u.twofaFg }}">{{ u.twofaLabel }}</span></td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted)">{{ u.last }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);text-align:right;font-variant-numeric:tabular-nums;color:var(--text-default)">{{ u.sessions }}</td>
+              </tr>
+            </sc-for></tbody>
+          </table></div>
+        </div>
+      </sc-if>
+
+      <!-- ===== RAPPORTEN ===== -->
+      <sc-if value="{{ isRapporten }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px">
+          <p style="margin:0;color:var(--text-muted);font-size:15px">Opmaak van de onderhoudsrapporten (PDF) voor klanten. Welke onderdelen een klant krijgt, stel je per klant in.</p>
+          <button style="margin-left:auto;font-family:var(--font-body);font-weight:600;font-size:13px;padding:9px 15px;border-radius:999px;border:1px solid var(--border-default);background:transparent;color:var(--text-default);cursor:pointer">Voorbeeld met demogegevens</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:18px;align-items:start">
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:18px 20px">
+            <h3 style="margin:0 0 14px;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Opmaak</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+              <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted)">Bedrijfsnaam<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;font-size:14px;font-weight:400;color:var(--text-strong);background:var(--surface-page)">{{ reportFields.company }}</span></label>
+              <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted)">Titel<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;font-size:14px;font-weight:400;color:var(--text-strong);background:var(--surface-page)">{{ reportFields.title }}</span></label>
+            </div>
+            <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:12px">Inleiding (bij de samenvatting)<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;font-size:13.5px;font-weight:400;color:var(--text-default);background:var(--surface-page);line-height:1.5">{{ reportFields.intro }}</span></label>
+            <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:16px">Voettekst<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;font-size:14px;font-weight:400;color:var(--text-default);background:var(--surface-page)">{{ reportFields.footer }}</span></label>
+            <h4 style="margin:0 0 10px;font-size:13px;font-weight:700;color:var(--text-muted)">Kleuren</h4>
+            <div style="display:flex;flex-wrap:wrap;gap:16px"><sc-for list="{{ reportColors }}" as="c" hint-placeholder-count="5">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11.5px;color:var(--text-subtle)">{{ c.label }}</span><span style="display:flex;align-items:center;gap:7px"><span style="width:28px;height:28px;border-radius:7px;border:1px solid var(--border-subtle);background:{{ c.hex }}"></span><span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">{{ c.hex }}</span></span></div>
+            </sc-for></div>
+          </div>
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:18px 20px">
+            <h3 style="margin:0 0 6px;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Logo, achtergronden en fonts</h3>
+            <p style="margin:0 0 14px;font-size:12.5px;color:var(--text-subtle);line-height:1.5">Achtergronden: een PDF of JPG/PNG op A4. Fonts: TrueType (.ttf). Max. 10 MB per bestand.</p>
+            <div style="display:grid;gap:9px"><sc-for list="{{ reportAssets }}" as="a" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:11px">
+                <b style="font-size:13px;color:var(--text-strong);min-width:140px">{{ a.label }}</b>
+                <span style="flex:1;font-size:12.5px;color:{{ a.fileColor }}">{{ a.file }}</span>
+                <button style="font-family:var(--font-body);font-weight:600;font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--border-default);background:transparent;color:var(--text-default);cursor:pointer">{{ a.actLabel }}</button>
+              </div>
+            </sc-for></div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ===== ACTIVITEIT ===== -->
+      <sc-if value="{{ isActiviteit }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:18px">
+          <p style="margin:0;color:var(--text-muted);font-size:15px">Wijzigingen op alle sites, en het audit log van het panel.</p>
+          <div style="margin-left:auto;display:flex;gap:6px;padding:4px;background:var(--surface-sunken);border-radius:999px">
+            <button onClick="{{ setActSites }}" style="font-family:var(--font-body);font-weight:700;font-size:13px;padding:7px 15px;border-radius:999px;border:0;cursor:pointer;background:{{ actTabSitesBg }};color:{{ actTabSitesColor }}">Wijzigingen op sites</button>
+            <button onClick="{{ setActAudit }}" style="font-family:var(--font-body);font-weight:700;font-size:13px;padding:7px 15px;border-radius:999px;border:0;cursor:pointer;background:{{ actTabAuditBg }};color:{{ actTabAuditColor }}">Audit log panel</button>
+          </div>
+        </div>
+        <sc-if value="{{ actSitesActive }}" hint-placeholder-val="{{ true }}">
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Tijd</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Site</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Wijziging</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Object</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Van → Naar</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Bron</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Door</th>
+              </tr></thead>
+              <tbody><sc-for list="{{ actEvents }}" as="e" hint-placeholder-count="6">
+                <tr>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted);white-space:nowrap">{{ e.time }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-link);font-weight:600">{{ e.site }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);font-size:12px;color:{{ e.typeColor }}">{{ e.typeLabelFull }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-default)">{{ e.object }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">{{ e.from }} → {{ e.to }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken)"><span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:{{ e.bg }};color:{{ e.fg }}">{{ e.source }}</span></td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted)">{{ e.user }}</td>
+                </tr>
+              </sc-for></tbody>
+            </table></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ actAuditActive }}" hint-placeholder-val="{{ false }}">
+          <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Tijd</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Actie</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Gebruiker</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Site</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Details</th>
+                <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">IP</th>
+              </tr></thead>
+              <tbody><sc-for list="{{ auditRows }}" as="a" hint-placeholder-count="4">
+                <tr>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted);white-space:nowrap">{{ a.time }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);font-size:12px;color:var(--text-default)">{{ a.action }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-default)">{{ a.user }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted)">{{ a.site }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);font-size:11.5px;color:var(--text-subtle)">{{ a.details }}</td>
+                  <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">{{ a.ip }}</td>
+                </tr>
+              </sc-for></tbody>
+            </table></div>
+            <p style="margin:0;padding:12px 16px;font-size:12px;color:var(--text-subtle);border-top:1px solid var(--surface-sunken)">Elke regel bevat de hash van de vorige regel — met <span style="font-family:var(--font-mono)">php artisan ocm:verify-log</span> controleer je of er achteraf iets is gewijzigd.</p>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <!-- ===== GEBRUIKERS (Instellingen) ===== -->
+      <sc-if value="{{ isGebruikers }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-bottom:16px"><p style="margin:0;color:var(--text-muted);font-size:15px">Portalgebruikers: wie kan inloggen op OC Monitor. Iedereen logt in met wachtwoord en verplichte tweestapsverificatie.</p></div>
+        <div style="display:flex;gap:6px;padding:4px;background:var(--surface-sunken);border-radius:999px;width:max-content;margin-bottom:18px">
+          <span style="font-family:var(--font-body);font-weight:700;font-size:13px;padding:7px 15px;border-radius:999px;color:var(--text-muted)">Algemeen en menu</span>
+          <span style="font-family:var(--font-body);font-weight:700;font-size:13px;padding:7px 15px;border-radius:999px;background:var(--surface-card);color:var(--text-strong);box-shadow:var(--shadow-xs)">Portalgebruikers</span>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden;margin-bottom:18px">
+          <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Naam</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">E-mail</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Rol</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">2FA</th>
+              <th style="text-align:left;padding:10px 14px;font-size:12px;font-weight:600;color:var(--text-subtle);border-bottom:1px solid var(--border-subtle)">Laatste login</th>
+            </tr></thead>
+            <tbody><sc-for list="{{ portalUsers }}" as="u" hint-placeholder-count="4">
+              <tr>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);font-weight:700;color:var(--text-strong)">{{ u.name }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted)">{{ u.email }}</td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken)"><span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:{{ u.roleBg }};color:{{ u.roleFg }}">{{ u.role }}</span></td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken)"><span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:{{ u.twofaBg }};color:{{ u.twofaFg }}">{{ u.twofaLabel }}</span></td>
+                <td style="padding:10px 14px;border-bottom:1px solid var(--surface-sunken);color:var(--text-muted)">{{ u.last }}</td>
+              </tr>
+            </sc-for></tbody>
+          </table></div>
+        </div>
+        <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:18px 20px;max-width:640px">
+          <h3 style="margin:0 0 14px;font-family:var(--font-heading);font-weight:700;font-size:17px;color:var(--text-strong)">Gebruiker toevoegen</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted)">Naam<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;background:var(--surface-page);min-height:38px"></span></label>
+            <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted)">E-mailadres<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;background:var(--surface-page);min-height:38px"></span></label>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+            <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted)">Rol<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;background:var(--surface-page);font-size:14px;font-weight:400;color:var(--text-default)">Beheerder ▾</span></label>
+            <label style="display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-muted)">Tijdelijk wachtwoord<span style="padding:9px 11px;border:1px solid var(--border-default);border-radius:10px;background:var(--surface-page);min-height:38px"></span></label>
+          </div>
+          <button style="font-family:var(--font-body);font-weight:700;font-size:14px;padding:10px 18px;border-radius:999px;border:0;cursor:pointer;background:var(--red-500);color:#fff;box-shadow:var(--shadow-brand)">Toevoegen</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { theme: 'light', page: 'overzicht', done: {}, actTab: 'sites' };
+
+  toggleTheme() { this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })); }
+  setPage(p) { this.setState({ page: p }); }
+  setActTab(t) { this.setState({ actTab: t }); }
+  markDone(id) { this.setState(s => ({ done: { ...s.done, [id]: !s.done[id] } })); }
+
+  icon(name, size = 18, sw = 1.9) {
+    const P = {
+      shield: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
+      refresh: ['M3 12a9 9 0 0 1 15-6.7L21 8', 'M21 3v5h-5', 'M21 12a9 9 0 0 1-15 6.7L3 16', 'M3 21v-5h5'],
+      gauge: ['M12 13a2 2 0 1 0 0-4', 'm13 11 4-3', 'M3 17a9 9 0 0 1 18 0'],
+      alert: ['M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', 'M12 9v4', 'M12 17h.01'],
+      grid: ['M3 3h8v8H3z', 'M13 3h8v8h-8z', 'M3 13h8v8H3z', 'M13 13h8v8h-8z'],
+      server: ['M4 4h16v6H4z', 'M4 14h16v6H4z', 'M8 7h.01', 'M8 17h.01'],
+      calendar: ['M3 5h18v16H3z', 'M3 9h18', 'M8 3v4', 'M16 3v4'],
+      users: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M22 21v-2a4 4 0 0 0-3-3.9'],
+      key: ['M15 7a4 4 0 1 1-5.6 5.6L3 19v2h3v-2h2v-2h2l1.4-1.4A4 4 0 0 1 15 7z', 'M15.5 7.5h.01'],
+      bug: ['M8 6a4 4 0 0 1 8 0', 'M4 14h3', 'M17 14h3', 'M12 20a5 5 0 0 1-5-5v-2a5 5 0 0 1 10 0v2a5 5 0 0 1-5 5z', 'M12 20v-8'],
+      filetext: ['M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z', 'M14 3v6h6', 'M8 13h8', 'M8 17h5'],
+      activity: ['M3 12h4l3 8 4-16 3 8h4'],
+      check: ['M20 6 9 17l-5-5'],
+      arrow: ['M5 12h14', 'm12 5 7 7-7 7'],
+      clock: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', 'M12 6v6l4 2'],
+      search: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'm21 21-4.3-4.3'],
+      plus: ['M12 5v14', 'M5 12h14'],
+      bell: ['M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9', 'M10.3 21a1.9 1.9 0 0 0 3.4 0'],
+      sun: ['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 2v2', 'M12 20v2', 'M2 12h2', 'M20 12h2', 'M5 5l1.4 1.4', 'M17.6 17.6 19 19', 'M19 5l-1.4 1.4', 'M6.4 17.6 5 19'],
+      moon: ['M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'],
+      ssl: ['M5 11h14v10H5z', 'M8 11V7a4 4 0 0 1 8 0v4'],
+      external: ['M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6', 'M15 3h6v6', 'M10 14 21 3'],
+    };
+    return React.createElement('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: sw, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, style: { flex: 'none' } }, (P[name] || []).map((d, i) => React.createElement('path', { key: i, d })));
+  }
+
+  scoreStyle(v, dark) {
+    if (v == null) return { bg: dark ? '#302d27' : '#EFEEEA', fg: dark ? '#A9A7A1' : '#767674' };
+    const ok = dark ? ['#14321f', '#86efac'] : ['#E8F6EE', '#157347'];
+    const warn = dark ? ['#2a2410', '#E8C877'] : ['#FBF1DA', '#8A5D06'];
+    const crit = dark ? ['#2c1416', '#F4A7AA'] : ['#FDECEC', '#9E171D'];
+    const [bg, fg] = v >= 90 ? ok : v >= 50 ? warn : crit;
+    return { bg, fg };
+  }
+
+  btn(primary, done, dark) {
+    return {
+      btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : (primary ? 'var(--red-500)' : 'transparent'),
+      btnBorder: (done || primary) ? '0' : '1.5px solid var(--border-default)',
+      btnColor: done ? (dark ? '#86efac' : '#157347') : (primary ? '#fff' : 'var(--text-default)'),
+    };
+  }
+
+  renderVals() {
+    const C = { crit: '#E22830', warn: '#E8A317', ok: '#1F9D55', info: '#2A6FDB' };
+    const dark = this.state.theme === 'dark';
+    const page = this.state.page;
+    const critBg = dark ? '#2c1416' : '#FDECEC', warnBg = dark ? '#2a2410' : '#FBF1DA';
+    const titles = { overzicht: 'Overzicht', sites: 'Sites', klanten: 'Klanten', updates: 'Updates', pagespeed: 'PageSpeed', kwetsbaarheden: 'Kwetsbaarheden', versies: 'Versies', licenties: 'Licenties', wpgebruikers: 'WP-gebruikers', rapporten: 'Rapporten', activiteit: 'Activiteit', gebruikers: 'Instellingen' };
+
+    const statCards = [
+      { key: 'security', label: 'Beveiligingsmeldingen', icon: 'shield', value: '3', sub: 'kritiek en aandacht, laatste 14 dagen', lvl: 'crit' },
+      { key: 'updates', label: 'Openstaande updates', icon: 'refresh', value: '42', sub: "31 plugins · 7 thema's · 4 WordPress, op 14 sites", lvl: 'warn' },
+      { key: 'sites', label: 'Sites met problemen', icon: 'server', value: '7', sub: '2 kritiek · 5 aandacht · 18 in orde', lvl: 'crit' },
+      { key: 'psi', label: 'PageSpeed mobiel (gem.)', icon: 'gauge', value: '61', sub: 'laatste meting per site', lvl: 'warn' },
+    ].map(s => ({ ...s, accent: C[s.lvl], iconEl: this.icon(s.icon, 20) }));
+
+    const rawIssues = [
+      { id: 'i1', level: 'crit', cat: 'Beveiliging', catIcon: 'shield', site: 'bakkerij-jansen.nl', text: 'Wordfence: kritieke kwetsbaarheid in Elementor (CVE-2024-30512)', action: 'Bekijken' },
+      { id: 'i2', level: 'crit', cat: 'Beschikbaarheid', catIcon: 'alert', site: 'webshop-devries.nl', text: 'Site onbereikbaar sinds 2 uur (HTTP 500)', action: 'Bekijken' },
+      { id: 'i3', level: 'warn', cat: 'Updates', catIcon: 'refresh', site: 'tandarts-smit.nl', text: 'WordPress 6.4.3 → 6.6.2 beschikbaar', action: 'Bijwerken' },
+      { id: 'i4', level: 'warn', cat: 'SSL', catIcon: 'ssl', site: 'cafe-de-hoek.nl', text: 'SSL-certificaat verloopt over 9 dagen', action: 'Verlengen' },
+      { id: 'i5', level: 'warn', cat: 'Updates', catIcon: 'refresh', site: 'sportschool-fit.nl', text: 'WooCommerce 8.1 → 9.3 (beveiligingsfix)', action: 'Bijwerken' },
+      { id: 'i6', level: 'warn', cat: 'PageSpeed', catIcon: 'gauge', site: 'garage-peters.nl', text: 'PageSpeed mobiel 38 — traag op mobiel', action: 'Analyse' },
+      { id: 'i7', level: 'warn', cat: 'Back-ups', catIcon: 'clock', site: 'loodgieter-bos.nl', text: 'Laatste back-up is 3 dagen geleden', action: 'Back-up nu' },
+    ];
+    const issues = rawIssues.map(t => {
+      const done = !!this.state.done[t.id];
+      const primary = t.level === 'crit';
+      return { ...t, done, iconEl: this.icon(t.catIcon, 17), accent: primary ? C.crit : C.warn, bg: primary ? critBg : warnBg,
+        onAction: () => this.markDone(t.id), rowOpacity: done ? '.5' : '1', titleDeco: done ? 'line-through' : 'none',
+        actionLabel: done ? 'Gedaan' : t.action, actionIconEl: done ? this.icon('check', 15) : null, ...this.btn(primary, done, dark) };
+    });
+
+    const topComponents = [
+      { name: 'Elementor', type: 'Plugin', sites: 9, to: '3.23.4', id: 'c1' },
+      { name: 'Yoast SEO', type: 'Plugin', sites: 7, to: '23.4', id: 'c2' },
+      { name: 'WooCommerce', type: 'Plugin', sites: 5, to: '9.3.1', id: 'c3' },
+      { name: 'Astra', type: 'Thema', sites: 4, to: '4.8.2', id: 'c4' },
+      { name: 'WordPress', type: 'WordPress', sites: 4, to: '6.6.2', id: 'c5' },
+    ].map(c => { const done = !!this.state.done[c.id]; return { ...c, onAction: () => this.markDone(c.id),
+      btnLabel: done ? 'Gestart' : 'Bijwerken', btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff' }; });
+
+    const worstPsi = [
+      { site: 'garage-peters.nl', mob: 38, desk: 72 }, { site: 'webshop-devries.nl', mob: 44, desk: 69 }, { site: 'bakkerij-jansen.nl', mob: 52, desk: 80 },
+    ].map(r => ({ ...r, mobCls: this.scoreStyle(r.mob, dark), deskCls: this.scoreStyle(r.desk, dark) }));
+
+    const events = [
+      { t: '10:42', site: 'tandarts-smit.nl', text: 'Plugin bijgewerkt: Contact Form 7 5.8 → 5.9', level: 'ok' },
+      { t: '09:15', site: 'sportschool-fit.nl', text: 'Inlogpoging geblokkeerd (3×)', level: 'warn' },
+      { t: '08:30', site: 'cafe-de-hoek.nl', text: 'Back-up gemaakt (124 MB)', level: 'ok' },
+      { t: 'gister 17:20', site: 'bakkerij-jansen.nl', text: 'WordPress-gebruiker toegevoegd: redacteur', level: 'info' },
+    ].map(e => ({ ...e, dotColor: C[e.level] || C.info }));
+
+    const navDef = [
+      { label: 'Monitoring', items: [
+        { label: 'Overzicht', icon: 'grid', page: 'overzicht' },
+        { label: 'Sites', icon: 'server', page: 'sites', count: '7' },
+        { label: 'PageSpeed', icon: 'gauge', page: 'pagespeed' },
+        { label: 'Kwetsbaarheden', icon: 'bug', page: 'kwetsbaarheden', count: '3', countCrit: true },
+      ] },
+      { label: 'Onderhoud', items: [
+        { label: 'Updates', icon: 'refresh', page: 'updates', count: '42' },
+        { label: 'Klanten', icon: 'calendar', page: 'klanten' },
+        { label: 'Rapporten', icon: 'filetext', page: 'rapporten' },
+        { label: 'Versies', icon: 'grid', page: 'versies' },
+      ] },
+      { label: 'Beheer', items: [
+        { label: 'Licenties', icon: 'key', page: 'licenties' }, { label: 'WP-gebruikers', icon: 'users', page: 'wpgebruikers' },
+        { label: 'Activiteit', icon: 'activity', page: 'activiteit' }, { label: 'Gebruikers', icon: 'users', page: 'gebruikers' },
+      ] },
+    ];
+    const navGroups = navDef.map(g => ({ ...g, items: g.items.map(it => {
+      const active = it.page && it.page === page;
+      return { ...it, iconEl: this.icon(it.icon, 17), hasCount: !!it.count,
+        onClick: it.page ? (() => this.setPage(it.page)) : (() => {}),
+        itemBg: active ? 'var(--red-50)' : 'transparent', itemColor: active ? 'var(--text-strong)' : 'var(--text-muted)', itemWeight: active ? 700 : 600,
+        countBg: it.countCrit ? C.crit : 'var(--surface-sunken)', countColor: it.countCrit ? '#fff' : 'var(--text-muted)' };
+    }) }));
+
+    return {
+      themeAttr: this.state.theme, themeLabel: dark ? 'Licht' : 'Donker', themeIconEl: this.icon(dark ? 'sun' : 'moon', 15), toggleTheme: () => this.toggleTheme(),
+      page, pageTitle: titles[page] || 'Overzicht',
+      isOverzicht: page === 'overzicht', isSites: page === 'sites', isKlanten: page === 'klanten', isUpdates: page === 'updates', isPagespeed: page === 'pagespeed', isKwetsbaarheden: page === 'kwetsbaarheden',
+      isVersies: page === 'versies', isLicenties: page === 'licenties', isWpgebruikers: page === 'wpgebruikers', isRapporten: page === 'rapporten', isActiviteit: page === 'activiteit', isGebruikers: page === 'gebruikers',
+      actTab: this.state.actTab, actSitesActive: this.state.actTab === 'sites', actAuditActive: this.state.actTab === 'audit',
+      setActSites: () => this.setActTab('sites'), setActAudit: () => this.setActTab('audit'),
+      actTabSitesBg: this.state.actTab === 'sites' ? 'var(--surface-card)' : 'transparent', actTabSitesColor: this.state.actTab === 'sites' ? 'var(--text-strong)' : 'var(--text-muted)',
+      actTabAuditBg: this.state.actTab === 'audit' ? 'var(--surface-card)' : 'transparent', actTabAuditColor: this.state.actTab === 'audit' ? 'var(--text-strong)' : 'var(--text-muted)',
+      statCards, issues, critIssues: issues.filter(i => i.level === 'crit'), warnIssues: issues.filter(i => i.level === 'warn'), openCount: issues.filter(i => !i.done).length,
+      topComponents, worstPsi, events, navGroups,
+      goUpdates: () => this.setPage('updates'), goSites: () => this.setPage('sites'),
+      icSearch: this.icon('search', 16), icBell: this.icon('bell', 18), icPlus: this.icon('plus', 15), icArrow: this.icon('arrow', 15),
+      ...this.pageData(C, dark, critBg, warnBg),
+    };
+  }
+
+  pageData(C, dark, critBg, warnBg) {
+    const lvlAccent = { crit: C.crit, warn: C.warn, ok: C.ok, pending: '#9B9B98', info: C.info };
+    const lvlLabel = { crit: 'Kritiek', warn: 'Aandacht', ok: 'In orde', pending: 'Niet gekoppeld' };
+
+    // ----- SITES -----
+    const rawSites = [
+      { name: 'bakkerij-jansen.nl', client: 'Bakkerij Jansen', level: 'crit', wp: '6.6.2', php: '8.1', updates: 4, seen: '3 min', issue: 'Kritieke kwetsbaarheid in Elementor' },
+      { name: 'webshop-devries.nl', client: 'De Vries Webshop', level: 'crit', wp: '6.5.5', php: '8.2', updates: 8, seen: '2 u', issue: 'Onbereikbaar (HTTP 500)' },
+      { name: 'tandarts-smit.nl', client: 'Tandarts Smit', level: 'warn', wp: '6.4.3', php: '8.1', updates: 6, seen: '5 min', issue: 'WordPress-core verouderd' },
+      { name: 'cafe-de-hoek.nl', client: 'Café de Hoek', level: 'warn', wp: '6.6.2', php: '8.0', updates: 2, seen: '1 min', issue: 'SSL verloopt over 9 dagen' },
+      { name: 'sportschool-fit.nl', client: 'Fit Sportschool', level: 'warn', wp: '6.6.1', php: '8.2', updates: 5, seen: '4 min', issue: 'WooCommerce beveiligingsupdate' },
+      { name: 'garage-peters.nl', client: 'Garage Peters', level: 'warn', wp: '6.6.2', php: '7.4', updates: 3, seen: '7 min', issue: 'PHP 7.4 verouderd · trage PageSpeed' },
+      { name: 'loodgieter-bos.nl', client: 'Bos Loodgieters', level: 'warn', wp: '6.6.2', php: '8.1', updates: 1, seen: '2 min', issue: 'Back-up 3 dagen oud' },
+      { name: 'kapsalon-mooi.nl', client: 'Kapsalon Mooi', level: 'ok', wp: '6.6.2', php: '8.2', updates: 0, seen: '1 min', issue: '' },
+      { name: 'advocaat-dejong.nl', client: 'De Jong Advocaten', level: 'ok', wp: '6.6.2', php: '8.2', updates: 0, seen: '3 min', issue: '' },
+      { name: 'bloemen-roos.nl', client: 'Bloemist Roos', level: 'pending', wp: '–', php: '–', updates: '–', seen: 'Nog geen contact', issue: 'Nog niet gekoppeld' },
+    ];
+    const sites = rawSites.map(s => ({ ...s, accent: lvlAccent[s.level], levelLabel: lvlLabel[s.level],
+      updatesColor: (typeof s.updates === 'number' && s.updates > 0) ? C.warn : 'var(--text-strong)',
+      issueBg: s.level === 'crit' ? critBg : s.level === 'warn' ? warnBg : 'var(--surface-alt)',
+      issueColor: s.level === 'crit' ? (dark ? '#F4A7AA' : '#9E171D') : s.level === 'warn' ? (dark ? '#E8C877' : '#8A5D06') : 'var(--text-subtle)' }));
+    const siteCounts = [
+      { label: 'kritiek', n: 2, cls: 'crit' }, { label: 'aandacht', n: 5, cls: 'warn' }, { label: 'in orde', n: 18, cls: 'ok' }, { label: 'niet gekoppeld', n: 1, cls: 'pending' },
+    ].map(c => ({ ...c, dot: lvlAccent[c.cls] }));
+
+    // ----- UPDATES -----
+    const updComponents = [
+      { name: 'Elementor', slug: 'elementor', type: 'Plugin', sites: 9, to: '3.23.4', id: 'u-elementor' },
+      { name: 'Yoast SEO', slug: 'wordpress-seo', type: 'Plugin', sites: 7, to: '23.4', id: 'u-yoast' },
+      { name: 'WooCommerce', slug: 'woocommerce', type: 'Plugin', sites: 5, to: '9.3.1', id: 'u-woo', sec: true },
+      { name: 'Astra', slug: 'astra', type: 'Thema', sites: 4, to: '4.8.2', id: 'u-astra' },
+      { name: 'WordPress', slug: 'core', type: 'WordPress', sites: 4, to: '6.6.2', id: 'u-core' },
+      { name: 'Contact Form 7', slug: 'contact-form-7', type: 'Plugin', sites: 3, to: '5.9', id: 'u-cf7' },
+    ].map(c => { const done = !!this.state.done[c.id]; return { ...c, onAction: () => this.markDone(c.id),
+      btnLabel: done ? 'Gestart' : 'Bijwerken op ' + c.sites, btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff',
+      secBadge: !!c.sec }; });
+    const updRows = [
+      { id: 'ur1', site: 'bakkerij-jansen.nl', comp: 'Elementor', type: 'Plugin', from: '3.21.0', to: '3.23.4', active: 'ja' },
+      { id: 'ur2', site: 'sportschool-fit.nl', comp: 'WooCommerce', type: 'Plugin', from: '8.1.0', to: '9.3.1', active: 'ja', sec: true },
+      { id: 'ur3', site: 'tandarts-smit.nl', comp: 'WordPress', type: 'WordPress', from: '6.4.3', to: '6.6.2', active: 'ja' },
+      { id: 'ur4', site: 'webshop-devries.nl', comp: 'Yoast SEO', type: 'Plugin', from: '22.6', to: '23.4', active: 'ja' },
+      { id: 'ur5', site: 'cafe-de-hoek.nl', comp: 'Astra', type: 'Thema', from: '4.6.1', to: '4.8.2', active: 'ja' },
+      { id: 'ur6', site: 'garage-peters.nl', comp: 'Contact Form 7', type: 'Plugin', from: '5.8', to: '5.9', active: 'nee' },
+    ].map(r => { const done = !!this.state.done[r.id]; return { ...r, onAction: () => this.markDone(r.id),
+      btnLabel: done ? 'Gestart' : 'Bijwerken', btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff',
+      secTag: !!r.sec }; });
+    const updCounts = [ { label: 'plugins', n: 31, cls: 'warn' }, { label: "thema's", n: 7, cls: 'warn' }, { label: 'WordPress', n: 4, cls: 'crit' } ]
+      .map(c => ({ ...c, bg: c.cls === 'crit' ? critBg : warnBg, fg: c.cls === 'crit' ? (dark ? '#F4A7AA' : '#9E171D') : (dark ? '#E8C877' : '#8A5D06') }));
+
+    // ----- PAGESPEED -----
+    const psiRows = [
+      { site: 'garage-peters.nl', mob: 38, desk: 72, a11y: 88, bp: 79, seo: 92, lcp: '4,8 s', cls: '0,21', seen: '2 u geleden' },
+      { site: 'webshop-devries.nl', mob: 44, desk: 69, a11y: 90, bp: 83, seo: 95, lcp: '3,9 s', cls: '0,14', seen: '5 u geleden' },
+      { site: 'bakkerij-jansen.nl', mob: 52, desk: 80, a11y: 93, bp: 92, seo: 100, lcp: '3,1 s', cls: '0,08', seen: '1 d geleden' },
+      { site: 'sportschool-fit.nl', mob: 67, desk: 88, a11y: 96, bp: 92, seo: 100, lcp: '2,4 s', cls: '0,05', seen: '6 u geleden' },
+      { site: 'cafe-de-hoek.nl', mob: 74, desk: 91, a11y: 95, bp: 100, seo: 100, lcp: '2,1 s', cls: '0,03', seen: '3 u geleden' },
+      { site: 'kapsalon-mooi.nl', mob: 91, desk: 98, a11y: 100, bp: 100, seo: 100, lcp: '1,4 s', cls: '0,01', seen: '4 u geleden' },
+    ].map((r, i) => ({ ...r, id: 'psi' + i, mobCls: this.scoreStyle(r.mob, dark), deskCls: this.scoreStyle(r.desk, dark),
+      a11yCls: this.scoreStyle(r.a11y, dark), bpCls: this.scoreStyle(r.bp, dark), seoCls: this.scoreStyle(r.seo, dark),
+      onAction: () => this.markDone('psi' + i), psiLabel: this.state.done['psi' + i] ? 'Aangevraagd' : 'Meten' }));
+
+    // ----- KWETSBAARHEDEN -----
+    const vulnCounts = [ { label: 'hoog', n: 3, cls: 'crit' }, { label: 'gemiddeld', n: 5, cls: 'warn' }, { label: 'laag', n: 2, cls: 'info' } ];
+    const vulns = [
+      { id: 'v1', level: 'crit', score: '9.8', site: 'bakkerij-jansen.nl', comp: 'Elementor', type: 'plugin', ver: '3.21.0', title: 'Remote code execution via onveilige template-upload', cve: 'CVE-2024-30512', fix: '3.23.0' },
+      { id: 'v2', level: 'crit', score: '8.8', site: 'sportschool-fit.nl', comp: 'WooCommerce', type: 'plugin', ver: '8.1.0', title: 'SQL-injectie in order-endpoint', cve: 'CVE-2024-28000', fix: '9.1.2' },
+      { id: 'v3', level: 'crit', score: '8.1', site: 'webshop-devries.nl', comp: 'WordPress', type: 'core', ver: '6.5.5', title: 'Authenticated stored XSS in editor', cve: 'CVE-2024-31210', fix: '6.6.0' },
+      { id: 'v4', level: 'warn', score: '6.4', site: 'tandarts-smit.nl', comp: 'Yoast SEO', type: 'plugin', ver: '22.6', title: 'Cross-site request forgery in instellingen', cve: 'CVE-2024-27956', fix: '23.1' },
+      { id: 'v5', level: 'warn', score: '5.3', site: 'garage-peters.nl', comp: 'Contact Form 7', type: 'plugin', ver: '5.8', title: 'Onbeveiligde bestandsupload', cve: 'CVE-2024-25600', fix: '5.9' },
+      { id: 'v6', level: 'info', score: 'info', site: 'cafe-de-hoek.nl', comp: 'Astra', type: 'thema', ver: '4.6.1', title: 'Informatielek in foutpagina', cve: '', fix: '4.7.0' },
+    ].map(v => { const done = !!this.state.done[v.id]; const sc = this.scoreStyle(v.level === 'crit' ? 20 : v.level === 'warn' ? 60 : 95, dark);
+      return { ...v, scoreCls: sc, typeLabel: v.type === 'core' ? '' : v.type, onAction: () => this.markDone(v.id),
+        btnLabel: done ? 'Gestart' : 'Bijwerken', btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff' }; });
+
+    // ----- KLANTEN -----
+    const items = {
+      '2026-10-29': [{ c: 'De Jong Advocaten', state: 'done' }],
+      '2026-11-03': [{ c: 'Bakkerij Jansen', state: 'overdue' }],
+      '2026-11-05': [{ c: 'Tandarts Smit', state: 'planned' }],
+      '2026-11-12': [{ c: 'Café de Hoek', state: 'planned' }, { c: 'Fit Sportschool', state: 'planned' }],
+      '2026-11-18': [{ c: 'Garage Peters', state: 'planned' }],
+      '2026-11-25': [{ c: 'Bos Loodgieters', state: 'planned' }],
+    };
+    const stateStyle = {
+      planned: { bg: 'var(--info-50)', fg: 'var(--info-500)' },
+      done: { bg: 'var(--ok-bg)', fg: 'var(--ok-fg)' },
+      overdue: { bg: 'var(--crit-bg)', fg: 'var(--crit-fg)' },
+    };
+    const today = new Date(2026, 10, 3);
+    const first = new Date(2026, 10, 1);
+    let gridStart = new Date(first);
+    const dow = (first.getDay() + 6) % 7; // Mon=0
+    gridStart.setDate(first.getDate() - dow);
+    const weeks = [];
+    let cur = new Date(gridStart);
+    for (let w = 0; w < 6; w++) {
+      const days = [];
+      for (let d = 0; d < 7; d++) {
+        const iso = cur.getFullYear() + '-' + String(cur.getMonth() + 1).padStart(2, '0') + '-' + String(cur.getDate()).padStart(2, '0');
+        const dayItems = (items[iso] || []).map(it => ({ ...it, bg: stateStyle[it.state].bg, fg: stateStyle[it.state].fg }));
+        days.push({ n: cur.getDate(), out: cur.getMonth() !== 10, today: cur.getTime() === today.getTime(),
+          cellBg: cur.getMonth() !== 10 ? 'var(--surface-sunken)' : 'var(--surface-card)',
+          dayColor: cur.getTime() === today.getTime() ? '#fff' : 'var(--text-muted)',
+          dayBg: cur.getTime() === today.getTime() ? 'var(--red-500)' : 'transparent',
+          items: dayItems });
+        cur.setDate(cur.getDate() + 1);
+      }
+      weeks.push({ days });
+    }
+    const upcoming = [
+      { id: 'up1', date: '03-11-2026', note: ' · achterstallig', overdue: true, customer: 'Bakkerij Jansen', sites: 1, updates: 4 },
+      { id: 'up2', date: '05-11-2026', note: '', overdue: false, customer: 'Tandarts Smit', sites: 1, updates: 6 },
+      { id: 'up3', date: '12-11-2026', note: '', overdue: false, customer: 'Café de Hoek', sites: 2, updates: 5 },
+      { id: 'up4', date: '12-11-2026', note: '', overdue: false, customer: 'Fit Sportschool', sites: 1, updates: 5 },
+      { id: 'up5', date: '18-11-2026', note: '', overdue: false, customer: 'Garage Peters', sites: 1, updates: 3 },
+    ].map(r => ({ ...r, dateColor: r.overdue ? C.crit : 'var(--text-default)', dateWeight: r.overdue ? 700 : 500 }));
+    const customers = [
+      { id: 'cu1', name: 'Bakkerij Jansen', contact: 'Peter Jansen', email: 'peter@bakkerijjansen.nl', contract: 'Maandelijks', since: '03-2021', sites: 1, report: true, openUpd: 4 },
+      { id: 'cu2', name: 'De Vries Webshop', contact: 'Sandra de Vries', email: 'info@devrieswebshop.nl', contract: 'Maandelijks', since: '09-2022', sites: 2, report: true, openUpd: 8 },
+      { id: 'cu3', name: 'Tandarts Smit', contact: 'Dr. Smit', email: 'praktijk@tandartssmit.nl', contract: 'Per kwartaal', since: '01-2020', sites: 1, report: true, openUpd: 6 },
+      { id: 'cu4', name: 'Café de Hoek', contact: 'Mo Bakker', email: 'mo@cafedehoek.nl', contract: 'Maandelijks', since: '06-2023', sites: 2, report: false, openUpd: 5 },
+      { id: 'cu5', name: 'Fit Sportschool', contact: 'Linda Berg', email: 'linda@fitsportschool.nl', contract: 'Per kwartaal', since: '11-2021', sites: 1, report: true, openUpd: 5 },
+      { id: 'cu6', name: 'De Jong Advocaten', contact: 'Mr. de Jong', email: 'office@dejongadvocaten.nl', contract: 'Maandelijks', since: '04-2019', sites: 1, report: true, openUpd: 0 },
+    ].map(c => { const done = !!this.state.done[c.id]; return { ...c, reportBg: c.report ? 'var(--ok-bg)' : 'var(--surface-sunken)', reportColor: c.report ? 'var(--ok-fg)' : 'var(--text-muted)', reportLabel: c.report ? 'ja' : 'nee',
+      onAction: () => this.markDone(c.id), canUpdate: c.openUpd > 0,
+      btnLabel: done ? 'Gestart' : (c.openUpd > 0 ? 'Updates starten (' + c.openUpd + ')' : 'Bekijken'),
+      btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : (c.openUpd > 0 ? 'var(--red-500)' : 'transparent'),
+      btnBorder: (done || c.openUpd > 0) ? '0' : '1.5px solid var(--border-default)',
+      btnColor: done ? (dark ? '#86efac' : '#157347') : (c.openUpd > 0 ? '#fff' : 'var(--text-default)') }; });
+
+    // ----- VERSIES -----
+    const chipTone = (t) => t === 'crit' ? { bg: critBg, fg: dark ? '#F4A7AA' : '#9E171D' } : t === 'warn' ? { bg: warnBg, fg: dark ? '#E8C877' : '#8A5D06' } : { bg: 'var(--surface-sunken)', fg: 'var(--text-default)' };
+    const phpDist = [{ v: '8.2', n: 12 }, { v: '8.1', n: 8 }, { v: '8.0', n: 3, t: 'warn' }, { v: '7.4', n: 3, t: 'crit' }].map(x => ({ ...x, ...chipTone(x.t) }));
+    const wpDist = [{ v: '6.6.2', n: 18 }, { v: '6.6.1', n: 3 }, { v: '6.5.5', n: 2, t: 'warn' }, { v: '6.4.3', n: 1, t: 'warn' }].map(x => ({ ...x, ...chipTone(x.t) }));
+    const versRows = [
+      { site: 'garage-peters.nl', php: '7.4', phpState: 'crit', wp: '6.6.2', wpOut: false, db: 'MariaDB 10.5', oc: '0.7.0', plugins: 24, inactive: 3, updates: 3, theme: 'Divi 4.9.2', dbmb: '512,4 MB' },
+      { site: 'webshop-devries.nl', php: '8.2', phpState: '', wp: '6.5.5', wpOut: true, db: 'MariaDB 10.6', oc: '0.6.2', plugins: 31, inactive: 5, updates: 8, theme: 'Flatsome 3.18', dbmb: '1.204,0 MB' },
+      { site: 'tandarts-smit.nl', php: '8.1', phpState: '', wp: '6.4.3', wpOut: true, db: 'MySQL 8.0', oc: '0.7.0', plugins: 19, inactive: 2, updates: 6, theme: 'Astra 4.6.1', dbmb: '88,2 MB' },
+      { site: 'cafe-de-hoek.nl', php: '8.0', phpState: 'warn', wp: '6.6.2', wpOut: false, db: 'MariaDB 10.6', oc: '0.7.0', plugins: 16, inactive: 1, updates: 2, theme: 'Astra 4.6.1', dbmb: '54,1 MB' },
+      { site: 'bakkerij-jansen.nl', php: '8.1', phpState: '', wp: '6.6.2', wpOut: false, db: 'MariaDB 10.6', oc: '0.7.0', plugins: 22, inactive: 4, updates: 4, theme: 'Astra 4.8.2', dbmb: '126,7 MB' },
+      { site: 'kapsalon-mooi.nl', php: '8.2', phpState: '', wp: '6.6.2', wpOut: false, db: 'MariaDB 10.6', oc: '0.7.0', plugins: 14, inactive: 0, updates: 0, theme: 'Blocksy 2.0', dbmb: '38,9 MB' },
+      { site: 'advocaat-dejong.nl', php: '8.2', phpState: '', wp: '6.6.2', wpOut: false, db: 'MySQL 8.0', oc: '0.7.0', plugins: 11, inactive: 1, updates: 0, theme: 'GeneratePress 3.4', dbmb: '41,0 MB' },
+    ].map(r => ({ ...r, phpColor: r.phpState === 'crit' ? C.crit : r.phpState === 'warn' ? C.warn : 'var(--text-default)', phpWeight: r.phpState ? 700 : 400, wpColor: r.wpOut ? C.warn : 'var(--text-default)', wpWeight: r.wpOut ? 700 : 400 }));
+
+    // ----- LICENTIES -----
+    const statusTone = (s) => s === 'active' ? { bg: dark ? '#14321f' : '#E8F6EE', fg: dark ? '#86efac' : '#157347', label: 'actief' } : s === 'inactive' ? { bg: critBg, fg: dark ? '#F4A7AA' : '#9E171D', label: 'niet actief' } : { bg: 'var(--surface-sunken)', fg: 'var(--text-muted)', label: 'onbekend' };
+    const licProducts = [
+      { id: 'lp1', name: 'Elementor Pro', file: 'elementor-pro/elementor-pro.php', method: 'Automatisch (API)', sites: 9, inactive: 2,
+        installs: [{ site: 'bakkerij-jansen.nl', ver: '3.21.0', status: 'active' }, { site: 'webshop-devries.nl', ver: '3.23.4', status: 'active' }, { site: 'garage-peters.nl', ver: '3.22.0', status: 'inactive' }, { site: 'sportschool-fit.nl', ver: '3.23.4', status: 'inactive' }],
+        keys: [{ label: 'Agency-licentie', masked: 'ELEM-••••-••••-7F3A', seats: '∞', expires: '01-2027' }] },
+      { id: 'lp2', name: 'Advanced Custom Fields Pro', file: 'advanced-custom-fields-pro/acf.php', method: 'Automatisch (API)', sites: 6, inactive: 0,
+        installs: [{ site: 'tandarts-smit.nl', ver: '6.3.1', status: 'active' }, { site: 'advocaat-dejong.nl', ver: '6.3.1', status: 'active' }, { site: 'bakkerij-jansen.nl', ver: '6.2.9', status: 'active' }],
+        keys: [{ label: 'ACF Pro', masked: 'ACF-••••-••••-2B19', seats: '25', expires: '—' }] },
+      { id: 'lp3', name: 'WP Rocket', file: 'wp-rocket/wp-rocket.php', method: 'Automatisch (API)', sites: 5, inactive: 1,
+        installs: [{ site: 'cafe-de-hoek.nl', ver: '3.16', status: 'active' }, { site: 'loodgieter-bos.nl', ver: '3.15', status: 'inactive' }],
+        keys: [{ label: 'WP Rocket onbeperkt', masked: 'ROCK-••••-••••-9C04', seats: '∞', expires: '08-2026' }] },
+    ].map(p => { const done = !!this.state.done[p.id]; return { ...p,
+      inactiveBadge: p.inactive > 0, onAction: () => this.markDone(p.id),
+      btnLabel: done ? 'Geactiveerd' : 'Activeren op ' + p.inactive + ' site(s)', btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff', canActivate: p.inactive > 0,
+      installs: p.installs.map(i => ({ ...i, ...statusTone(i.status) })) }; });
+
+    // ----- WP-GEBRUIKERS -----
+    const wpTotals = [{ label: 'beheerders', n: 34 }, { label: 'zonder 2FA', n: 7, warn: true }, { label: 'geblokkeerd', n: 2 }]
+      .map(c => ({ ...c, bg: c.warn ? warnBg : 'var(--surface-card)', fg: c.warn ? (dark ? '#E8C877' : '#8A5D06') : 'var(--text-default)' }));
+    const wpUsers = [
+      { site: 'bakkerij-jansen.nl', login: 'peter', email: 'peter@bakkerijjansen.nl', roles: 'beheerder', twofa: '', last: '2 dagen', sessions: 1, locked: false },
+      { site: 'webshop-devries.nl', login: 'sandra', email: 'sandra@devrieswebshop.nl', roles: 'beheerder, winkelmanager', twofa: 'Two Factor', last: '4 uur', sessions: 2, locked: false },
+      { site: 'webshop-devries.nl', login: 'oudbeheer', email: 'info@devrieswebshop.nl', roles: 'beheerder', twofa: '', last: '3 maanden', sessions: 0, locked: true },
+      { site: 'tandarts-smit.nl', login: 'balie', email: 'balie@tandartssmit.nl', roles: 'redacteur', twofa: 'e-mailcode', last: '1 dag', sessions: 1, locked: false },
+      { site: 'sportschool-fit.nl', login: 'linda', email: 'linda@fitsportschool.nl', roles: 'beheerder', twofa: 'Wordfence', last: '6 uur', sessions: 1, locked: false },
+      { site: 'cafe-de-hoek.nl', login: 'mo', email: 'mo@cafedehoek.nl', roles: 'beheerder', twofa: '', last: '5 dagen', sessions: 1, locked: false },
+    ].map(u => ({ ...u, twofaOk: !!u.twofa, twofaLabel: u.twofa || 'geen',
+      twofaBg: u.twofa ? (dark ? '#14321f' : '#E8F6EE') : critBg, twofaFg: u.twofa ? (dark ? '#86efac' : '#157347') : (dark ? '#F4A7AA' : '#9E171D') }));
+
+    // ----- RAPPORTEN -----
+    const reportFields = { company: 'Next Buzz', title: 'Onderhoudsrapport', footer: 'Next Buzz · optimaal rendement online', intro: 'In deze periode hebben we jouw website(s) bijgewerkt, beveiligd en gecontroleerd. Hieronder lees je precies wat we hebben gedaan.' };
+    const reportColors = [{ label: 'Hoofdkleur', hex: '#E22830' }, { label: 'Koppen en balken', hex: '#282828' }, { label: 'Tekst', hex: '#282828' }, { label: 'Lichte tekst', hex: '#767674' }, { label: 'Tekst voorpagina', hex: '#FFFFFF' }];
+    const reportAssets = [{ label: 'Logo', file: 'nextbuzz-logo.png · 24 kB', has: true }, { label: 'Achtergrond voorpagina', file: 'cover-a4.pdf · 180 kB', has: true }, { label: "Achtergrond overige pagina's", file: 'geen', has: false }, { label: 'Font koppen', file: 'SchibstedGrotesk.ttf · 88 kB', has: true }, { label: 'Font tekst', file: 'HankenGrotesk.ttf · 76 kB', has: true }]
+      .map(a => ({ ...a, fileColor: a.has ? 'var(--text-muted)' : 'var(--text-subtle)', actLabel: a.has ? 'Vervangen' : 'Uploaden' }));
+
+    // ----- ACTIVITEIT -----
+    const srcTone = (s) => s === 'OC Monitor' ? { bg: 'var(--info-50)', fg: 'var(--info-500)' } : s === 'extern' ? { bg: warnBg, fg: dark ? '#E8C877' : '#8A5D06' } : { bg: 'var(--surface-sunken)', fg: 'var(--text-muted)' };
+    const actEvents = [
+      { time: '03-11 10:42', site: 'tandarts-smit.nl', type: 'plugin.update', object: 'contact-form-7', from: '5.8', to: '5.9', source: 'OC Monitor', user: 'rick', failed: false },
+      { time: '03-11 09:15', site: 'sportschool-fit.nl', type: 'login.failed_summary', object: '18 mislukte pogingen (inlogpagina 15, XML-RPC 3), 1× IP geblokkeerd', from: '', to: '', source: 'site', user: '—', failed: false, summary: true },
+      { time: '03-11 08:30', site: 'cafe-de-hoek.nl', type: 'backup.create', object: 'volledige back-up', from: '', to: '124 MB', source: 'OC Monitor', user: 'systeem', failed: false },
+      { time: '02-11 22:10', site: 'webshop-devries.nl', type: 'plugin.update', object: 'woocommerce', from: '9.2.1', to: '9.3.1', source: 'OC Monitor', user: 'systeem', failed: true },
+      { time: '02-11 17:20', site: 'bakkerij-jansen.nl', type: 'user.create', object: 'redacteur (sanne)', from: '', to: '', source: 'site', user: 'peter', failed: false },
+      { time: '02-11 14:03', site: 'garage-peters.nl', type: 'core.update', object: 'WordPress', from: '6.6.1', to: '6.6.2', source: 'OC Monitor', user: 'rick', failed: false },
+    ].map(e => ({ ...e, ...srcTone(e.source), typeColor: e.failed ? C.crit : 'var(--text-default)', typeLabelFull: e.failed ? e.type + ' (mislukt)' : e.type }));
+    const auditRows = [
+      { time: '03-11 10:41:58', action: 'updates.store', user: 'rick', site: 'tandarts-smit.nl', details: '{"items":["plugin:contact-form-7"]}', ip: '84.22.1.9' },
+      { time: '03-11 08:02:11', action: 'auth.login', user: 'rick', site: '—', details: '{"2fa":"ok"}', ip: '84.22.1.9' },
+      { time: '02-11 16:40:03', action: 'customer.complete', user: 'sanne', site: '—', details: '{"customer":"De Jong Advocaten"}', ip: '84.22.4.17' },
+      { time: '02-11 14:02:50', action: 'updates.store', user: 'rick', site: 'garage-peters.nl', details: '{"items":["core"]}', ip: '84.22.1.9' },
+    ];
+
+    // ----- GEBRUIKERS (portal) -----
+    const roleTone = { Admin: { bg: 'var(--red-50)', fg: 'var(--red-700)' }, Beheerder: { bg: 'var(--surface-sunken)', fg: 'var(--text-default)' }, 'Alleen lezen': { bg: 'var(--surface-sunken)', fg: 'var(--text-muted)' } };
+    const portalUsers = [
+      { name: 'Rick Smink', email: 'rick@nextbuzz.nl', role: 'Admin', twofa: true, last: '03-11 08:02', self: true },
+      { name: 'Sanne de Wit', email: 'sanne@nextbuzz.nl', role: 'Beheerder', twofa: true, last: '02-11 16:40', self: false },
+      { name: 'Joost Bakker', email: 'joost@nextbuzz.nl', role: 'Beheerder', twofa: false, last: '–', self: false },
+      { name: 'Teamscherm', email: 'tv@nextbuzz.nl', role: 'Alleen lezen', twofa: false, last: '28-10 07:30', self: false },
+    ].map(u => ({ ...u, roleBg: roleTone[u.role].bg, roleFg: roleTone[u.role].fg,
+      twofaBg: u.twofa ? (dark ? '#14321f' : '#E8F6EE') : 'var(--surface-sunken)', twofaFg: u.twofa ? (dark ? '#86efac' : '#157347') : 'var(--text-muted)', twofaLabel: u.twofa ? 'aan' : 'nog instellen' }));
+
+    return { sites, siteCounts, updComponents, updRows, updCounts, psiRows, vulnCounts, vulns, calWeeks: weeks, upcoming, customers, calMonth: 'november 2026',
+      phpDist, wpDist, versRows, licProducts, wpTotals, wpUsers, reportFields, reportColors, reportAssets, actEvents, auditRows, portalUsers };
+  }
+}
+</script>
+</body>
+</html>

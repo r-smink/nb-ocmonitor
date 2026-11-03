@@ -38,23 +38,19 @@
 
     <section class="panel">
       <div class="panel-head"><h3>Eerstvolgend onderhoud</h3></div>
-      <div class="table-wrap scroll-sm">
-        <table>
-          <thead><tr><th>Datum</th><th>Klant</th><th>Sites</th><th class="num">Updates</th></tr></thead>
-          <tbody>
-            @forelse ($upcoming->take(15) as $row)
-              @php($overdue = $row['date']->lessThan($today))
-              <tr data-href="{{ route('customers.show', $row['customer']) }}">
-                <td @class(['issue-text', 'crit' => $overdue])>{{ $row['date']->format('d-m-Y') }}{{ $overdue ? ' (achterstallig)' : ($row['date']->isSameDay($today) ? ' (vandaag)' : '') }}</td>
-                <td><a href="{{ route('customers.show', $row['customer']) }}">{{ $row['customer']->name }}</a></td>
-                <td>{{ $row['customer']->sites->count() }}</td>
-                <td class="num">{{ $row['customer']->sites->sum(fn ($s) => count($s->availableUpdates())) }}</td>
-              </tr>
-            @empty
-              <tr><td colspan="4" class="muted">Nog geen klanten met een contract.</td></tr>
-            @endforelse
-          </tbody>
-        </table>
+      <div class="mini-list scroll-sm">
+        @forelse ($upcoming->take(15) as $row)
+          @php($overdue = $row['date']->lessThan($today))
+          <div class="mini-row">
+            <div class="grow">
+              <a class="name" href="{{ route('customers.show', $row['customer']) }}">{{ $row['customer']->name }}</a>
+              <div @class(['sub', 'issue-text', 'crit' => $overdue])>{{ $row['date']->format('d-m-Y') }}{{ $overdue ? ' · achterstallig' : ($row['date']->isSameDay($today) ? ' · vandaag' : '') }}</div>
+            </div>
+            <span class="sub">{{ $row['customer']->sites->count() }} {{ $row['customer']->sites->count() === 1 ? 'site' : 'sites' }} · {{ $row['customer']->sites->sum(fn ($s) => count($s->availableUpdates())) }} upd.</span>
+          </div>
+        @empty
+          <p class="muted">Nog geen klanten met een contract.</p>
+        @endforelse
       </div>
     </section>
   </div>
@@ -63,20 +59,31 @@
     <div class="panel-head"><h3>Alle klanten</h3><span class="badge">{{ $customers->count() }}</span></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Klant</th><th>Contactpersoon</th><th>E-mail</th><th>Contract</th><th>Sinds</th><th>Sites</th><th>Rapport</th></tr></thead>
+        <thead><tr><th>Klant</th><th>Contract</th><th>Sites</th><th>Rapport</th>@can('manage-sites')<th></th>@endcan</tr></thead>
         <tbody>
           @forelse ($customers as $customer)
+            @php($pending = $customer->sites->filter(fn ($s) => $s->isPaired() && $s->updatesBlockedReason() === null)->sum(fn ($s) => collect($s->availableUpdates())->whereIn('type', ['plugin', 'theme'])->count()))
             <tr data-href="{{ route('customers.show', $customer) }}">
-              <td><a href="{{ route('customers.show', $customer) }}"><b>{{ $customer->name }}</b></a> @include('partials.tags', ['tags' => $customer->tags])</td>
-              <td>{{ $customer->contact_name }}</td>
-              <td>{{ $customer->email ?: '–' }}</td>
-              <td>{{ $customer->contractLabel() }}</td>
-              <td>{{ $customer->contract_start?->format('d-m-Y') ?? '–' }}</td>
+              <td>
+                <a href="{{ route('customers.show', $customer) }}"><b>{{ $customer->name }}</b></a> @include('partials.tags', ['tags' => $customer->tags])
+                <div class="note">{{ collect([$customer->contact_name, $customer->email])->filter()->implode(' · ') ?: '–' }}</div>
+              </td>
+              <td>{{ $customer->contractLabel() }}<div class="note">{{ $customer->contract_start ? 'sinds ' . $customer->contract_start->format('d-m-Y') : '' }}</div></td>
               <td class="wrap">{{ $customer->sites->pluck('name')->implode(', ') ?: '–' }}</td>
-              <td>@if ($customer->report_enabled)<span class="state">ja</span>@else<span class="state idle">nee</span>@endif</td>
+              <td>@if ($customer->report_enabled)<span class="state">rapport aan</span>@else<span class="state idle">geen rapport</span>@endif</td>
+              @can('manage-sites')
+                <td class="actions">
+                  @if ($pending > 0)
+                    <form method="POST" action="{{ route('customers.updates', $customer) }}" class="row-form" data-confirm="Alle beschikbare updates starten op de sites van {{ $customer->name }}?">
+                      @csrf
+                      <button class="btn small quiet" type="submit">Updates starten ({{ $pending }})</button>
+                    </form>
+                  @endif
+                </td>
+              @endcan
             </tr>
           @empty
-            <tr><td colspan="7" class="muted">Nog geen klanten.</td></tr>
+            <tr><td colspan="5" class="muted">Nog geen klanten.</td></tr>
           @endforelse
         </tbody>
       </table>

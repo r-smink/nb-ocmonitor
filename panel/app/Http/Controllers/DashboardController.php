@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\PagespeedResult;
 use App\Models\Site;
 use App\Models\SiteEvent;
+use App\Ocm\IssueActions;
 use App\Ocm\SiteIssues;
+use App\Ocm\Updates;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -36,10 +38,16 @@ class DashboardController extends Controller
         }
 
         // Updates over alle sites, gegroepeerd per component.
+        $open = Updates::openJobs($sites->filter(fn (Site $s) => $s->isPaired()));
         $updates = collect();
         foreach ($sites as $site) {
             foreach ($site->availableUpdates() as $item) {
-                $updates->push($item + ['site' => $site]);
+                $updates->push($item + [
+                    'site' => $site,
+                    'key' => $site->site_id . '|' . $item['type'] . '|' . $item['id'],
+                    'queued' => in_array($item['id'], $open[$site->id][$item['type']] ?? [], true),
+                    'blocked' => $site->updatesBlockedReason() !== null,
+                ]);
             }
         }
         $topComponents = $updates->groupBy(fn ($u) => $u['type'] . ':' . $u['slug'])
@@ -49,6 +57,8 @@ class DashboardController extends Controller
                 'name' => $group->first()['name'],
                 'sites' => $group->count(),
                 'to' => $group->pluck('to')->sort(fn ($a, $b) => version_compare($b, $a))->first(),
+                'items' => $group->filter(fn ($u) => !$u['queued'] && !$u['blocked'])->pluck('key')->values()->all(),
+                'queued' => $group->where('queued', true)->count(),
             ])
             ->sortByDesc('sites')->take(8)->values();
 
@@ -63,7 +73,7 @@ class DashboardController extends Controller
         return view('dashboard', [
             'sites' => $sites,
             'levels' => $levels,
-            'issues' => $issues,
+            'issues' => $issues->map(fn ($i) => $i + ['action' => IssueActions::for($i, $i['site'], $open, $request->user())]),
             'issueCounts' => [
                 'crit' => $all->where('level', 'crit')->count(),
                 'warn' => $all->where('level', 'warn')->count(),

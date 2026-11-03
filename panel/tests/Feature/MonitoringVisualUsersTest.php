@@ -174,7 +174,7 @@ class MonitoringVisualUsersTest extends TestCase
         $this->assertContains('1 beheerder zonder tweestapsverificatie', collect($site->issues())->pluck('text')->all());
 
         $this->actingAs($this->makeUser());
-        $this->get('/wp-gebruikers')->assertOk()->assertSee('stagiair')->assertSee('1 zonder 2FA')->assertDontSee('<script>x</script>', false);
+        $this->get('/wp-gebruikers')->assertOk()->assertSee('stagiair')->assertSeeInOrder(['Zonder 2FA', '<b>1</b>'], false)->assertDontSee('<script>x</script>', false);
         $this->get('/wp-gebruikers?twofa=zonder')->assertOk()->assertSee('stagiair')->assertDontSee('beheer@klant.example');
         $this->get('/sites/' . $site->site_id)->assertOk()->assertSee('WordPress-gebruikers')->assertSee('Wordfence');
 

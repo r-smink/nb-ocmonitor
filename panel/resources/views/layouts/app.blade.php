@@ -11,32 +11,66 @@
   <link rel="stylesheet" href="/css/ocm.css">
   <script src="/js/app.js" defer></script>
 </head>
-<body>
-  <header class="topbar">
+<body class="app-shell">
+  @php($navCounts = \App\Ocm\Menu::counts())
+  <aside class="sidebar" id="sidebar" aria-label="Hoofdmenu">
     <a class="brand" href="{{ route('dashboard') }}"><span class="logo" role="img" aria-label="Next Buzz"></span>{{ \App\Ocm\AppSettings::get('app_name') ?: 'OC Monitor' }}</a>
-    <nav>
-      @foreach (\App\Ocm\Menu::visible() as $item)
-        <a href="{{ route($item['route']) }}" @class(['active' => request()->routeIs(...$item['patterns'])])>{{ $item['label'] }}@if ($item['key'] === 'updates')@php($navUpdates = (int) \App\Models\Site::query()->whereNotNull('public_key')->sum('updates_count'))@if ($navUpdates > 0) <span class="nav-badge">{{ $navUpdates }}</span>@endif @endif</a>
+    <form class="side-search" method="GET" action="{{ route('sites.index') }}" role="search">
+      @include('partials.icon', ['name' => 'search', 'size' => 16])
+      <input type="search" name="q" value="{{ request()->routeIs('sites.index') ? request('q') : '' }}" placeholder="Zoek site of klant…" aria-label="Zoek site of klant">
+    </form>
+    <nav class="side-nav">
+      @foreach (\App\Ocm\Menu::grouped() as $group => $items)
+        <span class="side-group">{{ $group }}</span>
+        @foreach ($items as $item)
+          @php($count = ['updates' => $navCounts['updates'], 'vulnerabilities' => $navCounts['vulnerabilities']][$item['key']] ?? 0)
+          <a href="{{ route($item['route']) }}" @class(['active' => request()->routeIs(...$item['patterns'])]) @if (request()->routeIs(...$item['patterns'])) aria-current="page" @endif>
+            @include('partials.icon', ['name' => $item['icon'], 'size' => 17])
+            <span class="lbl">{{ $item['label'] }}</span>
+            @if ($count > 0)<span @class(['nav-count', 'crit' => $item['key'] === 'vulnerabilities'])>{{ $count }}</span>@endif
+          </a>
+        @endforeach
+        @if ($group === 'Beheer')
+          @can('manage-users')
+            <a href="{{ route('settings.show') }}" @class(['active' => request()->routeIs('settings.*', 'users.*')]) @if (request()->routeIs('settings.*', 'users.*')) aria-current="page" @endif>
+              @include('partials.icon', ['name' => 'settings', 'size' => 17])<span class="lbl">Instellingen</span>
+            </a>
+          @endcan
+        @endif
       @endforeach
     </nav>
-    <div class="top-right">
-      <a href="{{ route('plugin.download') }}" class="btn ghost small" title="Download de client-plugin voor WordPress">Plugin</a>
-      @can('manage-users')<a href="{{ route('settings.show') }}" @class(['btn', 'ghost', 'small', 'active' => request()->routeIs('settings.*', 'users.*')]) title="Instellingen en portalgebruikers">Instellingen</a>@endcan
-      <a href="{{ route('account.show') }}" class="btn ghost small">{{ auth()->user()->name }}</a>
-      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Wissel tussen licht en donker thema">
-        <svg class="sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#E8A317" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1 1M17.4 17.4l1 1M18.4 5.6l-1 1M6.6 17.4l-1 1"></path></svg>
-        <svg class="moon" width="12" height="12" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
-        <span class="knob"></span>
-      </button>
-      <form method="POST" action="{{ route('logout') }}" class="inline">
-        @csrf
-        <button class="btn ghost small" type="submit">Uitloggen</button>
-      </form>
+    <div class="side-foot">
+      <span @class(['conn', 'err' => $navCounts['connected'] < $navCounts['paired']])>{{ $navCounts['connected'] }} van {{ $navCounts['paired'] }} sites verbonden</span>
+      <div class="side-links">
+        <a href="{{ route('plugin.download') }}" title="Download de client-plugin voor WordPress">@include('partials.icon', ['name' => 'download', 'size' => 15]) Plugin</a>
+        <form method="POST" action="{{ route('logout') }}" class="inline">
+          @csrf
+          <button type="submit">@include('partials.icon', ['name' => 'logout', 'size' => 15]) Uitloggen</button>
+        </form>
+      </div>
     </div>
-  </header>
-  <main @hasSection('refresh') data-refresh="@yield('refresh')" @endif>
-    @include('partials.flash')
-    @yield('content')
-  </main>
+  </aside>
+
+  <div class="shell-main">
+    <header class="appbar">
+      <button class="icon-btn nav-toggle" type="button" data-nav-toggle aria-controls="sidebar" aria-expanded="false" aria-label="Menu openen">@include('partials.icon', ['name' => 'grid', 'size' => 18])</button>
+      <div class="appbar-title">@yield('title', 'Sites')</div>
+      <div class="appbar-right">
+        <button id="themeToggle" class="theme-pill" type="button" aria-label="Wissel tussen licht en donker thema">
+          <span class="to-dark">@include('partials.icon', ['name' => 'moon', 'size' => 15]) Donker</span>
+          <span class="to-light">@include('partials.icon', ['name' => 'sun', 'size' => 15]) Licht</span>
+        </button>
+        <a class="icon-btn" href="{{ route('dashboard') }}#aandachtspunten" title="Aandachtspunten" aria-label="Aandachtspunten">@include('partials.icon', ['name' => 'bell', 'size' => 18])</a>
+        @can('manage-sites')
+          <a class="btn small" href="{{ route('sites.create') }}">@include('partials.icon', ['name' => 'plus', 'size' => 15]) Site</a>
+        @endcan
+        <a href="{{ route('account.show') }}" @class(['avatar', 'active' => request()->routeIs('account.*')]) title="{{ auth()->user()->name }}" aria-label="Account van {{ auth()->user()->name }}">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</a>
+      </div>
+    </header>
+    <main @hasSection('refresh') data-refresh="@yield('refresh')" @endif>
+      @include('partials.flash')
+      @yield('content')
+    </main>
+  </div>
 </body>
 </html>

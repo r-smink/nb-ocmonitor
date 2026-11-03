@@ -6,10 +6,23 @@
       <h1>WP-gebruikers</h1>
       <p>Beheerders, redacteuren en winkelmanagers op alle gekoppelde sites (client-plugin 0.4.0 of nieuwer). Het panel kan geen gebruikers aanmaken en geen wachtwoorden kiezen.</p>
     </div>
-    <div class="right summary">
-      <span class="chip">{{ $totals['admins'] }} beheerders</span>
-      <span @class(['chip', 'warn', 'has' => $totals['without_2fa'] > 0])>{{ $totals['without_2fa'] }} zonder 2FA</span>
-      <span class="chip">{{ $totals['locked'] }} geblokkeerd</span>
+  </div>
+
+  <div class="kpis">
+    <div @class(['kpi', 'lvl-none' => $totals['admins'] === 0])>
+      <span class="kpi-head"><span class="kpi-ic">@include('partials.icon', ['name' => 'users', 'size' => 20])</span>Beheerders</span>
+      <b>{{ $totals['admins'] }}</b>
+      <small>met de rol administrator, op alle sites</small>
+    </div>
+    <a href="{{ route('wp-users.index', ['twofa' => 'zonder']) }}" @class(['kpi', 'lvl-warn' => $totals['without_2fa'] > 0])>
+      <span class="kpi-head"><span class="kpi-ic">@include('partials.icon', ['name' => 'shield', 'size' => 20])</span>Zonder 2FA</span>
+      <b>{{ $totals['without_2fa'] }}</b>
+      <small>{{ $totals['without_2fa'] > 0 ? 'stel tweestapsverificatie in' : 'iedereen gebruikt 2FA' }}</small>
+    </a>
+    <div class="kpi lvl-none">
+      <span class="kpi-head"><span class="kpi-ic">@include('partials.icon', ['name' => 'lock', 'size' => 20])</span>Geblokkeerd</span>
+      <b>{{ $totals['locked'] }}</b>
+      <small>{{ $totals['unknown'] > 0 ? $totals['unknown'] . ' site(s) zonder gegevens' : 'accounts die niet kunnen inloggen' }}</small>
     </div>
   </div>
 

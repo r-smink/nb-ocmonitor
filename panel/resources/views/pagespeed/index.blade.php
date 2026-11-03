@@ -17,48 +17,44 @@
     </div>
   @endunless
 
-  <section class="panel">
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Site</th><th>Mobiel</th><th>Desktop</th><th>Toegankelijkheid</th><th>Best practices</th><th>SEO</th>
-            <th class="num">LCP</th><th class="num">CLS</th><th class="num">INP (bezoekers)</th><th>Trend mobiel</th><th>Gemeten</th>@can('manage-sites')<th></th>@endcan
-          </tr>
-        </thead>
-        <tbody>
-          @forelse ($rows as $row)
-            @php($m = $row['mobile'])
-            <tr data-href="{{ route('sites.show', $row['site']) }}">
-              <td><a href="{{ route('sites.show', $row['site']) }}"><b>{{ $row['site']->name }}</b></a></td>
-              <td>@include('partials.score', ['value' => $m?->performance])</td>
-              <td>@include('partials.score', ['value' => $row['desktop']?->performance])</td>
-              <td>@include('partials.score', ['value' => $m?->accessibility])</td>
-              <td>@include('partials.score', ['value' => $m?->best_practices])</td>
-              <td>@include('partials.score', ['value' => $m?->seo])</td>
-              <td class="num">{{ $m?->lcp_ms !== null ? number_format($m->lcp_ms / 1000, 1, ',', '') . ' s' : '–' }}</td>
-              <td class="num">{{ $m?->cls !== null ? number_format($m->cls, 2, ',', '') : '–' }}</td>
-              <td class="num">{{ isset($m?->field['inp_ms']) ? $m->field['inp_ms'] . ' ms' : '–' }}</td>
-              <td>@include('partials.spark', ['values' => $row['history']])</td>
-              <td class="muted">
-                {{ $m?->measured_at?->diffForHumans() ?? 'nog niet' }}
-                @if ($row['site']->pagespeed_requested_at)<div><span class="state idle">aangevraagd</span></div>@endif
-              </td>
-              @can('manage-sites')
-                <td>
-                  <form method="POST" action="{{ route('sites.pagespeed', $row['site']) }}" class="inline">
-                    @csrf
-                    <button class="btn ghost small" type="submit" @disabled($row['site']->pagespeed_requested_at)>Meten</button>
-                  </form>
-                </td>
-              @endcan
-            </tr>
-          @empty
-            <tr><td colspan="12" class="muted">Nog geen gekoppelde sites.</td></tr>
-          @endforelse
-        </tbody>
-      </table>
-    </div>
-    <p class="note mt">Scores en LCP/CLS zijn labmetingen van Lighthouse (mobiel). INP komt uit de velddata van echte Chrome-bezoekers (CrUX) en is er alleen bij sites met genoeg verkeer. Groen ≥ 90, oranje ≥ 50.</p>
-  </section>
+  <div class="cards psi-cards">
+    @forelse ($rows as $row)
+      @php($m = $row['mobile'])
+      <div class="site-card psi-card lvl-{{ $m?->performance === null ? 'pending' : \App\Models\PagespeedResult::level($m->performance) }}">
+        <div class="site-card-head">
+          <a class="site-card-name" href="{{ route('sites.show', $row['site']) }}">{{ $row['site']->name }}</a>
+          <span class="hint">{{ $m?->measured_at?->diffForHumans() ?? 'nog niet gemeten' }}</span>
+        </div>
+        <div class="psi-rings">
+          <div class="psi-ring">@include('partials.score', ['value' => $m?->performance, 'class' => 'big', 'title' => 'Prestaties mobiel'])<span>Mobiel</span></div>
+          <div class="psi-ring">@include('partials.score', ['value' => $row['desktop']?->performance, 'class' => 'big', 'title' => 'Prestaties desktop'])<span>Desktop</span></div>
+          <div class="psi-small">
+            <div><span>Toegankelijkheid</span>@include('partials.score', ['value' => $m?->accessibility])</div>
+            <div><span>Best practices</span>@include('partials.score', ['value' => $m?->best_practices])</div>
+            <div><span>SEO</span>@include('partials.score', ['value' => $m?->seo])</div>
+          </div>
+        </div>
+        <div class="site-stats">
+          <div><span>LCP</span><b>{{ $m?->lcp_ms !== null ? number_format($m->lcp_ms / 1000, 1, ',', '') . ' s' : '–' }}</b></div>
+          <div><span>CLS</span><b>{{ $m?->cls !== null ? number_format($m->cls, 2, ',', '') : '–' }}</b></div>
+          <div><span>INP (bezoekers)</span><b>{{ isset($m?->field['inp_ms']) ? $m->field['inp_ms'] . ' ms' : '–' }}</b></div>
+        </div>
+        <div class="site-card-foot">
+          <span class="psi-trend" title="Trend mobiel">@include('partials.spark', ['values' => $row['history']])</span>
+          @can('manage-sites')
+            <span class="open">
+              @if ($row['site']->pagespeed_requested_at)
+                @include('partials.row-action', ['action' => ['kind' => 'done', 'label' => 'Aangevraagd']])
+              @else
+                @include('partials.row-action', ['action' => ['kind' => 'form', 'label' => 'Meten', 'action' => route('sites.pagespeed', $row['site']), 'fields' => [], 'confirm' => null]])
+              @endif
+            </span>
+          @endcan
+        </div>
+      </div>
+    @empty
+      <div class="empty">Nog geen gekoppelde sites.</div>
+    @endforelse
+  </div>
+  <p class="note mt">Scores en LCP/CLS zijn labmetingen van Lighthouse (mobiel). INP komt uit de velddata van echte Chrome-bezoekers (CrUX) en is er alleen bij sites met genoeg verkeer. Groen ≥ 90, oranje ≥ 50, rood &lt; 50.</p>
 @endsection

@@ -46,7 +46,21 @@ class UpdateController extends Controller
             ->sortBy(fn ($r) => ['core' => 0, 'client' => 1, 'plugin' => 2, 'theme' => 3][$r['type']] . Str::lower($r['name'] . ' ' . $r['site']->name))
             ->values();
 
+        // Componenten waarvan de update een bekende kwetsbaarheid oplost (badge "beveiliging").
+        $security = [];
+        if (\App\Ocm\Menu::enabled('vulnerabilities')) {
+            $index = \App\Ocm\Vulnerabilities::index(array_keys(\App\Ocm\Vulnerabilities::componentKeys($sites)));
+            foreach ($sites as $site) {
+                foreach (\App\Ocm\Vulnerabilities::forSite($site, $index) as $match) {
+                    if ($match['fixed'] !== null) {
+                        $security[$match['component']['type'] . ':' . strtolower($match['component']['slug'])] = true;
+                    }
+                }
+            }
+        }
+
         return view('updates.index', [
+            'security' => $security,
             'rows' => $filtered,
             'components' => $this->components($base),
             'allComponents' => $this->components($rows),

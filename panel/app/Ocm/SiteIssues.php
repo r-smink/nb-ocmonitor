@@ -97,8 +97,9 @@ final class SiteIssues
         }
 
         $issues = [];
-        $add = function (string $level, string $category, string $text) use (&$issues): void {
-            $issues[] = ['level' => $level, 'category' => $category, 'text' => $text];
+        // $extra: optionele aanwijzingen voor een actieknop (updates, component, visual, pagespeed).
+        $add = function (string $level, string $category, string $text, array $extra = []) use (&$issues): void {
+            $issues[] = ['level' => $level, 'category' => $category, 'text' => $text] + $extra;
         };
 
         // Beschikbaarheid en koppeling
@@ -148,23 +149,23 @@ final class SiteIssues
             $text = ($matches->count() === 1 ? 'Kwetsbaarheid' : $matches->count() . ' kwetsbaarheden') . " in {$c['name']} {$c['version']}"
                 . ($v->cvss_score !== null ? ' (CVSS ' . number_format($v->cvss_score, 1) . ')' : '')
                 . ($fixed ? ": bijwerken naar {$fixed}" : ': nog geen oplossing');
-            $add($v->level(), 'beveiliging', $text);
+            $add($v->level(), 'beveiliging', $text, $fixed ? ['component' => ['type' => $c['type'], 'slug' => $c['slug']]] : []);
         }
         foreach ((array) (($site->inventory ?? [])['licenses'] ?? []) as $key => $state) {
             if (is_array($state) && ($state['active'] ?? null) === false) {
                 $name = ['elementor_pro' => 'Elementor Pro', 'acf_pro' => 'ACF Pro', 'rank_math_pro' => 'Rank Math Pro'][$key] ?? $key;
-                $add('warn', 'updates', "{$name}: licentie niet actief, dus geen updates");
+                $add('warn', 'updates', "{$name}: licentie niet actief, dus geen updates", ['license' => $key]);
             }
         }
         if ($visual !== null && $visual->changed()) {
-            $add('warn', 'updates', 'Homepage zichtbaar veranderd na updates (' . number_format($visual->diff_percent, 0) . '%): controleer de site');
+            $add('warn', 'updates', 'Homepage zichtbaar veranderd na updates (' . number_format($visual->diff_percent, 0) . '%): controleer de site', ['visual' => $visual->id]);
         }
         $wpUsers = $site->wp_users ?? null;
         if (is_array($wpUsers) && is_array($wpUsers['users'] ?? null)) {
             $admins = collect($wpUsers['users'])->filter(fn ($u) => in_array('administrator', (array) ($u['roles'] ?? []), true) && empty($u['locked']));
             $without = $admins->filter(fn ($u) => empty($u['two_factor']))->count();
             if ($without > 0) {
-                $add('warn', 'beveiliging', "{$without} beheerder" . ($without === 1 ? '' : 's') . ' zonder tweestapsverificatie');
+                $add('warn', 'beveiliging', "{$without} beheerder" . ($without === 1 ? '' : 's') . ' zonder tweestapsverificatie', ['two_factor' => true]);
             }
             if ($admins->count() > 5) {
                 $add('info', 'beveiliging', $admins->count() . ' beheerders: is dat nodig?');
@@ -180,17 +181,17 @@ final class SiteIssues
         // Updates
         $inventory = $site->inventory ?? [];
         if (!empty($inventory['core']['update']['version'])) {
-            $add('warn', 'updates', 'WordPress ' . $inventory['core']['update']['version'] . ' beschikbaar (nu ' . ($inventory['core']['version'] ?? '?') . ')');
+            $add('warn', 'updates', 'WordPress ' . $inventory['core']['update']['version'] . ' beschikbaar (nu ' . ($inventory['core']['version'] ?? '?') . ')', ['updates' => ['core']]);
         }
         $components = collect($site->availableUpdates())->whereIn('type', ['plugin', 'theme']);
         if ($client = collect($site->availableUpdates())->firstWhere('type', 'client')) {
-            $add('info', 'updates', 'Client-plugin ' . $client['to'] . ' beschikbaar (nu ' . $client['from'] . ')');
+            $add('info', 'updates', 'Client-plugin ' . $client['to'] . ' beschikbaar (nu ' . $client['from'] . ')', ['updates' => ['client']]);
         }
         if ($components->isNotEmpty()) {
             $plugins = $components->where('type', 'plugin')->count();
             $themes = $components->where('type', 'theme')->count();
             $parts = array_filter([$plugins ? $plugins . ' plugin' . ($plugins === 1 ? '' : 's') : null, $themes ? $themes . ' thema' . ($themes === 1 ? '' : '\'s') : null]);
-            $add('warn', 'updates', 'Updates beschikbaar: ' . implode(' en ', $parts));
+            $add('warn', 'updates', 'Updates beschikbaar: ' . implode(' en ', $parts), ['updates' => ['plugin', 'theme']]);
         }
         if ($reason = $site->updatesBlockedReason()) {
             $add('info', 'koppeling', $reason);
@@ -202,9 +203,9 @@ final class SiteIssues
             $previous = $pagespeed->skip(1)->first();
             $drop = (int) config('ocm.pagespeed.drop_alert_points', 10);
             if ($previous !== null && $previous->performance - $latest->performance >= $drop) {
-                $add('warn', 'prestaties', "PageSpeed mobiel gedaald van {$previous->performance} naar {$latest->performance}");
+                $add('warn', 'prestaties', "PageSpeed mobiel gedaald van {$previous->performance} naar {$latest->performance}", ['pagespeed' => true]);
             } elseif ($latest->performance < 50) {
-                $add('warn', 'prestaties', "PageSpeed mobiel {$latest->performance}");
+                $add('warn', 'prestaties', "PageSpeed mobiel {$latest->performance}", ['pagespeed' => true]);
             }
         }
 

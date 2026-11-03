@@ -27,6 +27,70 @@ final class Menu
         'activity' => ['Activiteit', 'activity.index', ['activity.*'], false],
     ];
 
+    /** Indeling van de zijbalk: groep => onderdelen, in deze volgorde. */
+    public const GROUPS = [
+        'Monitoring' => ['dashboard', 'sites', 'pagespeed', 'vulnerabilities'],
+        'Onderhoud' => ['updates', 'customers', 'reports', 'versions'],
+        'Beheer' => ['licenses', 'wp-users', 'activity'],
+    ];
+
+    /** Icoon per onderdeel (namen uit partials/icon). */
+    public const ICONS = [
+        'dashboard' => 'grid', 'sites' => 'server', 'pagespeed' => 'gauge', 'vulnerabilities' => 'bug',
+        'updates' => 'refresh', 'customers' => 'calendar', 'reports' => 'filetext', 'versions' => 'layers',
+        'licenses' => 'key', 'wp-users' => 'users', 'activity' => 'activity',
+    ];
+
+    /**
+     * De zichtbare menu-items per groep; lege groepen vallen weg.
+     *
+     * @return array<string, list<array{key: string, label: string, route: string, patterns: string[], icon: string}>>
+     */
+    public static function grouped(): array
+    {
+        $visible = collect(self::visible())->keyBy('key');
+        $out = [];
+        foreach (self::GROUPS as $group => $keys) {
+            foreach ($keys as $key) {
+                if ($item = $visible->get($key)) {
+                    $out[$group][] = $item + ['icon' => self::ICONS[$key] ?? 'grid'];
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Aantallen voor de badges in de zijbalk (alleen > 0 tonen) en de verbindingsstatus.
+     * Kwetsbaarheden zijn duur om uit te rekenen en worden een paar minuten gecachet.
+     *
+     * @return array{updates: int, vulnerabilities: int, paired: int, connected: int}
+     */
+    public static function counts(): array
+    {
+        $paired = \App\Models\Site::query()->whereNotNull('public_key');
+        $vulns = self::enabled('vulnerabilities') ? (int) \Illuminate\Support\Facades\Cache::remember('ocm.nav.vulnerabilities', 300, function () {
+            $sites = \App\Models\Site::query()->whereNotNull('public_key')->get();
+            $index = Vulnerabilities::index(array_keys(Vulnerabilities::componentKeys($sites)));
+            $count = 0;
+            foreach ($sites as $site) {
+                foreach (Vulnerabilities::forSite($site, $index) as $match) {
+                    $count += $match['vulnerability']->level() !== 'info' ? 1 : 0;
+                }
+            }
+
+            return $count;
+        }) : 0;
+
+        return [
+            'updates' => self::enabled('updates') ? (int) (clone $paired)->sum('updates_count') : 0,
+            'vulnerabilities' => $vulns,
+            'paired' => (clone $paired)->count(),
+            'connected' => (clone $paired)->whereNotIn('status', ['unreachable', 'error'])->count(),
+        ];
+    }
+
     public static function state(string $key): string
     {
         if (!isset(self::ITEMS[$key]) || self::ITEMS[$key][3]) {

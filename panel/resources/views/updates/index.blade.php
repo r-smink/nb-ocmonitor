@@ -8,7 +8,7 @@
   <div class="page-head">
     <div>
       <h1>Updates</h1>
-      <p>Beschikbare updates op alle gekoppelde sites. Per plugin of thema maakt de site eerst een kopie, en na de update volgt een health check met automatische rollback.</p>
+      <p>Elke update maakt eerst een kopie; na afloop volgt een health check met automatische rollback.</p>
     </div>
     <div class="right summary">
       <span @class(['chip', 'warn', 'has' => $counts['plugin'] > 0])>{{ $counts['plugin'] }} plugins</span>
@@ -47,34 +47,28 @@
   @if ($filters['component'] === '' && $components->isNotEmpty())
     <section class="panel">
       <div class="panel-head"><h3>Per plugin en thema</h3><span class="hint">Eén klik werkt een component bij op alle sites in de huidige selectie.</span></div>
-      <div class="table-wrap scroll-sm">
-        <table>
-          <thead><tr><th>Component</th><th>Type</th><th class="num">Sites</th><th>Huidige versies</th><th>Nieuwste</th>@can('manage-sites')<th></th>@endcan</tr></thead>
-          <tbody>
-            @foreach ($components as $component)
-              <tr>
-                <td><a href="{{ route('updates.index', $query(['component' => $component['key']])) }}"><b>{{ $component['name'] }}</b></a> <span class="muted mono">{{ $component['slug'] }}</span></td>
-                <td class="muted">{{ $types[$component['type']] }}</td>
-                <td class="num">{{ $component['sites'] }}</td>
-                <td class="ver wrap">{{ implode(', ', array_slice($component['from'], 0, 5)) }}{{ count($component['from']) > 5 ? ' …' : '' }}</td>
-                <td class="ver-to">{{ $component['to'] }}</td>
-                @can('manage-sites')
-                  <td class="num">
-                    @if ($component['items'] !== [])
-                      <form method="POST" action="{{ route('updates.store') }}" class="inline" data-confirm="{{ $component['name'] }} bijwerken op {{ count($component['items']) }} site(s)?">
-                        @csrf
-                        @foreach ($component['items'] as $key)<input type="hidden" name="items[]" value="{{ $key }}">@endforeach
-                        <button class="btn small" type="submit">Bijwerken op {{ count($component['items']) }} site{{ count($component['items']) === 1 ? '' : 's' }}</button>
-                      </form>
-                    @else
-                      <span class="state idle">in wachtrij of geblokkeerd</span>
-                    @endif
-                  </td>
-                @endcan
-              </tr>
-            @endforeach
-          </tbody>
-        </table>
+      <div class="comp-cards">
+        @foreach ($components as $component)
+          <div class="comp-card">
+            <div class="comp-card-head">
+              <a class="name" href="{{ route('updates.index', $query(['component' => $component['key']])) }}">{{ $component['name'] }}</a>
+              @if (isset($security[$component['type'] . ':' . strtolower($component['slug'])]))<span class="badge sec">beveiliging</span>@endif
+            </div>
+            <div class="sub">{{ $types[$component['type']] }} · {{ $component['sites'] }} {{ $component['sites'] === 1 ? 'site' : 'sites' }} · naar <span class="ver-to">{{ $component['to'] }}</span></div>
+            <div class="sub ver" title="Huidige versies">{{ implode(', ', array_slice($component['from'], 0, 4)) }}{{ count($component['from']) > 4 ? ' …' : '' }}</div>
+            @can('manage-sites')
+              @if ($component['items'] !== [])
+                <form method="POST" action="{{ route('updates.store') }}" data-confirm="{{ $component['name'] }} bijwerken op {{ count($component['items']) }} site(s)?{{ $component['type'] === 'core' ? ' Voor WordPress zelf is er geen automatische rollback.' : '' }}">
+                  @csrf
+                  @foreach ($component['items'] as $key)<input type="hidden" name="items[]" value="{{ $key }}">@endforeach
+                  <button class="btn small block-sm" type="submit">Bijwerken op {{ count($component['items']) }} site{{ count($component['items']) === 1 ? '' : 's' }}</button>
+                </form>
+              @else
+                <span class="btn small done block-sm" role="status">@include('partials.icon', ['name' => 'check', 'size' => 14]) In wachtrij of geblokkeerd</span>
+              @endif
+            @endcan
+          </div>
+        @endforeach
       </div>
     </section>
   @endif
@@ -96,7 +90,7 @@
           <thead>
             <tr>
               @can('manage-sites')<th class="check-col"><input type="checkbox" data-check-all="upd" aria-label="Alles selecteren"></th>@endcan
-              <th>Site</th><th>Component</th><th>Type</th><th>Versie</th><th>Actief</th><th>Status</th>
+              <th>Site</th><th>Component</th><th>Type</th><th>Versie</th><th>Actief</th><th>Status</th>@can('manage-sites')<th></th>@endcan
             </tr>
           </thead>
           <tbody>
@@ -121,14 +115,31 @@
                     <span class="note" title="{{ $row['blocked'] }}">{{ \Illuminate\Support\Str::limit($row['blocked'], 70) }}</span>
                   @endif
                 </td>
+                @can('manage-sites')
+                  <td class="actions">
+                    @if (!$row['queued'] && $row['blocked'] === null)
+                      <button class="btn small quiet" type="submit" form="upd-row-{{ $loop->index }}">Bijwerken</button>
+                    @endif
+                  </td>
+                @endcan
               </tr>
             @empty
-              <tr><td colspan="7" class="muted">{{ array_filter($filters) ? 'Geen updates die aan het filter voldoen.' : 'Alle sites zijn bijgewerkt.' }}</td></tr>
+              <tr><td colspan="8" class="muted">{{ array_filter($filters) ? 'Geen updates die aan het filter voldoen.' : 'Alle sites zijn bijgewerkt.' }}</td></tr>
             @endforelse
           </tbody>
         </table>
       </div>
     </form>
+    @can('manage-sites')
+      {{-- Losse formulieren voor de knop per rij (formulieren kunnen niet genest worden). --}}
+      @foreach ($rows as $row)
+        @if (!$row['queued'] && $row['blocked'] === null)
+          <form id="upd-row-{{ $loop->index }}" method="POST" action="{{ route('updates.store') }}" class="hidden" data-confirm="{{ $row['name'] }} {{ $row['to'] }} bijwerken op {{ $row['site']->name }}?{{ $row['type'] === 'core' ? ' Voor WordPress zelf is er geen automatische rollback.' : '' }}">
+            @csrf<input type="hidden" name="items[]" value="{{ $row['key'] }}">
+          </form>
+        @endif
+      @endforeach
+    @endcan
     <p class="note mt">Updates komen altijd uit wat WordPress op de site zelf aanbiedt (wordpress.org of de updater van een premium-plugin). Na elke update volgt automatisch een nieuwe inventaris.</p>
   </section>
 

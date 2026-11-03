@@ -5,7 +5,7 @@
   <div class="page-head">
     <div>
       <h1>Licenties</h1>
-      <p>Betaalde plugins krijgen alleen updates (ook via de bulk-update) als de licentie op de site actief is. Hier staan jullie sleutels versleuteld, met per site de status.</p>
+      <p>Betaalde plugins krijgen alleen updates als de licentie op de site actief is. Hier staan jullie sleutels versleuteld, met per site de status.</p>
     </div>
   </div>
 
@@ -22,10 +22,14 @@
           <div class="right">
             <form method="POST" action="{{ route('licenses.activate', $product) }}" class="row-actions" data-confirm="{{ $product->name }} activeren op alle sites zonder actieve licentie?">
               @csrf
-              <select name="license" class="w-auto" aria-label="Licentie">
-                @foreach ($product->licenses as $license)<option value="{{ $license->id }}">{{ $license->label }}</option>@endforeach
-              </select>
-              <button class="btn small" type="submit">Activeren op alle sites zonder licentie</button>
+              @if ($product->licenses->count() > 1)
+                <select name="license" class="w-auto" aria-label="Licentie">
+                  @foreach ($product->licenses as $license)<option value="{{ $license->id }}">{{ $license->label }}</option>@endforeach
+                </select>
+              @else
+                <input type="hidden" name="license" value="{{ $product->licenses->first()->id }}">
+              @endif
+              <button class="btn small" type="submit">{{ $inactive > 0 ? 'Activeren op ' . $inactive . ' site(s)' : 'Activeren op alle sites zonder licentie' }}</button>
             </form>
           </div>
         @endif
@@ -34,46 +38,41 @@
       <div class="cols cols-wide">
         <div>
           <h4>Sites</h4>
-          <div class="table-wrap scroll-sm">
-            <table>
-              <thead><tr><th>Site</th><th>Versie</th><th>Licentie</th>@if ($canEdit)<th></th>@endif</tr></thead>
-              <tbody>
-                @forelse ($installations as $i)
-                  <tr>
-                    <td><a href="{{ route('sites.show', $i['site']) }}">{{ $i['site']->name }}</a>@unless ($i['active']) <span class="muted">(inactief)</span>@endunless</td>
-                    <td class="ver">{{ $i['version'] }}</td>
-                    <td>
-                      @if (in_array($i['site']->id . ':' . $product->method, $open, true))
-                        <span class="state idle">wordt geactiveerd</span>
-                      @elseif ($i['status'] === true)
-                        <span class="state">actief</span>
-                      @elseif ($i['status'] === false)
-                        <span class="state bad">niet actief</span>
+          <div class="mini-list scroll-sm">
+            @forelse ($installations as $i)
+              <div class="mini-row">
+                <div class="grow"><a class="name" href="{{ route('sites.show', $i['site']) }}">{{ $i['site']->name }}</a>@unless ($i['active']) <span class="sub">(inactief)</span>@endunless</div>
+                <span class="ver">{{ $i['version'] }}</span>
+                @if (in_array($i['site']->id . ':' . $product->method, $open, true))
+                  <span class="state idle">wordt geactiveerd</span>
+                @elseif ($i['status'] === true)
+                  <span class="state">actief</span>
+                @elseif ($i['status'] === false)
+                  <span class="state bad">niet actief</span>
+                @else
+                  <span class="state idle">onbekend</span>
+                @endif
+                @if ($canEdit)
+                  @if ($product->automatic() && $product->licenses->isNotEmpty() && $i['status'] !== true && !in_array($i['site']->id . ':' . $product->method, $open, true))
+                    <form method="POST" action="{{ route('licenses.activate.site', [$product, $i['site']]) }}" class="row-actions">
+                      @csrf
+                      @if ($product->licenses->count() > 1)
+                        <select name="license" class="w-auto" aria-label="Licentie">
+                          @foreach ($product->licenses as $license)<option value="{{ $license->id }}">{{ $license->label }}</option>@endforeach
+                        </select>
                       @else
-                        <span class="state idle">onbekend</span>
+                        <input type="hidden" name="license" value="{{ $product->licenses->first()->id }}">
                       @endif
-                    </td>
-                    @if ($canEdit)
-                      <td class="num">
-                        @if ($product->automatic() && $product->licenses->isNotEmpty() && $i['status'] !== true)
-                          <form method="POST" action="{{ route('licenses.activate.site', [$product, $i['site']]) }}" class="row-actions">
-                            @csrf
-                            <select name="license" class="w-auto" aria-label="Licentie">
-                              @foreach ($product->licenses as $license)<option value="{{ $license->id }}">{{ $license->label }}</option>@endforeach
-                            </select>
-                            <button class="btn ghost small" type="submit">Activeren</button>
-                          </form>
-                        @elseif (!$product->automatic() && $product->settings_path)
-                          <a class="btn ghost small" href="{{ rtrim($i['site']->url, '/') }}/wp-admin/{{ $product->settings_path }}" target="_blank" rel="noopener noreferrer">Openen in WP-admin</a>
-                        @endif
-                      </td>
-                    @endif
-                  </tr>
-                @empty
-                  <tr><td colspan="4" class="muted">Op geen enkele gekoppelde site gevonden (volgens de laatste inventaris).</td></tr>
-                @endforelse
-              </tbody>
-            </table>
+                      <button class="btn small quiet" type="submit">Activeren</button>
+                    </form>
+                  @elseif (!$product->automatic() && $product->settings_path)
+                    <a class="btn small quiet" href="{{ rtrim($i['site']->url, '/') }}/wp-admin/{{ $product->settings_path }}" target="_blank" rel="noopener noreferrer">Openen in WP-admin</a>
+                  @endif
+                @endif
+              </div>
+            @empty
+              <p class="muted">Op geen enkele gekoppelde site gevonden (volgens de laatste inventaris).</p>
+            @endforelse
           </div>
           @if ($product->method === 'manual')
             <p class="note mt">{{ $product->status_key === 'rank_math_pro' ? 'Rank Math Pro werkt niet met sleutels: koppel de site met jullie Rank Math-account (Rank Math → Dashboard → Account). De status hierboven komt van de site zelf.' : 'Dit product activeer je handmatig: kopieer de sleutel en plak hem in de instellingen van de plugin.' }}</p>
@@ -84,37 +83,32 @@
 
         <div>
           <h4>Sleutels</h4>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Naam</th><th>Sleutel</th><th>Sites</th><th>Verloopt</th>@if ($canEdit)<th></th>@endif</tr></thead>
-              <tbody>
-                @forelse ($product->licenses as $license)
-                  <tr>
-                    <td class="wrap">{{ $license->label }}@if ($license->notes)<br><span class="muted">{{ $license->notes }}</span>@endif</td>
-                    <td class="mono">
-                      @if ($canEdit)
-                        <details><summary>{{ $license->masked() }}</summary><code id="lic-{{ $license->id }}">{{ $license->key }}</code> <button class="btn ghost small" type="button" data-copy="#lic-{{ $license->id }}">Kopieer</button></details>
-                      @else
-                        {{ $license->masked() }}
-                      @endif
-                    </td>
-                    <td>{{ $license->seats ?? '∞' }}</td>
-                    <td @class(['issue-text', 'warn' => $license->expires_on && $license->expires_on->lt(now()->addDays(30))])>{{ $license->expires_on?->format('d-m-Y') ?? '–' }}</td>
-                    @if ($canEdit)
-                      <td class="num">
-                        <form method="POST" action="{{ route('licenses.destroy', $license) }}" class="inline" data-confirm="Licentie {{ $license->label }} uit het panel verwijderen?">
-                          @csrf
-                          @method('DELETE')
-                          <button class="btn ghost small" type="submit">Verwijderen</button>
-                        </form>
-                      </td>
-                    @endif
-                  </tr>
-                @empty
-                  <tr><td colspan="5" class="muted">Nog geen sleutel.</td></tr>
-                @endforelse
-              </tbody>
-            </table>
+          <div class="key-list">
+            @forelse ($product->licenses as $license)
+              <div class="key-card">
+                <div class="key-card-head">
+                  <b>{{ $license->label }}</b>
+                  @if ($canEdit)
+                    <form method="POST" action="{{ route('licenses.destroy', $license) }}" class="row-form" data-confirm="Licentie {{ $license->label }} uit het panel verwijderen?">
+                      @csrf
+                      @method('DELETE')
+                      <button class="btn ghost small" type="submit">Verwijderen</button>
+                    </form>
+                  @endif
+                </div>
+                <div class="mono">
+                  @if ($canEdit)
+                    <details><summary>{{ $license->masked() }}</summary><code id="lic-{{ $license->id }}">{{ $license->key }}</code> <button class="btn ghost small" type="button" data-copy="#lic-{{ $license->id }}">Kopieer</button></details>
+                  @else
+                    {{ $license->masked() }}
+                  @endif
+                </div>
+                <div class="sub">{{ $license->seats ?? '∞' }} sites · <span @class(['issue-text', 'warn' => $license->expires_on && $license->expires_on->lt(now()->addDays(30))])>{{ $license->expires_on ? 'verloopt ' . $license->expires_on->format('d-m-Y') : 'verloopt niet' }}</span></div>
+                @if ($license->notes)<div class="sub">{{ $license->notes }}</div>@endif
+              </div>
+            @empty
+              <p class="muted">Nog geen sleutel.</p>
+            @endforelse
           </div>
           @if ($canEdit)
             <form method="POST" action="{{ route('licenses.store', $product) }}" class="form mt">

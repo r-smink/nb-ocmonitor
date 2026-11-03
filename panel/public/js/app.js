@@ -10,6 +10,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Zijbalk op kleine schermen: <button data-nav-toggle aria-controls="sidebar">
+  document.querySelectorAll('[data-nav-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const open = document.body.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.body.classList.contains('nav-open')) {
+      document.body.classList.remove('nav-open');
+      document.querySelectorAll('[data-nav-toggle]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+    }
+  });
+
   // Kopieerknoppen: <button data-copy="#id">
   document.querySelectorAll('[data-copy]').forEach(function (btn) {
     btn.addEventListener('click', function () {
