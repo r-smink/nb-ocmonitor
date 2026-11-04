@@ -328,6 +328,43 @@
     @endif
   @endif
 
+  @if ($site->uptime_since)
+    <div class="panel" id="beschikbaarheid">
+      <div class="panel-head">
+        <h3>Beschikbaarheid</h3>
+        <span class="hint">gemeten sinds {{ $site->uptime_since->timezone('Europe/Amsterdam')->format('d-m-Y') }}, elke 5 minuten</span>
+      </div>
+      <div class="sla-months">
+        @foreach (array_reverse($monthly) as $m)
+          <div @class(['sla-month', 'none' => $m['percent'] === null, 'warn' => $m['percent'] !== null && $m['percent'] < 99.9 && $m['percent'] >= 99, 'crit' => $m['percent'] !== null && $m['percent'] < 99])>
+            <span class="sla-label">{{ $m['month']->locale('nl')->translatedFormat('M Y') }}</span>
+            <b>{{ $m['percent'] !== null ? number_format($m['percent'], 2, ',', '') . '%' : '–' }}</b>
+            <small>{{ $m['incidents'] }} storing{{ $m['incidents'] === 1 ? '' : 'en' }}@if ($m['down_minutes'] > 0) · {{ $m['down_minutes'] }} min @endif</small>
+          </div>
+        @endforeach
+      </div>
+      @if ($incidents->isEmpty())
+        <p class="muted mt">Nog geen storingen.</p>
+      @else
+        <div class="table-wrap mt">
+          <table>
+            <thead><tr><th>Begin</th><th>Einde</th><th>Duur</th><th>Oorzaak</th></tr></thead>
+            <tbody>
+              @foreach ($incidents as $incident)
+                <tr>
+                  <td>{{ $incident->started_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}</td>
+                  <td>@if ($incident->ended_at){{ $incident->ended_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}@else<span class="badge sec">nog offline</span>@endif</td>
+                  <td>{{ $incident->durationLabel() }}</td>
+                  <td>{{ $incident->cause ?? '–' }}</td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      @endif
+    </div>
+  @endif
+
   @if ($site->isPaired() && \App\Ocm\Menu::enabled('pagespeed'))
     <div class="panel">
       <div class="panel-head">

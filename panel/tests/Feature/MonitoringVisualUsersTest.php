@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ActivityLog;
+use App\Models\UptimeIncident;
 use App\Models\Site;
 use App\Models\SiteJob;
 use App\Models\VisualCheck;
@@ -56,8 +57,10 @@ class MonitoringVisualUsersTest extends TestCase
 
         $this->artisan('ocm:monitor')->assertSuccessful();
         $this->assertSame('up', $site->fresh()->uptime_state);
+        $this->travel(5)->minutes();
         $this->artisan('ocm:monitor');
         $this->assertSame('up', $site->fresh()->uptime_state, 'één fout is nog geen storing');
+        $this->travel(5)->minutes();
         $this->artisan('ocm:monitor');
         $this->assertSame('down', $site->fresh()->uptime_state);
         $this->assertTrue(ActivityLog::query()->where('action', 'site_down')->exists());
@@ -67,16 +70,22 @@ class MonitoringVisualUsersTest extends TestCase
         $this->assertTrue($texts->contains(fn ($t) => str_starts_with($t, 'SSL-certificaat verloopt over')));
         $this->assertTrue($texts->contains(fn ($t) => str_starts_with($t, 'Domein verloopt over')));
 
+        $this->travel(5)->minutes();
         $this->artisan('ocm:monitor');
         $this->assertSame('up', $site->fresh()->uptime_state);
         $this->assertNull($site->fresh()->down_since);
         Http::assertSentCount(5); // 4x homepage, 1x RDAP (SSL en domein maar één keer)
 
-        $stats = Monitor::stats($site, CarbonImmutable::now()->subDay(), CarbonImmutable::now()->addMinute());
-        $this->assertSame(50.0, $stats['percent']);
+        $stats = Monitor::stats($site->fresh(), CarbonImmutable::now()->subDay(), CarbonImmutable::now()->addMinute());
+        // Gemeten sinds de eerste controle (15 min), waarvan 10 min offline (vanaf de eerste fout).
+        $this->assertSame(33.33, $stats['percent']);
         $this->assertSame(1, $stats['incidents']);
+        $this->assertSame(10, $stats['down_minutes']);
+        $incident = UptimeIncident::query()->sole();
+        $this->assertSame('HTTP 503', $incident->cause);
+        $this->assertNotNull($incident->ended_at);
 
-        $this->actingAs($this->makeUser())->get('/sites/' . $site->site_id)->assertOk()->assertSee('50,00%')->assertSee("Let&#039;s Encrypt", false);
+        $this->actingAs($this->makeUser())->get('/sites/' . $site->site_id)->assertOk()->assertSee('33,33%')->assertSee("Let&#039;s Encrypt", false);
         $this->assertSame('example.co.uk', Monitor::registrableDomain('www.shop.example.co.uk'));
         $this->assertSame('klant.nl', Monitor::registrableDomain('www.klant.nl'));
     }

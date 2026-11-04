@@ -40,6 +40,7 @@ class Site extends Model
             'domain_checked_at' => 'datetime',
             'wp_users' => 'array',
             'wp_users_at' => 'datetime',
+            'uptime_since' => 'datetime',
         ];
     }
 

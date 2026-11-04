@@ -48,7 +48,20 @@
           <td>{{ $site['ssl_expires_at'] ? $site['ssl_expires_at']->format('d-m-Y') : '–' }}</td>
         </tr>
       </table>
-      <p class="small muted">De homepage wordt elke 5 minuten gecontroleerd. Een storing telt vanaf twee mislukte controles op rij.</p>
+      @if (!empty($site['uptime']['list']))
+        <table class="data">
+          <tr><th>Storing</th><th>Tot</th><th>Duur</th><th>Oorzaak</th></tr>
+          @foreach ($site['uptime']['list'] as $incident)
+            <tr>
+              <td>{{ $incident['start']->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}</td>
+              <td>{{ $incident['end'] ? $incident['end']->timezone('Europe/Amsterdam')->format('d-m-Y H:i') : 'nog offline' }}</td>
+              <td>{{ $incident['duration'] }}</td>
+              <td>{{ $incident['cause'] ?? '–' }}</td>
+            </tr>
+          @endforeach
+        </table>
+      @endif
+      <p class="small muted">De homepage wordt elke 5 minuten gecontroleerd. Een storing telt vanaf twee mislukte controles op rij; de uptime is berekend over de tijd dat er gemeten werd.</p>
     @endif
   @endif
 
