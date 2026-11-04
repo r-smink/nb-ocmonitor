@@ -32,6 +32,9 @@ final class AppSettings
         'backups_enabled' => ['Backup vóór updates', 'bool', 'ocm.backups.enabled', null, null],
         'backup_keep_days' => ['Backups bewaren (dagen)', 'int', 'ocm.backups.keep_days', 1, 30],
         'backup_full_reuse_hours' => ['Na een volledige backup: zoveel uur geen losse backups per update', 'int', 'ocm.backups.full_reuse_hours', 0, 48],
+        'alerts_enabled' => ['Meldingen versturen', 'bool', 'ocm.alerts.enabled', null, null],
+        'alert_delay_minutes' => ['Meldingen: pas melden na zoveel minuten (tegen korte haperingen)', 'int', 'ocm.alerts.delay_minutes', 0, 120],
+        'alert_repeat_hours' => ['Meldingen: kritiek opnieuw melden na zoveel uur (0 = nooit)', 'int', 'ocm.alerts.repeat_hours', 0, 168],
         'update_chunk' => ['Updates: onderdelen per opdracht', 'int', 'ocm.updates.chunk_size', 1, 10],
     ];
 

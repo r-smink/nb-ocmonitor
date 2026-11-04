@@ -99,7 +99,7 @@ final class SiteIssues
         $issues = [];
         // $extra: optionele aanwijzingen voor een actieknop (updates, component, visual, pagespeed).
         $add = function (string $level, string $category, string $text, array $extra = []) use (&$issues): void {
-            $issues[] = ['level' => $level, 'category' => $category, 'text' => $text] + $extra;
+            $issues[] = ['level' => $level, 'category' => $category, 'text' => $text] + $extra + ['key' => self::key($category, $text)];
         };
 
         // Beschikbaarheid en koppeling
@@ -110,33 +110,33 @@ final class SiteIssues
         }
         $heartbeat = (int) config('ocm.heartbeat_minutes') * 3;
         if ($site->last_seen_at === null || $site->last_seen_at->lt(now()->subMinutes($heartbeat))) {
-            $add('warn', 'beschikbaarheid', 'Geen heartbeat sinds ' . ($site->last_seen_at?->diffForHumans() ?? 'koppeling'));
+            $add('warn', 'beschikbaarheid', 'Geen heartbeat sinds ' . ($site->last_seen_at?->diffForHumans() ?? 'koppeling'), ['key' => 'heartbeat']);
         }
         if ($site->uptime_state === 'down') {
-            $add('crit', 'beschikbaarheid', 'Website offline' . ($site->down_since ? ' sinds ' . $site->down_since->timezone('Europe/Amsterdam')->format('d-m H:i') : ''));
+            $add('crit', 'beschikbaarheid', 'Website offline' . ($site->down_since ? ' sinds ' . $site->down_since->timezone('Europe/Amsterdam')->format('d-m H:i') : ''), ['key' => 'offline']);
         } elseif ($site->response_ms !== null && $site->response_ms > 4000) {
-            $add('info', 'prestaties', 'Trage homepage: ' . number_format($site->response_ms / 1000, 1, ',', '') . ' s');
+            $add('info', 'prestaties', 'Trage homepage: ' . number_format($site->response_ms / 1000, 1, ',', '') . ' s', ['key' => 'slow']);
         }
         $sslWarn = (int) config('ocm.monitoring.ssl_warn_days', 14);
         if ($site->ssl_expires_at !== null) {
             $days = (int) floor(now()->diffInDays($site->ssl_expires_at, false));
             if ($days < 0) {
-                $add('crit', 'beveiliging', 'SSL-certificaat is verlopen (' . $site->ssl_expires_at->format('d-m-Y') . ')');
+                $add('crit', 'beveiliging', 'SSL-certificaat is verlopen (' . $site->ssl_expires_at->format('d-m-Y') . ')', ['key' => 'ssl-expiry']);
             } elseif ($days <= 3) {
-                $add('crit', 'beveiliging', "SSL-certificaat verloopt over {$days} dag(en)");
+                $add('crit', 'beveiliging', "SSL-certificaat verloopt over {$days} dag(en)", ['key' => 'ssl-expiry']);
             } elseif ($days <= $sslWarn) {
-                $add('warn', 'beveiliging', "SSL-certificaat verloopt over {$days} dagen" . ($site->ssl_issuer ? " ({$site->ssl_issuer})" : ''));
+                $add('warn', 'beveiliging', "SSL-certificaat verloopt over {$days} dagen" . ($site->ssl_issuer ? " ({$site->ssl_issuer})" : ''), ['key' => 'ssl-expiry']);
             }
         }
         if ($site->ssl_error !== null && str_starts_with($site->url, 'https://')) {
-            $add('crit', 'beveiliging', $site->ssl_error);
+            $add('crit', 'beveiliging', $site->ssl_error, ['key' => 'ssl-error']);
         }
         if ($site->domain_expires_at !== null) {
             $days = (int) floor(now()->diffInDays($site->domain_expires_at, false));
             if ($days < 0) {
-                $add('crit', 'beschikbaarheid', 'Domeinregistratie is verlopen');
+                $add('crit', 'beschikbaarheid', 'Domeinregistratie is verlopen', ['key' => 'domain-expiry']);
             } elseif ($days <= (int) config('ocm.monitoring.domain_warn_days', 30)) {
-                $add('warn', 'beschikbaarheid', "Domein verloopt over {$days} dagen (" . $site->domain_expires_at->format('d-m-Y') . ')');
+                $add('warn', 'beschikbaarheid', "Domein verloopt over {$days} dagen (" . $site->domain_expires_at->format('d-m-Y') . ')', ['key' => 'domain-expiry']);
             }
         }
         // Kwetsbaarheden (Wordfence Intelligence), één melding per onderdeel met de ernstigste bovenaan.
@@ -149,7 +149,7 @@ final class SiteIssues
             $text = ($matches->count() === 1 ? 'Kwetsbaarheid' : $matches->count() . ' kwetsbaarheden') . " in {$c['name']} {$c['version']}"
                 . ($v->cvss_score !== null ? ' (CVSS ' . number_format($v->cvss_score, 1) . ')' : '')
                 . ($fixed ? ": bijwerken naar {$fixed}" : ': nog geen oplossing');
-            $add($v->level(), 'beveiliging', $text, $fixed ? ['component' => ['type' => $c['type'], 'slug' => $c['slug']]] : []);
+            $add($v->level(), 'beveiliging', $text, ($fixed ? ['component' => ['type' => $c['type'], 'slug' => $c['slug']]] : []) + ['key' => 'vuln:' . $c['type'] . ':' . $c['slug']]);
         }
         foreach ((array) (($site->inventory ?? [])['licenses'] ?? []) as $key => $state) {
             if (is_array($state) && ($state['active'] ?? null) === false) {
@@ -165,10 +165,10 @@ final class SiteIssues
             $admins = collect($wpUsers['users'])->filter(fn ($u) => in_array('administrator', (array) ($u['roles'] ?? []), true) && empty($u['locked']));
             $without = $admins->filter(fn ($u) => empty($u['two_factor']))->count();
             if ($without > 0) {
-                $add('warn', 'beveiliging', "{$without} beheerder" . ($without === 1 ? '' : 's') . ' zonder tweestapsverificatie', ['two_factor' => true]);
+                $add('warn', 'beveiliging', "{$without} beheerder" . ($without === 1 ? '' : 's') . ' zonder tweestapsverificatie', ['two_factor' => true, 'key' => 'admins-2fa']);
             }
             if ($admins->count() > 5) {
-                $add('info', 'beveiliging', $admins->count() . ' beheerders: is dat nodig?');
+                $add('info', 'beveiliging', $admins->count() . ' beheerders: is dat nodig?', ['key' => 'admins-many']);
             }
         }
         if ($site->event_gap_at !== null) {
@@ -181,17 +181,17 @@ final class SiteIssues
         // Updates
         $inventory = $site->inventory ?? [];
         if (!empty($inventory['core']['update']['version'])) {
-            $add('warn', 'updates', 'WordPress ' . $inventory['core']['update']['version'] . ' beschikbaar (nu ' . ($inventory['core']['version'] ?? '?') . ')', ['updates' => ['core']]);
+            $add('warn', 'updates', 'WordPress ' . $inventory['core']['update']['version'] . ' beschikbaar (nu ' . ($inventory['core']['version'] ?? '?') . ')', ['updates' => ['core'], 'key' => 'core-update']);
         }
         $components = collect($site->availableUpdates())->whereIn('type', ['plugin', 'theme']);
         if ($client = collect($site->availableUpdates())->firstWhere('type', 'client')) {
-            $add('info', 'updates', 'Client-plugin ' . $client['to'] . ' beschikbaar (nu ' . $client['from'] . ')', ['updates' => ['client']]);
+            $add('info', 'updates', 'Client-plugin ' . $client['to'] . ' beschikbaar (nu ' . $client['from'] . ')', ['updates' => ['client'], 'key' => 'client-update']);
         }
         if ($components->isNotEmpty()) {
             $plugins = $components->where('type', 'plugin')->count();
             $themes = $components->where('type', 'theme')->count();
             $parts = array_filter([$plugins ? $plugins . ' plugin' . ($plugins === 1 ? '' : 's') : null, $themes ? $themes . ' thema' . ($themes === 1 ? '' : '\'s') : null]);
-            $add('warn', 'updates', 'Updates beschikbaar: ' . implode(' en ', $parts), ['updates' => ['plugin', 'theme']]);
+            $add('warn', 'updates', 'Updates beschikbaar: ' . implode(' en ', $parts), ['updates' => ['plugin', 'theme'], 'key' => 'updates']);
         }
         if ($reason = $site->updatesBlockedReason()) {
             $add('info', 'koppeling', $reason);
@@ -203,9 +203,9 @@ final class SiteIssues
             $previous = $pagespeed->skip(1)->first();
             $drop = (int) config('ocm.pagespeed.drop_alert_points', 10);
             if ($previous !== null && $previous->performance - $latest->performance >= $drop) {
-                $add('warn', 'prestaties', "PageSpeed mobiel gedaald van {$previous->performance} naar {$latest->performance}", ['pagespeed' => true]);
+                $add('warn', 'prestaties', "PageSpeed mobiel gedaald van {$previous->performance} naar {$latest->performance}", ['pagespeed' => true, 'key' => 'pagespeed']);
             } elseif ($latest->performance < 50) {
-                $add('warn', 'prestaties', "PageSpeed mobiel {$latest->performance}", ['pagespeed' => true]);
+                $add('warn', 'prestaties', "PageSpeed mobiel {$latest->performance}", ['pagespeed' => true, 'key' => 'pagespeed']);
             }
         }
 
@@ -213,6 +213,17 @@ final class SiteIssues
             ?: array_search($a['category'], array_keys(self::CATEGORIES), true) <=> array_search($b['category'], array_keys(self::CATEGORIES), true));
 
         return $issues;
+    }
+
+    /**
+     * Stabiele sleutel van een issue voor meldingen: cijfers en tekst tussen haakjes tellen niet mee,
+     * zodat "verloopt over 13 dagen" en "over 12 dagen" hetzelfde incident blijven.
+     */
+    public static function key(string $category, string $text): string
+    {
+        $stem = preg_replace(['/\([^)]*\)/u', '/\d[\d.,:]*/u', '/\s+/u'], ['', '#', ' '], mb_strtolower($text));
+
+        return $category . ':' . substr(sha1(trim((string) $stem)), 0, 16);
     }
 
     /**
@@ -277,15 +288,15 @@ final class SiteIssues
 
         $inactive = collect(($site->inventory ?? [])['plugins'] ?? [])->filter(fn ($p) => is_array($p) && empty($p['active']))->count();
         if ($inactive > 0) {
-            $add('info', 'beveiliging', $inactive . ' inactieve plugin' . ($inactive === 1 ? '' : 's') . ' (verwijderen verkleint het aanvalsoppervlak)');
+            $add('info', 'beveiliging', $inactive . ' inactieve plugin' . ($inactive === 1 ? '' : 's') . ' (verwijderen verkleint het aanvalsoppervlak)', ['key' => 'inactive-plugins']);
         }
 
         if ($site->php_version && preg_match('/^(\d+\.\d+)/', $site->php_version, $m)) {
             $eol = self::PHP_EOL[$m[1]] ?? (version_compare($m[1], '7.4', '<') ? '2000-01-01' : null);
             if ($eol !== null && now()->gt($eol)) {
-                $add('warn', 'beveiliging', "PHP {$m[1]} krijgt geen beveiligingsupdates meer");
+                $add('warn', 'beveiliging', "PHP {$m[1]} krijgt geen beveiligingsupdates meer", ['key' => 'php-eol']);
             } elseif ($eol !== null && now()->addDays(90)->gt($eol)) {
-                $add('info', 'beveiliging', "PHP {$m[1]}: beveiligingsupdates stoppen op " . \Illuminate\Support\Carbon::parse($eol)->format('d-m-Y'));
+                $add('info', 'beveiliging', "PHP {$m[1]}: beveiligingsupdates stoppen op " . \Illuminate\Support\Carbon::parse($eol)->format('d-m-Y'), ['key' => 'php-eol']);
             }
         }
     }
@@ -348,12 +359,12 @@ final class SiteIssues
             }
         }
         if ($external > 0) {
-            $add('warn', 'beveiliging', "{$external} wijziging" . ($external === 1 ? '' : 'en') . ' aan plugins/thema\'s buiten WordPress om (FTP of deploy?)');
+            $add('warn', 'beveiliging', "{$external} wijziging" . ($external === 1 ? '' : 'en') . ' aan plugins/thema\'s buiten WordPress om (FTP of deploy?)', ['key' => 'external-changes']);
         }
         if ($failedLogins >= 50) {
             // Met actieve blokkade is het een aanval die al wordt tegengehouden: alleen ter info.
             $protected = !empty(($site->inventory['environment']['login_security'] ?? [])['lockout']);
-            $add($protected ? 'info' : 'warn', 'beveiliging', "{$failedLogins} mislukte inlogpogingen in 24 uur" . ($lockedIps > 0 ? " ({$lockedIps}x een IP geblokkeerd)" : ''));
+            $add($protected ? 'info' : 'warn', 'beveiliging', "{$failedLogins} mislukte inlogpogingen in 24 uur" . ($lockedIps > 0 ? " ({$lockedIps}x een IP geblokkeerd)" : ''), ['key' => 'failed-logins']);
         }
     }
 }

@@ -29,4 +29,23 @@
       <p class="note mt">Nieuwe telefoon? Vraag een admin om je 2FA te resetten. Bij de volgende login stel je hem opnieuw in.</p>
     </div>
   </div>
+
+  <section class="panel" id="meldingen">
+    <div class="channel-head">
+      <h3>Meldingen</h3>
+      <span class="hint">Per e-mail naar {{ $user->email }}</span>
+      <div class="right">
+        <form method="POST" action="{{ route('account.alerts.test') }}" class="inline">
+          @csrf
+          <button class="btn ghost small" type="submit">Test-e-mail sturen</button>
+        </form>
+      </div>
+    </div>
+    <form method="POST" action="{{ route('account.alerts') }}" class="form mt">
+      @csrf
+      @method('PUT')
+      @include('partials.alert-prefs', ['prefs' => \App\Ocm\Alerts\AlertFilter::forUser($user)->prefs, 'quiet' => true, 'enabledLabel' => 'Meldingen per e-mail'])
+      <div class="actions"><button class="btn" type="submit">Meldingen opslaan</button></div>
+    </form>
+  </section>
 @endsection
