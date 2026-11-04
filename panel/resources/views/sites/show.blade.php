@@ -160,6 +160,15 @@
             <span class="muted">{{ $site->domain_error ?? '–' }}</span>
           @endif
         </dd>
+        @php($cron = ($site->inventory ?? [])['cron'] ?? null)
+        @if (is_array($cron))
+          <dt>WP-Cron</dt>
+          <dd>@if (($cron['overdue'] ?? 0) > 0 && ($cron['oldest_overdue_seconds'] ?? 0) >= 21600)<span class="issue-text warn">{{ $cron['overdue'] }} taak/taken te laat</span>@else{{ $cron['events'] ?? 0 }} geplande taken, op tijd @endif @if (!empty($cron['disabled']))<span class="muted">· via servercron</span>@endif</dd>
+        @endif
+        @php($maint = ($site->inventory ?? [])['maintenance_mode'] ?? null)
+        @if (is_array($maint) && !empty($maint['enabled']))
+          <dt>Onderhoudsmodus</dt><dd><span class="badge sec">aan</span>@if (!empty($maint['until'])) <span class="muted">tot {{ \Illuminate\Support\Carbon::createFromTimestamp((int) $maint['until'])->timezone('Europe/Amsterdam')->format('d-m H:i') }}</span>@endif</dd>
+        @endif
         <dt>Inventaris</dt><dd>{{ $site->inventory_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? '–' }}</dd>
         <dt>Gekoppeld</dt><dd>{{ $site->paired_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? 'nee' }}</dd>
         <dt>Site-sleutel</dt><dd class="mono">{{ $site->key_id ?? '–' }}</dd>
@@ -434,6 +443,74 @@
           <h4 class="mt">Trend prestaties mobiel</h4>
           @include('partials.spark', ['values' => $pagespeedHistory, 'class' => 'wide'])
         @endif
+      @endif
+    </div>
+  @endif
+
+  @if ($site->isPaired())
+    @php($int = $site->integrity)
+    <div class="panel" id="integriteit">
+      <div class="panel-head">
+        <h3>Integriteit</h3>
+        <span class="hint">{{ $site->integrity_at ? 'gecontroleerd ' . $site->integrity_at->diffForHumans() . ', dagelijks' : 'WordPress en plugins tegen de checksums van wordpress.org' }}</span>
+        @can('manage-sites')
+          @if ($site->supports('0.9.0'))
+            <div class="right">
+              <form method="POST" action="{{ route('sites.command', $site) }}" class="inline">
+                @csrf
+                <input type="hidden" name="command" value="security.integrity">
+                <button class="btn ghost small" type="submit">Nu controleren</button>
+              </form>
+            </div>
+          @endif
+        @endcan
+      </div>
+      @if (!$site->supports('0.9.0'))
+        <p class="muted">Vanaf client-plugin 0.9.0 (deze site: {{ $site->plugin_version ?? '?' }}).</p>
+      @elseif (!is_array($int))
+        <p class="muted">Nog niet gecontroleerd.</p>
+      @else
+        @php($core = $int['core'] ?? null)
+        @php($pluginRows = collect($int['plugins'] ?? [])->filter(fn ($r) => is_array($r)))
+        <dl class="kv">
+          <dt>WordPress {{ $int['wp_version'] ?? '' }}</dt>
+          <dd>
+            @if (!is_array($core))
+              <span class="muted">geen checksums beschikbaar voor deze versie</span>
+            @elseif (($core['counts']['modified'] ?? 0) + ($core['counts']['unknown'] ?? 0) === 0)
+              <span class="state">in orde</span> <span class="muted">{{ $core['checked'] ?? 0 }} bestanden</span>
+            @else
+              <span class="issue-text crit">{{ $core['counts']['modified'] ?? 0 }} gewijzigd, {{ $core['counts']['unknown'] ?? 0 }} onbekend, {{ $core['counts']['missing'] ?? 0 }} ontbreekt</span>
+              <details><summary>Bestanden</summary><ul class="file-list">
+                @foreach (array_merge($core['modified'] ?? [], $core['unknown'] ?? []) as $file)<li class="mono">{{ $file }}</li>@endforeach
+              </ul></details>
+            @endif
+          </dd>
+          <dt>Hoofdmap</dt>
+          <dd>
+            @if (empty($int['root_unknown']))<span class="state">in orde</span>@else
+              <span class="issue-text crit">onbekende PHP-bestanden:</span> <span class="mono">{{ implode(', ', $int['root_unknown']) }}</span>
+            @endif
+          </dd>
+          <dt>Uploads</dt>
+          <dd>
+            @if (empty($int['uploads_php_count']))<span class="state">geen PHP-bestanden</span>@else
+              <span class="issue-text crit">{{ $int['uploads_php_count'] }} PHP-bestand(en)</span>
+              <details><summary>Bestanden</summary><ul class="file-list">@foreach ($int['uploads_php'] ?? [] as $file)<li class="mono">{{ $file }}</li>@endforeach</ul></details>
+            @endif
+          </dd>
+          <dt>Plugins</dt>
+          <dd>
+            {{ $pluginRows->where('status', 'ok')->count() }} in orde · {{ $pluginRows->where('status', 'modified')->count() }} afwijkend · {{ $pluginRows->where('status', 'unverifiable')->count() }} niet te controleren (premium)
+            @if ($pluginRows->where('status', 'skipped')->isNotEmpty()) · {{ $pluginRows->where('status', 'skipped')->count() }} overgeslagen (tijd) @endif
+            @foreach ($pluginRows->where('status', 'modified') as $slug => $r)
+              <details><summary class="issue-text warn">{{ $slug }}: {{ ($r['counts']['modified'] ?? 0) + ($r['counts']['unknown'] ?? 0) }} bestand(en)</summary><ul class="file-list">
+                @foreach (array_merge($r['modified'] ?? [], $r['unknown'] ?? []) as $file)<li class="mono">{{ $file }}</li>@endforeach
+              </ul></details>
+            @endforeach
+          </dd>
+        </dl>
+        <p class="note">Afwijkingen betekenen niet altijd een hack (een handmatige aanpassing kan ook), maar onbekende PHP-bestanden in de hoofdmap of in uploads zijn bijna altijd verdacht. Er wordt niets automatisch verwijderd.</p>
       @endif
     </div>
   @endif

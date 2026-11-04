@@ -106,6 +106,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/rapporten/voorbeeld', [ReportController::class, 'preview'])->name('reports.preview')->middleware('throttle:30,1');
 
     Route::get('/download/nb-ocmonitor-client.zip', PluginDownloadController::class)->name('plugin.download');
+    Route::get('/bulk-acties', [\App\Http\Controllers\BulkController::class, 'index'])->name('bulk.index');
+    Route::post('/bulk-acties', [\App\Http\Controllers\BulkController::class, 'run'])->name('bulk.run')->can('manage-sites')->middleware('throttle:20,1');
     Route::get('/activiteit', [ActivityController::class, 'index'])->name('activity.index');
     Route::get('/activiteit/export', [ActivityController::class, 'export'])->name('activity.export')->middleware('throttle:10,1');
 

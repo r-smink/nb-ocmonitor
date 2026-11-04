@@ -460,3 +460,4 @@ a.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .schedule .sub { font-size: var(--text-xs); color: var(--text-muted); }
 .schedule .schedule-actions { display: flex; gap: 8px; grid-row: span 2; }
 .day-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.file-list { margin: 6px 0 0; padding-left: 18px; font-size: var(--text-xs); max-height: 220px; overflow: auto; }
