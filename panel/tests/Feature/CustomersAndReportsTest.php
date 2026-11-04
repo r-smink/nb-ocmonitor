@@ -205,7 +205,7 @@ class CustomersAndReportsTest extends TestCase
         ]);
 
         $this->actingAs($this->makeUser())->get('/sites/' . $site->site_id)->assertOk()
-            ->assertSee('class="spinner"', false)
+            ->assertSee('Aangevraagd')->assertDontSee('>Opnieuw meten</button>', false)
             ->assertDontSee('meting aangevraagd')
             ->assertSee('01-10-2026')
             ->assertSee('20-10-2026')

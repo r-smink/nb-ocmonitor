@@ -101,7 +101,7 @@ class MonitoringVisualUsersTest extends TestCase
         $site = $this->siteWithPluginUpdate('0.4.0');
         $this->assertTrue(collect($site->availableUpdates())->contains('type', 'client'));
         $this->actingAs($this->makeUser())->get('/updates?type=client')->assertOk()->assertSee('NB OC Monitor Client');
-        $this->get('/sites/' . $site->site_id)->assertSee('Client-plugin 0.4.0 → 0.4.1 beschikbaar');
+        $this->get('/sites/' . $site->site_id)->assertSeeInOrder(['NB OC Monitor Client', 'OC-plugin', '0.4.0', '0.4.1', 'value="client"'], false);
 
         $this->post("/sites/{$site->site_id}/updates", ['type' => 'client'])->assertRedirect();
         $job = SiteJob::query()->where('command', 'plugin.self_update')->firstOrFail();

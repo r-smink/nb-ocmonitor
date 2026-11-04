@@ -54,10 +54,12 @@ class UpdatesTest extends TestCase
         $this->get('/pagespeed')->assertOk();
         $this->get('/sites')->assertOk()->assertSee('Klant');
         $this->get('/sites/' . $site->site_id)->assertOk()
-            ->assertSee('Alle plugins bijwerken (2)')
-            ->assertSee('WordPress bijwerken naar 6.9')
-            ->assertSee('Vertalingen bijwerken (3)')
-            ->assertSee('Nu meten');
+            ->assertSee('Alles bijwerken (')
+            ->assertSee('name="items[]" value="site_test01|plugin|plugin-1/plugin-1.php"', false)
+            ->assertDontSee('name="items[]" value="site_test01|core|wordpress"', false)
+            ->assertSeeInOrder(['WordPress', '6.9', 'value="core"'], false)
+            ->assertSee('3 taalpakketten')
+            ->assertSee('Opnieuw meten');
     }
 
     public function test_bulk_update_only_queues_what_the_inventory_offers(): void
