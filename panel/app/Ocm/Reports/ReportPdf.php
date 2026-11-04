@@ -67,7 +67,16 @@ final class ReportPdf
         $mpdf->SetAuthor($design['company']);
         $mpdf->SetCreator('NB OC Monitor');
 
+        // Witte covertekst hoort bij de donkere voorpagina; zonder eigen achtergrond zou die onleesbaar zijn.
+        if (!isset($files['background_cover']) && strtoupper($design['cover_text_color']) === '#FFFFFF') {
+            $design['cover_text_color'] = $design['color_text'];
+        }
+
+        $shot = $data['cover_shot'] ?? null;
         $view = ['d' => $data, 'design' => $design, 'logo' => $files['logo'] ?? null,
+            'coverShot' => is_array($shot) ? self::coverShotFile($dir, (string) ($shot['image'] ?? '')) : null,
+            'coverShotUrl' => is_array($shot) ? (string) ($shot['url'] ?? '') : '',
+            'coverDark' => isset($files['background_cover']),
             'coverImage' => isset($files['background_cover']) && !$assets['background_cover']->isPdf() ? $files['background_cover'] : null,
             'pageImage' => isset($files['background_page']) && !$assets['background_page']->isPdf() ? $files['background_page'] : null];
 
@@ -78,11 +87,22 @@ final class ReportPdf
         if ($coverTpl !== null) {
             $mpdf->SetPageTemplate($coverTpl);
         }
-        $mpdf->AddPage();
+        // Benoemde pagina's uit reports/pdf/style (achtergrond en marges per soort pagina).
+        $mpdf->AddPage(pagesel: 'cover');
+        // Klantnaam op één regel naast het periodekader: de grootste lettergrootte die in de titelkolom past.
+        $column = (210 - 2 * (int) $design['margin_side']) * 0.54 - 2;
+        $view['titleSize'] = 16;
+        foreach ([28, 26, 24, 22, 20, 18, 16] as $size) {
+            $mpdf->SetFont($design['font_heading'], 'B', $size);
+            if ($mpdf->GetStringWidth((string) $data['customer']['name']) <= $column) {
+                $view['titleSize'] = $size;
+                break;
+            }
+        }
         $mpdf->WriteHTML(view('reports.pdf.cover', $view)->render(), \Mpdf\HTMLParserMode::HTML_BODY);
 
         $mpdf->SetPageTemplate($pageTpl ?? '');
-        $mpdf->AddPage();
+        $mpdf->AddPage(pagesel: 'inhoud');
         $mpdf->SetHTMLFooter(view('reports.pdf.footer', $view)->render());
         $mpdf->WriteHTML(view('reports.pdf.body', $view)->render(), \Mpdf\HTMLParserMode::HTML_BODY);
 
@@ -154,7 +174,71 @@ final class ReportPdf
             'sites' => [$site('Voorbeeldklant', 'https://www.voorbeeldklant.nl'), $site('Voorbeeldklant Shop', 'https://shop.voorbeeldklant.nl')],
             'runs' => [['date' => $now->subDays(20), 'done_at' => $now->subDays(20), 'by' => 'Next Buzz', 'notes' => 'Alle plugins en het thema bijgewerkt, back-up gecontroleerd.']],
             'totals' => ['sites' => 2, 'updates' => 8, 'pending' => 2, 'failed_logins' => 624, 'blocked_ips' => 18],
+            'cover_shot' => ($demo = self::demoShot()) ? ['url' => 'https://www.voorbeeldklant.nl', 'image' => $demo, 'at' => $now->subDays(3)] : null,
         ];
+    }
+
+    /** Breedte/hoogte van de uitsnede op de voorpagina: het bovenste deel van de homepage (zoals het kader in de mockup). */
+    private const SHOT_RATIO = 0.46;
+
+    /**
+     * Zet de screenshot (base64 JPEG, volledige pagina) om naar een bestand dat mPDF kan lezen:
+     * alleen het bovenste deel, zodat hij op de voorpagina past. null als het niet lukt.
+     */
+    private static function coverShotFile(string $dir, string $base64): ?string
+    {
+        $bytes = base64_decode($base64, true);
+        if ($bytes === false || $bytes === '' || !function_exists('imagecreatefromstring')) {
+            return null;
+        }
+        $path = $dir . '/covershot-' . substr(sha1($bytes . '|' . self::SHOT_RATIO), 0, 16) . '.jpg';
+        if (is_file($path)) {
+            return $path;
+        }
+        $image = @imagecreatefromstring($bytes);
+        if ($image === false) {
+            return null;
+        }
+        $w = imagesx($image);
+        $h = min(imagesy($image), (int) round($w * self::SHOT_RATIO));
+        $crop = imagecrop($image, ['x' => 0, 'y' => 0, 'width' => $w, 'height' => $h]);
+        if ($crop === false) {
+            return null;
+        }
+        imagejpeg($crop, $path, 85);
+
+        return is_file($path) ? $path : null;
+    }
+
+    /** Nep-homepage voor de voorbeeld-PDF (balk, hero, tekstregels), als base64 JPEG. */
+    private static function demoShot(): ?string
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+        $img = imagecreatetruecolor(600, 276);
+        $c = fn (int $r, int $g, int $b) => (int) imagecolorallocate($img, $r, $g, $b);
+        imagefill($img, 0, 0, $c(247, 246, 243));
+        imagefilledrectangle($img, 0, 0, 600, 36, $c(255, 255, 255));
+        imagefilledrectangle($img, 24, 13, 120, 24, $c(226, 40, 48));
+        foreach ([300, 360, 420, 480] as $x) {
+            imagefilledrectangle($img, $x, 16, $x + 40, 21, $c(150, 150, 148));
+        }
+        imagefilledrectangle($img, 0, 36, 600, 176, $c(40, 38, 34));
+        imagefilledrectangle($img, 40, 76, 330, 96, $c(255, 255, 255));
+        imagefilledrectangle($img, 40, 106, 260, 115, $c(169, 167, 161));
+        imagefilledrectangle($img, 40, 132, 150, 156, $c(226, 40, 48));
+        foreach ([0, 1, 2] as $i) {
+            $x = 24 + $i * 192;
+            imagefilledrectangle($img, $x, 192, $x + 168, 268, $c(255, 255, 255));
+            imagefilledrectangle($img, $x + 14, 206, $x + 110, 213, $c(40, 38, 34));
+            imagefilledrectangle($img, $x + 14, 224, $x + 150, 229, $c(169, 167, 161));
+            imagefilledrectangle($img, $x + 14, 237, $x + 130, 242, $c(169, 167, 161));
+        }
+        ob_start();
+        imagejpeg($img, null, 85);
+
+        return base64_encode((string) ob_get_clean());
     }
 
     private static function template(Mpdf $mpdf, ?string $path, ?ReportAsset $asset): ?string
@@ -184,7 +268,9 @@ final class ReportPdf
 
     private static function workDir(): string
     {
-        $dir = storage_path('app/reports');
+        // Altijd slashes: de paden gaan ook in CSS (url("…") voor de achtergronden), waar een backslash
+        // als escape geldt. Op Linux verandert er niets; op Windows (lokaal) werken de achtergronden zo ook.
+        $dir = str_replace('\\', '/', storage_path('app/reports'));
         if (!is_dir($dir . '/tmp')) {
             mkdir($dir . '/tmp', 0770, true);
         }
