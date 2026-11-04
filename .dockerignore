@@ -14,3 +14,5 @@ panel/storage/framework/views/*
 panel/.phpunit.cache
 client-plugin/nb-ocmonitor-client/tests
 **/*.zip
+# De ondertekende plugin-release moet wel in de image: zonder zip biedt het panel geen OC-plugin-update aan.
+!client-plugin/dist/*.zip
