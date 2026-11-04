@@ -77,7 +77,10 @@ class CustomersAndReportsTest extends TestCase
         $this->assertSame(['summary', 'updates'], $customer->sections());
 
         // 5 okt (achterstallig), 5 nov (gepland), 5 dec = zaterdag → 7 dec.
-        $this->get('/klanten')->assertOk()->assertSee('Bakkerij De Korst')->assertSee('november 2026')->assertSee('cal-item planned', false);
+        $this->get('/klanten')->assertOk()->assertSee('Bakkerij De Korst')->assertSee('november 2026')->assertSee('cal-item planned', false)
+            // Kalender en eerstvolgend onderhoud tonen de websitenaam, de klantnaam staat in de tooltip en eronder.
+            ->assertSee('cal-item planned" href="' . route('customers.show', $customer) . '" title="Klant (Bakkerij De Korst) · gepland">Klant</a>', false)
+            ->assertSee('Bakkerij De Korst · 05-10-2026 · achterstallig');
         $this->get('/klanten?maand=2026-10')->assertOk()->assertSee('cal-item overdue', false);
         $this->get('/klanten/' . $customer->id)->assertOk()->assertSee('05-10-2026 · achterstallig', false)->assertSee('07-12-2026')->assertSee($site->name);
         $this->get('/sites/' . $site->site_id)->assertOk()->assertSee('Bakkerij De Korst');
