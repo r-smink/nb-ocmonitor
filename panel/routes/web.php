@@ -124,6 +124,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::post('/instellingen/meldingen/{type}/test', [\App\Http\Controllers\AlertController::class, 'testChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.test')->middleware('throttle:10,1');
         Route::get('/instellingen/api', [\App\Http\Controllers\ApiTokenController::class, 'index'])->name('settings.api');
         Route::post('/instellingen/api', [\App\Http\Controllers\ApiTokenController::class, 'store'])->name('settings.api.store');
+        Route::post('/instellingen/api/status', [\App\Http\Controllers\ApiTokenController::class, 'toggle'])->name('settings.api.toggle');
         Route::delete('/instellingen/api/{token}', [\App\Http\Controllers\ApiTokenController::class, 'destroy'])->name('settings.api.destroy');
         Route::get('/gebruikers', [UserController::class, 'index'])->name('users.index');
         Route::get('/gebruikers/{user}/meldingen', [\App\Http\Controllers\AlertController::class, 'editUser'])->name('users.alerts');

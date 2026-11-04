@@ -9,6 +9,23 @@
   </div>
   @include('settings.tabs')
 
+  <section class="panel">
+    <div class="channel-head">
+      <h3>Eigen API</h3>
+      <span @class(['state', 'idle' => !$enabled])>{{ $enabled ? 'aan' : 'uit' }}</span>
+      <div class="right">
+        <form method="POST" action="{{ route('settings.api.toggle') }}" class="inline" @if (!$enabled) data-confirm="De API aanzetten? Iedereen met een geldig token kan dan sitegegevens opvragen via /api/v1." @endif>
+          @csrf
+          <input type="hidden" name="enabled" value="{{ $enabled ? 0 : 1 }}">
+          <button @class(['btn', 'small', 'quiet' => $enabled]) type="submit">{{ $enabled ? 'Uitzetten' : 'Aanzetten' }}</button>
+        </form>
+      </div>
+    </div>
+    <p class="note">{{ $enabled
+      ? 'Verzoeken naar /api/v1 met een geldig token worden beantwoord. Let op: /api staat niet achter de IP-allowlist van het panel; alleen het token beschermt de API.'
+      : 'Uit: elk verzoek naar /api/v1 krijgt een 404, ook met een geldig token. Tokens blijven bewaard en werken weer zodra je de API aanzet. De koppeling met de client-plugin op de sites werkt hier los van.' }}</p>
+  </section>
+
   @if ($plain)
     <section class="panel">
       <div class="token-once">
