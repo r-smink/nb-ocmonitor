@@ -6,6 +6,7 @@ use App\Models\ActivityLog;
 use App\Models\ApiToken;
 use App\Models\SiteNote;
 use App\Ocm\Activity;
+use App\Ocm\ApiAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -79,6 +80,7 @@ class NotesExportApiTest extends TestCase
 
     public function test_api_requires_a_valid_token_and_returns_site_data_without_secrets(): void
     {
+        ApiAccess::set(true);
         $site = $this->makePairedSite();
         $site->forceFill(['wp_version' => '6.9', 'last_seen_at' => now()])->save();
         [, $plain] = ApiToken::issue('Grafana', null);
@@ -97,6 +99,7 @@ class NotesExportApiTest extends TestCase
 
     public function test_revoked_and_expired_tokens_are_rejected(): void
     {
+        ApiAccess::set(true);
         [$revoked, $a] = ApiToken::issue('a', null);
         $revoked->forceFill(['revoked_at' => now()])->save();
         [, $b] = ApiToken::issue('b', null, now()->subDay());
@@ -119,10 +122,40 @@ class NotesExportApiTest extends TestCase
         $this->assertNotNull($token->fresh()->revoked_at);
     }
 
+    public function test_api_is_off_by_default_and_returns_404_even_with_a_valid_token(): void
+    {
+        $this->makePairedSite();
+        [, $plain] = ApiToken::issue('Grafana', null);
+
+        $this->assertFalse(ApiAccess::enabled());
+        $this->getJson('/api/v1/sites', ['Authorization' => 'Bearer ' . $plain])->assertNotFound()->assertJson(['error' => 'not_found']);
+        $this->getJson('/api/v1/sites')->assertNotFound();
+        $this->assertNull(ApiToken::query()->first()->last_used_at);
+    }
+
+    public function test_admin_switches_the_api_on_and_off(): void
+    {
+        $this->makePairedSite();
+        [, $plain] = ApiToken::issue('Grafana', null);
+        $this->actingAs($this->makeUser());
+
+        $this->get('/instellingen/api')->assertOk()->assertSee('Aanzetten');
+        $this->post('/instellingen/api/status', ['enabled' => 1])->assertRedirect();
+        $this->assertTrue(ApiAccess::enabled());
+        $this->getJson('/api/v1/sites', ['Authorization' => 'Bearer ' . $plain])->assertOk();
+
+        $this->post('/instellingen/api/status', ['enabled' => 0])->assertRedirect();
+        $this->getJson('/api/v1/sites', ['Authorization' => 'Bearer ' . $plain])->assertNotFound();
+        $this->assertSame(2, ActivityLog::query()->where('action', 'api_toggled')->count());
+        $this->get('/instellingen')->assertOk()->assertSee('Eigen API (/api/v1)');
+    }
+
     public function test_viewer_cannot_manage_tokens(): void
     {
         $this->actingAs($this->makeUser('viewer'));
         $this->get('/instellingen/api')->assertForbidden();
         $this->post('/instellingen/api', ['name' => 'x'])->assertForbidden();
+        $this->post('/instellingen/api/status', ['enabled' => 1])->assertForbidden();
+        $this->assertFalse(ApiAccess::enabled());
     }
 }

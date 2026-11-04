@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApiToken;
 use App\Ocm\Activity;
+use App\Ocm\ApiAccess;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class ApiTokenController extends Controller
         return view('settings.api', [
             'tokens' => ApiToken::query()->with('creator')->orderByDesc('id')->get(),
             'plain' => $request->session()->get('api_token_plain'),
+            'enabled' => ApiAccess::enabled(),
         ]);
     }
 
@@ -32,6 +34,15 @@ class ApiTokenController extends Controller
 
         // Eenmalig tonen: alleen in de volgende request, daarna is alleen de hash er nog.
         return redirect()->route('settings.api')->with('api_token_plain', $plain)->with('status', "Token \"{$token->name}\" aangemaakt. Kopieer het nu; je ziet het niet opnieuw.");
+    }
+
+    public function toggle(Request $request): RedirectResponse
+    {
+        $enabled = (bool) $request->validate(['enabled' => ['required', 'boolean']])['enabled'];
+        ApiAccess::set($enabled);
+        Activity::log('api_toggled', ['enabled' => $enabled]);
+
+        return back()->with('status', $enabled ? 'De API staat aan. Verzoeken met een geldig token werken weer.' : 'De API staat uit. Alle /api/v1-verzoeken krijgen nu een 404; de tokens blijven bewaard.');
     }
 
     public function destroy(ApiToken $token): RedirectResponse

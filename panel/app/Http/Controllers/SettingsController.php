@@ -27,6 +27,7 @@ class SettingsController extends Controller
                 'PageSpeed API-sleutel' => (string) config('ocm.pagespeed.api_key') !== '',
                 'Wordfence API-sleutel' => Vulnerabilities::enabled(),
                 'Ondertekende plugin-release' => PluginRelease::latest() !== null,
+                'Eigen API (/api/v1)' => \App\Ocm\ApiAccess::enabled(),
             ],
             'release' => PluginRelease::latest()['version'] ?? null,
             'feed' => Setting::get(Vulnerabilities::SETTING),
