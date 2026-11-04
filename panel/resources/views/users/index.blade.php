@@ -7,15 +7,12 @@
       <p>Portalgebruikers: wie kan inloggen op OC Monitor. Iedereen logt in met wachtwoord en verplichte tweestapsverificatie.</p>
     </div>
   </div>
-  <nav class="tabs-nav mt">
-    <a href="{{ route('settings.show') }}" @class(['on' => request()->routeIs('settings.*')])>Algemeen en menu</a>
-    <a href="{{ route('users.index') }}" @class(['on' => request()->routeIs('users.*')])>Portalgebruikers</a>
-  </nav>
+  @include('settings.tabs')
 
   <div class="panel">
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Naam</th><th>E-mail</th><th>Rol</th><th>2FA</th><th>Laatste login</th><th></th></tr></thead>
+        <thead><tr><th>Naam</th><th>E-mail</th><th>Rol</th><th>2FA</th><th>Meldingen</th><th>Laatste login</th><th></th></tr></thead>
         <tbody>
           @foreach ($users as $user)
             <tr>
@@ -34,6 +31,7 @@
                 </form>
               </td>
               <td>@if ($user->hasTwoFactor())<span class="state">aan</span>@else<span class="state idle">nog instellen</span>@endif</td>
+              <td><a href="{{ route('users.alerts', $user) }}">{{ \App\Ocm\Alerts\AlertFilter::forUser($user)->summary() }}</a></td>
               <td>{{ $user->last_login_at?->timezone('Europe/Amsterdam')->format('d-m-Y H:i') ?? '–' }}</td>
               <td class="actions">
                 @if ($user->hasTwoFactor())

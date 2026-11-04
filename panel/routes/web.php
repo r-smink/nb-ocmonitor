@@ -98,11 +98,18 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
 
     Route::get('/account', [AccountController::class, 'show'])->name('account.show');
     Route::put('/account/wachtwoord', [AccountController::class, 'updatePassword'])->name('account.password');
+    Route::put('/account/meldingen', [\App\Http\Controllers\AlertController::class, 'updateAccount'])->name('account.alerts');
+    Route::post('/account/meldingen/test', [\App\Http\Controllers\AlertController::class, 'testAccount'])->name('account.alerts.test')->middleware('throttle:5,1');
 
     Route::middleware('can:manage-users')->group(function () {
         Route::get('/instellingen', [\App\Http\Controllers\SettingsController::class, 'show'])->name('settings.show');
         Route::put('/instellingen', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
+        Route::get('/instellingen/meldingen', [\App\Http\Controllers\AlertController::class, 'channels'])->name('settings.alerts');
+        Route::put('/instellingen/meldingen/{type}', [\App\Http\Controllers\AlertController::class, 'saveChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.channel');
+        Route::post('/instellingen/meldingen/{type}/test', [\App\Http\Controllers\AlertController::class, 'testChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.test')->middleware('throttle:10,1');
         Route::get('/gebruikers', [UserController::class, 'index'])->name('users.index');
+        Route::get('/gebruikers/{user}/meldingen', [\App\Http\Controllers\AlertController::class, 'editUser'])->name('users.alerts');
+        Route::put('/gebruikers/{user}/meldingen', [\App\Http\Controllers\AlertController::class, 'updateUser'])->name('users.alerts.update');
         Route::post('/gebruikers', [UserController::class, 'store'])->name('users.store');
         Route::put('/gebruikers/{user}', [UserController::class, 'update'])->name('users.update');
         Route::post('/gebruikers/{user}/2fa-reset', [UserController::class, 'resetTwoFactor'])->name('users.reset-2fa');

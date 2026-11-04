@@ -67,6 +67,14 @@ return [
         'endpoint' => env('OCM_WORDFENCE_FEED', 'https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production'),
     ],
 
+    // Meldingen (ocm:alerts): pas melden als een probleem zo lang open staat; herinnering bij kritiek.
+    'alerts' => [
+        'enabled' => (bool) env('OCM_ALERTS', true),
+        'delay_minutes' => (int) env('OCM_ALERT_DELAY_MINUTES', 10),
+        'repeat_hours' => (int) env('OCM_ALERT_REPEAT_HOURS', 0),
+        'keep_days' => 180,
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),
