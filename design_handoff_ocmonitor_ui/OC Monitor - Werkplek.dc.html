@@ -28,6 +28,11 @@
   --shadow-xs:0 1px 2px rgba(0,0,0,.3); --shadow-sm:0 2px 8px rgba(0,0,0,.35); --shadow-lg:0 18px 48px rgba(0,0,0,.5);
 }
 body{margin:0;background:var(--surface-alt);font-family:var(--font-body,system-ui,sans-serif)}
+html{scroll-behavior:smooth}
+[data-spy]{scroll-margin-top:84px}
+.sd-rail-item{position:relative}
+.sd-rail-label{position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%) translateX(-6px);opacity:0;pointer-events:none;white-space:nowrap;padding:7px 12px;border-radius:9px;font-size:13px;font-weight:700;background:var(--surface-card);color:var(--text-strong);border:1px solid var(--border-subtle);box-shadow:var(--shadow-lg);transition:opacity .16s ease,transform .16s cubic-bezier(.22,1,.36,1);z-index:40}
+.sd-rail-item:hover .sd-rail-label{opacity:1;transform:translateY(-50%) translateX(0)}
 *{box-sizing:border-box}
 </style>
 </helmet>
@@ -137,9 +142,118 @@ body{margin:0;background:var(--surface-alt);font-family:var(--font-body,system-u
                 <div style="display:flex;justify-content:space-between"><span style="color:var(--text-subtle)">Updates</span><b style="color:{{ s.updatesColor }};font-variant-numeric:tabular-nums">{{ s.updates }}</b></div>
                 <div style="display:flex;justify-content:space-between"><span style="color:var(--text-subtle)">Status</span><b style="color:var(--text-strong)">{{ s.levelLabel }}</b></div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:4px"><span style="font-size:11.5px;color:var(--text-subtle)">Laatst gezien {{ s.seen }}</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--text-link);cursor:pointer">Openen {{ icArrow }}</span></div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:4px"><span style="font-size:11.5px;color:var(--text-subtle)">Laatst gezien {{ s.seen }}</span><span onClick="{{ s.onOpen }}" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--text-link);cursor:pointer">Openen {{ icArrow }}</span></div>
             </div>
           </sc-for>
+        </div>
+      </sc-if>
+
+      <!-- ===== SITE DETAIL ===== -->
+      <sc-if value="{{ isSiteDetail }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:18px;align-items:flex-start">
+          <nav style="flex:none;position:sticky;top:84px;z-index:6;display:flex;flex-direction:column;gap:4px;padding:8px;background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm)">
+            <sc-for list="{{ railItems }}" as="r" hint-placeholder-count="7">
+              <a href="#sd-{{ r.id }}" onClick="{{ r.onClick }}" class="sd-rail-item" style="width:44px;height:44px;display:grid;place-items:center;border-radius:11px;cursor:pointer;color:{{ r.itemColor }};background:{{ r.itemBg }}">{{ r.iconEl }}<sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:5px;right:5px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;font-size:9.5px;font-weight:800;line-height:15px;text-align:center;color:#fff;background:{{ r.dotBg }}">{{ r.count }}</span></sc-if><span class="sd-rail-label">{{ r.label }}</span></a>
+            </sc-for>
+          </nav>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <span onClick="{{ backToSites }}" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text-link);cursor:pointer">← Sites</span>
+              <span style="font-size:13px;color:var(--text-subtle)">/ {{ siteDetail.name }}</span>
+            </div>
+
+            <section data-spy="status" id="sd-status" style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface-card);border:1px solid var(--border-subtle);border-left:4px solid {{ siteDetail.accent }};border-radius:16px;box-shadow:var(--shadow-sm);padding:18px 20px">
+                <span style="width:12px;height:12px;border-radius:50%;flex:none;background:{{ siteDetail.accent }}"></span>
+                <div style="min-width:0"><div style="font-family:var(--font-heading);font-weight:800;font-size:20px;color:var(--text-strong)">{{ siteDetail.name }}</div><div style="font-size:13px;color:var(--text-muted)">{{ siteDetail.client }} · WordPress {{ siteDetail.wp }} · PHP {{ siteDetail.php }}</div></div>
+                <span style="margin-left:auto;font-size:12px;font-weight:700;padding:5px 13px;border-radius:999px;background:{{ siteDetail.softBg }};color:{{ siteDetail.softFg }}">{{ siteDetail.levelLabel }}</span>
+                <a style="display:inline-flex;align-items:center;gap:6px;font-family:var(--font-body);font-weight:700;font-size:13px;padding:9px 15px;border-radius:999px;border:1px solid var(--border-default);color:var(--text-default);cursor:pointer">Site openen {{ icArrow }}</a>
+              </div>
+              <sc-if value="{{ siteDetail.issue }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;font-weight:600;padding:11px 15px;border-radius:12px;background:{{ siteDetail.softBg }};color:{{ siteDetail.softFg }}">{{ siteDetail.issue }}</div></sc-if>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+                <sc-for list="{{ siteDetail.metrics }}" as="m" hint-placeholder-count="4">
+                  <div style="background:var(--surface-card);border:1px solid var(--border-subtle);border-top:3px solid {{ m.accent }};border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-xs)">
+                    <div style="font-size:12.5px;font-weight:600;color:var(--text-muted);margin-bottom:6px">{{ m.label }}</div>
+                    <div style="font-family:var(--font-heading);font-weight:800;font-size:24px;color:{{ m.accent }};line-height:1">{{ m.value }}</div>
+                    <div style="font-size:11.5px;color:var(--text-subtle);margin-top:3px">{{ m.sub }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </section>
+
+            <section data-spy="updates" id="sd-updates" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border-subtle)"><span style="color:var(--text-subtle)">{{ icRefresh }}</span><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Openstaande updates</h3><button style="margin-left:auto;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;background:var(--red-500);color:#fff">Alles bijwerken</button></div>
+              <sc-for list="{{ siteDetail.updates }}" as="u" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--surface-sunken)">
+                  <div style="min-width:0;flex:1;display:flex;align-items:center;gap:8px"><span style="font-weight:700;font-size:14px;color:var(--text-strong)">{{ u.comp }}</span><span style="font-size:12px;color:var(--text-subtle)">{{ u.type }}</span><sc-if value="{{ u.secTag }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--crit-bg);color:var(--crit-fg)">beveiliging</span></sc-if></div>
+                  <div style="flex:none;font-size:12.5px"><span style="font-family:var(--font-mono);color:var(--text-muted)">{{ u.from }}</span> <span style="color:var(--text-subtle)">→</span> <span style="font-family:var(--font-mono);color:var(--warn-fg);font-weight:700">{{ u.to }}</span></div>
+                  <button onClick="{{ u.onAction }}" style="flex:none;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;background:{{ u.btnBg }};color:{{ u.btnColor }}">{{ u.btnLabel }}</button>
+                </div>
+              </sc-for>
+            </section>
+
+            <section data-spy="backups" id="sd-backups" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border-subtle)"><span style="color:var(--text-subtle)">{{ icClock }}</span><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Back-ups</h3><button style="margin-left:auto;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:1px solid var(--border-default);background:transparent;color:var(--text-default);cursor:pointer">Nu back-up maken</button></div>
+              <sc-for list="{{ siteDetail.backups }}" as="b" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:14px;padding:11px 18px;border-bottom:1px solid var(--surface-sunken)">
+                  <span style="width:8px;height:8px;border-radius:50%;flex:none;background:var(--ok)"></span>
+                  <span style="min-width:0;flex:1;font-weight:600;font-size:13.5px;color:var(--text-strong)">{{ b.when }}</span>
+                  <span style="flex:none;font-size:12.5px;color:var(--text-muted)">{{ b.type }}</span>
+                  <span style="flex:none;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--text-subtle)">{{ b.size }}</span>
+                  <span style="flex:none;font-size:12.5px;font-weight:700;color:var(--text-link);cursor:pointer">Terugzetten</span>
+                </div>
+              </sc-for>
+            </section>
+
+            <section data-spy="beveiliging" id="sd-beveiliging" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border-subtle)"><span style="color:var(--text-subtle)">{{ icShield }}</span><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Beveiliging</h3></div>
+              <sc-if value="{{ siteDetail.hasVulns }}" hint-placeholder-val="{{ true }}">
+                <sc-for list="{{ siteDetail.vulns }}" as="v" hint-placeholder-count="1">
+                  <div style="display:flex;align-items:center;gap:15px;padding:14px 18px;border-bottom:1px solid var(--surface-sunken)">
+                    <span style="flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:11px;font-family:var(--font-heading);font-weight:800;font-size:15px;background:{{ v.scoreCls.bg }};color:{{ v.scoreCls.fg }}">{{ v.score }}</span>
+                    <div style="min-width:0;flex:1"><div style="font-weight:700;font-size:13.5px;color:var(--text-strong)">{{ v.title }}</div><div style="font-size:12px;font-family:var(--font-mono);color:var(--text-subtle)">{{ v.cve }} · fix in {{ v.fix }}</div></div>
+                    <button onClick="{{ v.onAction }}" style="flex:none;font-family:var(--font-body);font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:999px;border:0;cursor:pointer;background:{{ v.btnBg }};color:{{ v.btnColor }}">{{ v.btnLabel }}</button>
+                  </div>
+                </sc-for>
+              </sc-if>
+              <sc-if value="{{ siteDetail.noVulns }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px;padding:16px 18px;color:var(--ok-fg)">{{ icCheck }}<span style="font-size:13.5px;font-weight:600">Geen bekende kwetsbaarheden. Wordfence actief.</span></div></sc-if>
+            </section>
+
+            <section data-spy="pagespeed" id="sd-pagespeed" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><span style="color:var(--text-subtle)">{{ icGauge }}</span><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">PageSpeed</h3><button style="margin-left:auto;font-family:var(--font-body);font-weight:600;font-size:12px;padding:7px 13px;border-radius:999px;border:1px solid var(--border-default);background:transparent;color:var(--text-default);cursor:pointer">Opnieuw meten</button></div>
+              <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><span style="display:grid;place-items:center;width:62px;height:62px;border-radius:50%;font-family:var(--font-heading);font-weight:800;font-size:22px;background:{{ siteDetail.psi.mobCls.bg }};color:{{ siteDetail.psi.mobCls.fg }}">{{ siteDetail.psi.mob }}</span><span style="font-size:11px;color:var(--text-subtle);font-weight:600">mobiel</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:5px"><span style="display:grid;place-items:center;width:62px;height:62px;border-radius:50%;font-family:var(--font-heading);font-weight:800;font-size:22px;background:{{ siteDetail.psi.deskCls.bg }};color:{{ siteDetail.psi.deskCls.fg }}">{{ siteDetail.psi.desk }}</span><span style="font-size:11px;color:var(--text-subtle);font-weight:600">desktop</span></div>
+                <div style="display:flex;gap:26px;margin-left:8px;padding-left:22px;border-left:1px solid var(--border-subtle)">
+                  <div><div style="font-size:11.5px;color:var(--text-subtle)">LCP</div><div style="font-weight:700;font-size:15px;color:var(--text-strong)">{{ siteDetail.psi.lcp }}</div></div>
+                  <div><div style="font-size:11.5px;color:var(--text-subtle)">CLS</div><div style="font-weight:700;font-size:15px;color:var(--text-strong)">{{ siteDetail.psi.cls }}</div></div>
+                  <div><div style="font-size:11.5px;color:var(--text-subtle)">TBT</div><div style="font-weight:700;font-size:15px;color:var(--text-strong)">{{ siteDetail.psi.tbt }}</div></div>
+                </div>
+              </div>
+            </section>
+
+            <section data-spy="gebruikers" id="sd-gebruikers" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--border-subtle)"><span style="color:var(--text-subtle)">{{ icUsers }}</span><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">WordPress-gebruikers</h3></div>
+              <sc-for list="{{ siteDetail.users }}" as="u" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--surface-sunken)">
+                  <div style="min-width:0;flex:1"><span style="font-weight:700;font-size:13.5px;color:var(--text-strong)">{{ u.login }}</span> <span style="font-size:12.5px;color:var(--text-subtle)">{{ u.roles }}</span></div>
+                  <span style="flex:none;font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:{{ u.twofaBg }};color:{{ u.twofaFg }}">{{ u.twofaLabel }}</span>
+                  <span style="flex:none;font-size:12px;color:var(--text-muted)">{{ u.last }}</span>
+                </div>
+              </sc-for>
+            </section>
+
+            <section data-spy="activiteit" id="sd-activiteit" style="background:var(--surface-card);border:1px solid var(--border-subtle);border-radius:16px;box-shadow:var(--shadow-sm);padding:16px 18px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span style="color:var(--text-subtle)">{{ icActivity }}</span><h3 style="margin:0;font-family:var(--font-heading);font-weight:700;font-size:16px;color:var(--text-strong)">Recente activiteit</h3></div>
+              <sc-for list="{{ siteDetail.activity }}" as="e" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:12px;padding:9px 2px;border-bottom:1px solid var(--surface-sunken)">
+                  <span style="width:8px;height:8px;border-radius:50%;flex:none;background:{{ e.dot }}"></span>
+                  <span style="min-width:0;flex:1;font-size:13px;color:var(--text-default)">{{ e.text }}</span>
+                  <span style="flex:none;font-size:11.5px;color:var(--text-subtle)">{{ e.t }}</span>
+                </div>
+              </sc-for>
+            </section>
+          </div>
         </div>
       </sc-if>
 
@@ -524,12 +638,31 @@ body{margin:0;background:var(--surface-alt);font-family:var(--font-body,system-u
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { theme: 'light', page: 'overzicht', done: {}, actTab: 'sites' };
+  state = { theme: 'light', page: 'overzicht', done: {}, actTab: 'sites', site: null, activeSection: 'status' };
 
   toggleTheme() { this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })); }
   setPage(p) { this.setState({ page: p }); }
   setActTab(t) { this.setState({ actTab: t }); }
   markDone(id) { this.setState(s => ({ done: { ...s.done, [id]: !s.done[id] } })); }
+  openSite(name) { this.setState({ page: 'sitedetail', site: name, activeSection: 'status' }); try { (document.scrollingElement || document.documentElement).scrollTop = 0; } catch (e) {} }
+  setSection(id) { this.setState({ activeSection: id }); }
+
+  componentDidUpdate(pp, ps) {
+    if (this.state.page === 'sitedetail' && ps.page !== 'sitedetail') this.setupSpy();
+    if (this.state.page !== 'sitedetail' && this._spy) { this._spy.disconnect(); this._spy = null; }
+  }
+  setupSpy() {
+    if (this._spy) this._spy.disconnect();
+    setTimeout(() => {
+      const secs = Array.from(document.querySelectorAll('[data-spy]'));
+      if (!secs.length) return;
+      this._spy = new IntersectionObserver((entries) => {
+        const vis = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (vis[0]) { const id = vis[0].target.getAttribute('data-spy'); if (id !== this.state.activeSection) this.setState({ activeSection: id }); }
+      }, { rootMargin: '-88px 0px -55% 0px', threshold: [0, 0.2, 0.6, 1] });
+      secs.forEach(s => this._spy.observe(s));
+    }, 60);
+  }
 
   icon(name, size = 18, sw = 1.9) {
     const P = {
@@ -655,7 +788,8 @@ class Component extends DCLogic {
 
     return {
       themeAttr: this.state.theme, themeLabel: dark ? 'Licht' : 'Donker', themeIconEl: this.icon(dark ? 'sun' : 'moon', 15), toggleTheme: () => this.toggleTheme(),
-      page, pageTitle: titles[page] || 'Overzicht',
+      page, pageTitle: page === 'sitedetail' ? (this.state.site || 'Site') : (titles[page] || 'Overzicht'),
+      isSiteDetail: page === 'sitedetail',
       isOverzicht: page === 'overzicht', isSites: page === 'sites', isKlanten: page === 'klanten', isUpdates: page === 'updates', isPagespeed: page === 'pagespeed', isKwetsbaarheden: page === 'kwetsbaarheden',
       isVersies: page === 'versies', isLicenties: page === 'licenties', isWpgebruikers: page === 'wpgebruikers', isRapporten: page === 'rapporten', isActiviteit: page === 'activiteit', isGebruikers: page === 'gebruikers',
       actTab: this.state.actTab, actSitesActive: this.state.actTab === 'sites', actAuditActive: this.state.actTab === 'audit',
@@ -666,6 +800,7 @@ class Component extends DCLogic {
       topComponents, worstPsi, events, navGroups,
       goUpdates: () => this.setPage('updates'), goSites: () => this.setPage('sites'),
       icSearch: this.icon('search', 16), icBell: this.icon('bell', 18), icPlus: this.icon('plus', 15), icArrow: this.icon('arrow', 15),
+      icRefresh: this.icon('refresh', 17), icClock: this.icon('clock', 17), icShield: this.icon('shield', 17), icGauge: this.icon('gauge', 17), icUsers: this.icon('users', 17), icActivity: this.icon('activity', 17), icCheck: this.icon('check', 17),
       ...this.pageData(C, dark, critBg, warnBg),
     };
   }
@@ -687,7 +822,7 @@ class Component extends DCLogic {
       { name: 'advocaat-dejong.nl', client: 'De Jong Advocaten', level: 'ok', wp: '6.6.2', php: '8.2', updates: 0, seen: '3 min', issue: '' },
       { name: 'bloemen-roos.nl', client: 'Bloemist Roos', level: 'pending', wp: '–', php: '–', updates: '–', seen: 'Nog geen contact', issue: 'Nog niet gekoppeld' },
     ];
-    const sites = rawSites.map(s => ({ ...s, accent: lvlAccent[s.level], levelLabel: lvlLabel[s.level],
+    const sites = rawSites.map(s => ({ ...s, accent: lvlAccent[s.level], levelLabel: lvlLabel[s.level], onOpen: () => this.openSite(s.name),
       updatesColor: (typeof s.updates === 'number' && s.updates > 0) ? C.warn : 'var(--text-strong)',
       issueBg: s.level === 'crit' ? critBg : s.level === 'warn' ? warnBg : 'var(--surface-alt)',
       issueColor: s.level === 'crit' ? (dark ? '#F4A7AA' : '#9E171D') : s.level === 'warn' ? (dark ? '#E8C877' : '#8A5D06') : 'var(--text-subtle)' }));
@@ -877,7 +1012,71 @@ class Component extends DCLogic {
     ].map(u => ({ ...u, roleBg: roleTone[u.role].bg, roleFg: roleTone[u.role].fg,
       twofaBg: u.twofa ? (dark ? '#14321f' : '#E8F6EE') : 'var(--surface-sunken)', twofaFg: u.twofa ? (dark ? '#86efac' : '#157347') : 'var(--text-muted)', twofaLabel: u.twofa ? 'aan' : 'nog instellen' }));
 
+    // ----- SITE DETAIL -----
+    const sd = rawSites.find(s => s.name === this.state.site) || rawSites[0];
+    const sdLvl = sd.level;
+    const sdAccent = lvlAccent[sdLvl];
+    const sdSoftBg = sdLvl === 'crit' ? critBg : sdLvl === 'warn' ? warnBg : (dark ? '#14321f' : '#E8F6EE');
+    const sdSoftFg = sdLvl === 'crit' ? (dark ? '#F4A7AA' : '#9E171D') : sdLvl === 'warn' ? (dark ? '#E8C877' : '#8A5D06') : (dark ? '#86efac' : '#157347');
+    const sdUpd = typeof sd.updates === 'number' ? sd.updates : 0;
+    const sdMetrics = [
+      { label: 'Beschikbaarheid', value: sdLvl === 'crit' ? '97,3%' : '99,98%', sub: '30 dagen', lvl: sdLvl === 'crit' ? 'crit' : 'ok' },
+      { label: 'SSL-certificaat', value: sd.name === 'cafe-de-hoek.nl' ? '9 dagen' : '68 dagen', sub: 'tot verloop', lvl: sd.name === 'cafe-de-hoek.nl' ? 'warn' : 'ok' },
+      { label: 'Laatste back-up', value: sd.name === 'loodgieter-bos.nl' ? '3 dagen' : '6 uur', sub: 'geleden', lvl: sd.name === 'loodgieter-bos.nl' ? 'warn' : 'ok' },
+      { label: 'Responstijd', value: sdLvl === 'crit' ? '—' : '420 ms', sub: 'gem. 24 u', lvl: sdLvl === 'crit' ? 'crit' : 'ok' },
+    ].map(m => ({ ...m, accent: lvlAccent[m.lvl], mbg: m.lvl === 'crit' ? critBg : m.lvl === 'warn' ? warnBg : (dark ? '#14321f' : '#E8F6EE') }));
+    const sdUpdates = [
+      { id: 'sd-u1', comp: 'Elementor', type: 'Plugin', from: '3.21.0', to: '3.23.4', sec: false },
+      { id: 'sd-u2', comp: 'WooCommerce', type: 'Plugin', from: '8.1.0', to: '9.3.1', sec: true },
+      { id: 'sd-u3', comp: 'Yoast SEO', type: 'Plugin', from: '22.6', to: '23.4', sec: false },
+      { id: 'sd-u4', comp: 'WordPress', type: 'Core', from: sd.wp, to: '6.6.2', sec: false },
+    ].slice(0, Math.max(1, sdUpd ? Math.min(4, sdUpd) : 1)).map(u => { const done = !!this.state.done[u.id]; return { ...u, onAction: () => this.markDone(u.id),
+      btnLabel: done ? 'Gestart' : 'Bijwerken', btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff', secTag: !!u.sec }; });
+    const sdBackups = [
+      { when: 'Vandaag 04:00', size: '128 MB', type: 'Automatisch', ok: true },
+      { when: 'Gisteren 04:00', size: '127 MB', type: 'Automatisch', ok: true },
+      { when: '02-11 14:20', size: '126 MB', type: 'Handmatig (voor update)', ok: true },
+      { when: '01-11 04:00', size: '126 MB', type: 'Automatisch', ok: true },
+    ];
+    const sdVulns = sdLvl === 'ok' || sdLvl === 'pending' ? [] : [
+      { id: 'sd-v1', score: sdLvl === 'crit' ? '9.8' : '6.4', title: sdLvl === 'crit' ? 'RCE via onveilige template-upload in Elementor' : 'CSRF in plugin-instellingen', cve: sdLvl === 'crit' ? 'CVE-2024-30512' : 'CVE-2024-27956', fix: sdLvl === 'crit' ? '3.23.0' : '23.1', lvl: sdLvl },
+    ].map(v => { const done = !!this.state.done[v.id]; const sc = this.scoreStyle(v.lvl === 'crit' ? 20 : 60, dark); return { ...v, scoreCls: sc,
+      onAction: () => this.markDone(v.id), btnLabel: done ? 'Gestart' : 'Bijwerken', btnBg: done ? (dark ? '#14321f' : '#E8F6EE') : 'var(--red-500)', btnColor: done ? (dark ? '#86efac' : '#157347') : '#fff' }; });
+    const sdPsiBase = sd.name === 'garage-peters.nl' ? { mob: 38, desk: 72 } : sd.name === 'webshop-devries.nl' ? { mob: 44, desk: 69 } : sdLvl === 'ok' ? { mob: 91, desk: 98 } : { mob: 61, desk: 84 };
+    const sdPsi = { mobCls: this.scoreStyle(sdPsiBase.mob, dark), deskCls: this.scoreStyle(sdPsiBase.desk, dark), mob: sdPsiBase.mob, desk: sdPsiBase.desk,
+      lcp: sdPsiBase.mob < 50 ? '4,8 s' : '2,3 s', cls: sdPsiBase.mob < 50 ? '0,21' : '0,04', tbt: sdPsiBase.mob < 50 ? '610 ms' : '90 ms' };
+    const sdUsers = [
+      { login: 'beheer', roles: 'Beheerder', twofa: true, last: 'Vandaag 09:12' },
+      { login: 'redactie', roles: 'Redacteur', twofa: false, last: 'Gisteren 16:40' },
+      { login: 'webmaster', roles: 'Beheerder', twofa: true, last: '31-10 11:05' },
+    ].map(u => ({ ...u, twofaBg: u.twofa ? (dark ? '#14321f' : '#E8F6EE') : (dark ? '#2a2410' : '#FBF1DA'), twofaFg: u.twofa ? (dark ? '#86efac' : '#157347') : (dark ? '#E8C877' : '#8A5D06'), twofaLabel: u.twofa ? '2FA aan' : '2FA nog instellen' }));
+    const sdActivity = [
+      { t: '10:42', text: 'Plugin bijgewerkt: Contact Form 7 5.8 → 5.9', lvl: 'ok' },
+      { t: '08:30', text: 'Back-up gemaakt (128 MB)', lvl: 'ok' },
+      { t: 'gister 17:20', text: 'WordPress-gebruiker toegevoegd: redacteur', lvl: 'info' },
+      { t: 'gister 03:00', text: 'Health check geslaagd', lvl: 'ok' },
+    ].map(e => ({ ...e, dot: lvlAccent[e.lvl] || C.info }));
+
+    const railDef = [
+      { id: 'status', label: 'Status', icon: 'grid' },
+      { id: 'updates', label: 'Updates', icon: 'refresh', count: sdUpdates.length },
+      { id: 'backups', label: 'Back-ups', icon: 'clock' },
+      { id: 'beveiliging', label: 'Beveiliging', icon: 'shield', count: sdVulns.length, crit: sdLvl === 'crit' },
+      { id: 'pagespeed', label: 'PageSpeed', icon: 'gauge' },
+      { id: 'gebruikers', label: 'WP-gebruikers', icon: 'users' },
+      { id: 'activiteit', label: 'Activiteit', icon: 'activity' },
+    ];
+    const railItems = railDef.map(r => { const active = this.state.activeSection === r.id; return { ...r,
+      iconEl: this.icon(r.icon, 19), onClick: () => this.setSection(r.id), hasCount: !!r.count,
+      itemBg: active ? 'var(--red-500)' : 'transparent', itemColor: active ? '#fff' : 'var(--text-muted)',
+      hoverBg: active ? 'var(--red-500)' : 'var(--surface-sunken)', hoverColor: active ? '#fff' : 'var(--text-strong)',
+      dotBg: r.crit ? '#E22830' : 'var(--warn)' }; });
+    const siteDetail = { name: sd.name, client: sd.client, level: sdLvl, levelLabel: lvlLabel[sdLvl], accent: sdAccent,
+      softBg: sdSoftBg, softFg: sdSoftFg, issue: sd.issue, wp: sd.wp, php: sd.php, phpWarn: sd.php === '7.4',
+      metrics: sdMetrics, updates: sdUpdates, backups: sdBackups, vulns: sdVulns, hasVulns: sdVulns.length > 0, noVulns: sdVulns.length === 0, psi: sdPsi, users: sdUsers, activity: sdActivity };
+
     return { sites, siteCounts, updComponents, updRows, updCounts, psiRows, vulnCounts, vulns, calWeeks: weeks, upcoming, customers, calMonth: 'november 2026',
+      railItems, siteDetail, backToSites: () => this.setPage('sites'),
       phpDist, wpDist, versRows, licProducts, wpTotals, wpUsers, reportFields, reportColors, reportAssets, actEvents, auditRows, portalUsers };
   }
 }
