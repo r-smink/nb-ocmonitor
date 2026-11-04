@@ -16,6 +16,7 @@
       <span @class(['chip', 'crit', 'has' => $counts['core'] > 0])>{{ $counts['core'] }} WordPress</span>
     </div>
   </div>
+  @include('updates.tabs')
 
   <div class="toolbar">
     <nav class="tabs-nav">

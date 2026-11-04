@@ -29,9 +29,10 @@ final class Updates
      * componenten die al in de wachtrij staan worden overgeslagen.
      *
      * @param string[] $ids pluginbestanden of stylesheets; genegeerd voor core/translations
+     * @param int|null $scheduleId automatische updates: het schema dat ze klaarzet
      * @return int aantal componenten dat is klaargezet
      */
-    public static function queue(Site $site, string $type, array $ids, ?User $user): int
+    public static function queue(Site $site, string $type, array $ids, ?User $user, ?int $scheduleId = null): int
     {
         if (!isset(self::COMMANDS[$type]) || $site->updatesBlockedReason() !== null) {
             return 0;
@@ -42,7 +43,7 @@ final class Updates
             if ((int) (($site->inventory ?? [])['translations_pending'] ?? 0) === 0) {
                 return 0;
             }
-            $job = self::enqueue($site, $command, [], $user);
+            $job = self::enqueue($site, $command, [], $user, true, $scheduleId);
             Activity::log('updates_requested', ['job_id' => $job->job_id, 'type' => $type], $site, $user);
 
             return 1;
@@ -54,7 +55,7 @@ final class Updates
             if ($release === null || in_array('nb-ocmonitor-client', self::queuedIds($site)['client'] ?? [], true)) {
                 return 0;
             }
-            $job = self::enqueue($site, $command, ['version' => $release['version'], 'sha256' => $release['sha256'], 'signature' => $release['signature']], $user, false);
+            $job = self::enqueue($site, $command, ['version' => $release['version'], 'sha256' => $release['sha256'], 'signature' => $release['signature']], $user, false, $scheduleId);
             Activity::log('updates_requested', ['job_id' => $job->job_id, 'type' => $type, 'to' => $release['version']], $site, $user);
 
             return 1;
@@ -63,7 +64,7 @@ final class Updates
             if (!$available->has('wordpress')) {
                 return 0;
             }
-            $job = self::enqueue($site, $command, [], $user);
+            $job = self::enqueue($site, $command, [], $user, true, $scheduleId);
             Activity::log('updates_requested', ['job_id' => $job->job_id, 'type' => $type, 'to' => $available['wordpress']['to']], $site, $user);
 
             return 1;
@@ -75,7 +76,7 @@ final class Updates
             ->values();
 
         foreach ($ids->chunk(max(1, min(10, (int) config('ocm.updates.chunk_size')))) as $chunk) {
-            $job = self::enqueue($site, $command, [self::ARG_NAMES[$type] => $chunk->values()->all()], $user, false);
+            $job = self::enqueue($site, $command, [self::ARG_NAMES[$type] => $chunk->values()->all()], $user, false, $scheduleId);
             Activity::log('updates_requested', [
                 'job_id' => $job->job_id,
                 'type' => $type,
@@ -91,7 +92,7 @@ final class Updates
      *
      * @param array<string, mixed> $args
      */
-    private static function enqueue(Site $site, string $command, array $args, ?User $user, bool $deduplicate = true): SiteJob
+    private static function enqueue(Site $site, string $command, array $args, ?User $user, bool $deduplicate = true, ?int $scheduleId = null): SiteJob
     {
         $visual = Visual::enabled();
         $backup = Backups::enabled() && Backups::supported($site);
@@ -103,6 +104,9 @@ final class Updates
         $job = JobQueue::enqueue($site, $command, $args, $user, $deduplicate, $until);
         if ($job->status !== 'pending') {
             return $job;
+        }
+        if ($scheduleId !== null && $job->update_schedule_id === null) {
+            $job->forceFill(['update_schedule_id' => $scheduleId])->save();
         }
         if ($visual && $command !== 'db.cleanup') {
             Visual::attach($site, $job);

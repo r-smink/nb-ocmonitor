@@ -44,6 +44,15 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/updates', [UpdateController::class, 'index'])->name('updates.index');
     Route::post('/updates', [UpdateController::class, 'store'])->name('updates.store')->can('manage-sites')->middleware('throttle:30,1');
     Route::get('/pagespeed', [PageSpeedController::class, 'index'])->name('pagespeed.index');
+    Route::get('/updates/automatisch', [\App\Http\Controllers\UpdateScheduleController::class, 'index'])->name('updates.schedules.index');
+    Route::middleware('can:manage-sites')->group(function () {
+        Route::get('/updates/automatisch/nieuw', [\App\Http\Controllers\UpdateScheduleController::class, 'create'])->name('updates.schedules.create');
+        Route::post('/updates/automatisch', [\App\Http\Controllers\UpdateScheduleController::class, 'store'])->name('updates.schedules.store');
+        Route::get('/updates/automatisch/{schedule}', [\App\Http\Controllers\UpdateScheduleController::class, 'edit'])->name('updates.schedules.edit');
+        Route::put('/updates/automatisch/{schedule}', [\App\Http\Controllers\UpdateScheduleController::class, 'update'])->name('updates.schedules.update');
+        Route::delete('/updates/automatisch/{schedule}', [\App\Http\Controllers\UpdateScheduleController::class, 'destroy'])->name('updates.schedules.destroy');
+        Route::post('/updates/automatisch/{schedule}/nu', [\App\Http\Controllers\UpdateScheduleController::class, 'runNow'])->name('updates.schedules.run')->middleware('throttle:10,1');
+    });
 
     Route::get('/klanten', [CustomerController::class, 'index'])->name('customers.index');
     Route::get('/klanten/nieuw', [CustomerController::class, 'create'])->name('customers.create')->can('manage-sites');
