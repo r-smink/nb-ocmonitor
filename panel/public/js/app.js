@@ -101,4 +101,65 @@ document.addEventListener('DOMContentLoaded', function () {
     };
     setTimeout(tick, delay);
   }
+
+  // Sitedetail: icoonbalk met scrollspy. <nav data-scrollspy> met <a data-spy-link="key">, secties <section data-spy="key">.
+  // De sectie met het grootste zichtbare deel (onder de sticky kop) markeert zijn icoon; klikken zet hem meteen.
+  const rail = document.querySelector('[data-scrollspy]');
+  if (rail) {
+    const links = {};
+    rail.querySelectorAll('[data-spy-link]').forEach(function (a) { links[a.dataset.spyLink] = a; });
+    const order = Object.keys(links);
+    const visible = {};
+    let lockedUntil = 0;
+    const setActive = function (key) {
+      order.forEach(function (k) {
+        links[k].classList.toggle('on', k === key);
+        if (k === key) links[k].setAttribute('aria-current', 'true'); else links[k].removeAttribute('aria-current');
+      });
+    };
+    const fromHash = function () {
+      const key = (window.location.hash || '').replace('#sd-', '');
+      return links[key] ? key : null;
+    };
+    setActive(fromHash() || order[0]);
+    order.forEach(function (k) {
+      links[k].addEventListener('click', function () {
+        setActive(k);
+        // Tijdens het (smooth) scrollen niet laten terugspringen door de observer.
+        lockedUntil = Date.now() + 900;
+      });
+    });
+    if ('IntersectionObserver' in window) {
+      const thresholds = [];
+      for (let i = 0; i <= 20; i++) thresholds.push(i / 20);
+      const observer = new IntersectionObserver(function (entries) {
+        // "Het meest in beeld": zichtbaar deel ten opzichte van wat er maximaal in de band past. Zo wint een
+        // korte sectie die helemaal in beeld is van een lange volgende sectie die er half in staat.
+        entries.forEach(function (e) {
+          const room = Math.min(e.boundingClientRect.height, e.rootBounds ? e.rootBounds.height : window.innerHeight) || 1;
+          visible[e.target.dataset.spy] = e.isIntersecting ? e.intersectionRect.height / room : 0;
+        });
+        if (Date.now() < lockedUntil) return;
+        let best = null;
+        let bestHeight = 0;
+        order.forEach(function (k) {
+          if ((visible[k] || 0) > bestHeight) { best = k; bestHeight = visible[k]; }
+        });
+        if (best) setActive(best);
+      }, { rootMargin: '-88px 0px -55% 0px', threshold: thresholds });
+      document.querySelectorAll('section[data-spy]').forEach(function (s) { observer.observe(s); });
+      // Helemaal onderaan krijgt een korte laatste sectie nooit het grootste stuk van de band: dan die markeren.
+      let ticking = false;
+      window.addEventListener('scroll', function () {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(function () {
+          ticking = false;
+          if (Date.now() >= lockedUntil && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+            setActive(order[order.length - 1]);
+          }
+        });
+      }, { passive: true });
+    }
+  }
 });

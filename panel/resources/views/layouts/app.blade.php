@@ -63,7 +63,7 @@
         <a href="{{ route('account.show') }}" @class(['avatar', 'active' => request()->routeIs('account.*')]) title="{{ auth()->user()->name }}" aria-label="Account van {{ auth()->user()->name }}">{{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}</a>
       </div>
     </header>
-    <main @hasSection('refresh') data-refresh="@yield('refresh')" @endif>
+    <main @hasSection('main-class') class="@yield('main-class')" @endif @hasSection('refresh') data-refresh="@yield('refresh')" @endif>
       @include('partials.flash')
       @yield('content')
     </main>

@@ -78,7 +78,7 @@ class BackupsTest extends TestCase
         $this->assertSame(['backup_id' => $backup->backup_id], $create->fresh()->args, 'tijdelijke links weg uit het archief');
         $this->assertTrue(SiteJob::query()->whereIn('command', ['update.plugin', 'update.theme'])->get()->every(fn ($j) => !$j->available_at->isFuture()));
 
-        $page = $this->get('/sites/' . $site->site_id)->assertOk()->assertSee('Backups vóór updates')->assertSee('webshop')->assertSee('Ik begrijp dat bestellingen');
+        $page = $this->get('/sites/' . $site->site_id)->assertOk()->assertSee('id="sd-backups"', false)->assertSee('webshop')->assertSee('Bestellingen en klanten van na');
 
         // Webshop: database alleen met extra bevestiging.
         $this->post("/sites/{$site->site_id}/backups/{$backup->id}/terugzetten", ['database' => 1])->assertSessionHasErrors('backup');
@@ -160,7 +160,7 @@ class BackupsTest extends TestCase
 
         $this->finish($create, $site, ['backup_id' => $full->backup_id, 'db_size' => 10, 'files_size' => 900, 'db_sha256' => str_repeat('a', 64), 'files_sha256' => str_repeat('b', 64)]);
         $this->assertTrue(SiteJob::query()->whereIn('command', ['update.plugin', 'update.theme'])->get()->every(fn ($j) => !$j->available_at->isFuture()));
-        $this->get('/sites/' . $site->site_id)->assertSee('volledige site (database en alle bestanden)')->assertSee('gebruiken deze backup');
+        $this->get('/sites/' . $site->site_id)->assertSee('volledige site (database en alle bestanden)')->assertSee('gebruiken deze back-up');
 
         // Nieuwe update terwijl de volledige backup klaar is: direct door.
         $site->forceFill(['inventory' => $site->inventory])->save();

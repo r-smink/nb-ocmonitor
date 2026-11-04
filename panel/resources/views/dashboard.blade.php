@@ -131,13 +131,12 @@
 
     <section class="panel">
       <div class="panel-head"><h3>Recente wijzigingen</h3><a class="more" href="{{ route('activity.index') }}">Alle activiteit →</a></div>
-      @php($eventLabels = ['plugin.update' => 'Plugin bijgewerkt', 'theme.update' => 'Thema bijgewerkt', 'core.update' => 'WordPress bijgewerkt', 'plugin.install' => 'Plugin geïnstalleerd', 'plugin.activate' => 'Plugin geactiveerd', 'plugin.deactivate' => 'Plugin gedeactiveerd', 'plugin.delete' => 'Plugin verwijderd', 'theme.switch' => 'Ander thema', 'user.created' => 'Gebruiker aangemaakt', 'user.role_changed' => 'Rol gewijzigd', 'option.changed' => 'Instelling gewijzigd', 'plugin.rolled_back' => 'Plugin teruggedraaid', 'theme.rolled_back' => 'Thema teruggedraaid'])
       <ul class="feed">
         @forelse ($events->take(8) as $event)
           <li>
-            <span @class(['fdot', 'crit' => $event->result === 'failed', 'warn' => $event->result !== 'failed' && $event->source === 'unknown', 'ok' => $event->result !== 'failed' && $event->source !== 'unknown'])></span>
+            <span class="fdot {{ $event->dotLevel() }}"></span>
             <span class="t">{{ $event->occurred_at->timezone('Europe/Amsterdam')->isToday() ? $event->occurred_at->timezone('Europe/Amsterdam')->format('H:i') : $event->occurred_at->timezone('Europe/Amsterdam')->format('d-m H:i') }}</span>
-            <span class="grow" title="{{ $event->type }} {{ $event->object }}"><a href="{{ route('sites.show', $event->site) }}">{{ $event->site->name }}</a> · {{ $eventLabels[$event->type] ?? $event->type }}{{ $event->object ? ': ' . \Illuminate\Support\Str::limit(\Illuminate\Support\Str::before($event->object, '/') ?: $event->object, 40) : '' }}@if ($event->from_version && $event->to_version) {{ $event->from_version }} → {{ $event->to_version }}@endif{{ $event->result === 'failed' ? ' (mislukt)' : '' }}</span>
+            <span class="grow" title="{{ $event->type }} {{ $event->object }}"><a href="{{ route('sites.show', $event->site) }}">{{ $event->site->name }}</a> · {{ $event->summary() }}</span>
           </li>
         @empty
           <li class="muted">Geen wijzigingen in de laatste 48 uur.</li>

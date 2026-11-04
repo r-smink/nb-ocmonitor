@@ -124,8 +124,28 @@ class SiteController extends Controller
             );
         }
 
+        // Kwetsbaarheden van deze site, ernstigste eerst, met dezelfde actieknop als op de pagina Kwetsbaarheden.
+        $vulns = collect();
+        $security = [];
+        if ($site->isPaired() && \App\Ocm\Menu::enabled('vulnerabilities')) {
+            $open = Updates::openJobs(collect([$site]));
+            $rank = ['crit' => 0, 'warn' => 1, 'info' => 2];
+            $vulns = collect(\App\Ocm\Vulnerabilities::forSite($site))->map(function (array $m) use ($site, $open) {
+                $issue = ['component' => ['type' => $m['component']['type'], 'slug' => $m['component']['slug']]];
+
+                return $m + ['level' => $m['vulnerability']->level(), 'action' => $m['fixed'] ? \App\Ocm\IssueActions::for($issue, $site, $open, request()->user()) : null];
+            })->sortBy(fn ($m) => $rank[$m['level']] . sprintf('%03d', 100 - (int) (($m['vulnerability']->cvss_score ?? 0) * 10)))->values();
+            foreach ($vulns as $m) {
+                if ($m['fixed'] !== null) {
+                    $security[$m['component']['type'] . ':' . strtolower((string) $m['component']['slug'])] = true;
+                }
+            }
+        }
+
         return view('sites.show', [
             'site' => $site,
+            'vulns' => $vulns,
+            'security' => $security,
             'pairingCode' => $pairingCode,
             'pluginVersion' => PluginPackage::version(),
             'events' => $site->events()->orderByDesc('seq')->limit(100)->get(),
