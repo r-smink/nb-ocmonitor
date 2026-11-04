@@ -29,7 +29,7 @@ class SiteController extends Controller
 
     public function index(Request $request): View
     {
-        $all = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->orderBy('name')->get(), $request->integer('tag') ?: null);
+        $all = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags', 'pinnedNotes'])->orderBy('name')->get(), $request->integer('tag') ?: null);
         SiteIssues::load($all);
         $sites = $all;
         $q = trim((string) $request->query('q', ''));

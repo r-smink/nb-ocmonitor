@@ -66,6 +66,9 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/sites/{site}/backups/volledig', [SiteController::class, 'fullBackup'])->name('sites.backup.full')->can('manage-sites')->middleware('throttle:5,1');
     Route::post('/sites/{site}/backups/{backup}/terugzetten', [SiteController::class, 'restoreBackup'])->name('sites.backup.restore')->can('manage-sites')->middleware('throttle:10,1');
     Route::delete('/sites/{site}/backups/{backup}', [SiteController::class, 'deleteBackup'])->name('sites.backup.delete')->can('manage-sites');
+    Route::post('/sites/{site}/notities', [\App\Http\Controllers\SiteNoteController::class, 'store'])->name('sites.notes.store')->can('manage-sites');
+    Route::post('/sites/{site}/notities/{note}/vastzetten', [\App\Http\Controllers\SiteNoteController::class, 'pin'])->name('sites.notes.pin')->can('manage-sites');
+    Route::delete('/sites/{site}/notities/{note}', [\App\Http\Controllers\SiteNoteController::class, 'destroy'])->name('sites.notes.destroy')->can('manage-sites');
     Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
 
     Route::get('/versies', [VersionController::class, 'index'])->name('versions.index');
@@ -95,6 +98,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
 
     Route::get('/download/nb-ocmonitor-client.zip', PluginDownloadController::class)->name('plugin.download');
     Route::get('/activiteit', [ActivityController::class, 'index'])->name('activity.index');
+    Route::get('/activiteit/export', [ActivityController::class, 'export'])->name('activity.export')->middleware('throttle:10,1');
 
     Route::get('/account', [AccountController::class, 'show'])->name('account.show');
     Route::put('/account/wachtwoord', [AccountController::class, 'updatePassword'])->name('account.password');
@@ -107,6 +111,9 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::get('/instellingen/meldingen', [\App\Http\Controllers\AlertController::class, 'channels'])->name('settings.alerts');
         Route::put('/instellingen/meldingen/{type}', [\App\Http\Controllers\AlertController::class, 'saveChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.channel');
         Route::post('/instellingen/meldingen/{type}/test', [\App\Http\Controllers\AlertController::class, 'testChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.test')->middleware('throttle:10,1');
+        Route::get('/instellingen/api', [\App\Http\Controllers\ApiTokenController::class, 'index'])->name('settings.api');
+        Route::post('/instellingen/api', [\App\Http\Controllers\ApiTokenController::class, 'store'])->name('settings.api.store');
+        Route::delete('/instellingen/api/{token}', [\App\Http\Controllers\ApiTokenController::class, 'destroy'])->name('settings.api.destroy');
         Route::get('/gebruikers', [UserController::class, 'index'])->name('users.index');
         Route::get('/gebruikers/{user}/meldingen', [\App\Http\Controllers\AlertController::class, 'editUser'])->name('users.alerts');
         Route::put('/gebruikers/{user}/meldingen', [\App\Http\Controllers\AlertController::class, 'updateUser'])->name('users.alerts.update');
