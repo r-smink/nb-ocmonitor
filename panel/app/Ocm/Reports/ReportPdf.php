@@ -89,6 +89,16 @@ final class ReportPdf
         }
         // Benoemde pagina's uit reports/pdf/style (achtergrond en marges per soort pagina).
         $mpdf->AddPage(pagesel: 'cover');
+        // Klantnaam op één regel naast het periodekader: de grootste lettergrootte die in de titelkolom past.
+        $column = (210 - 2 * (int) $design['margin_side']) * 0.54 - 2;
+        $view['titleSize'] = 16;
+        foreach ([28, 26, 24, 22, 20, 18, 16] as $size) {
+            $mpdf->SetFont($design['font_heading'], 'B', $size);
+            if ($mpdf->GetStringWidth((string) $data['customer']['name']) <= $column) {
+                $view['titleSize'] = $size;
+                break;
+            }
+        }
         $mpdf->WriteHTML(view('reports.pdf.cover', $view)->render(), \Mpdf\HTMLParserMode::HTML_BODY);
 
         $mpdf->SetPageTemplate($pageTpl ?? '');
