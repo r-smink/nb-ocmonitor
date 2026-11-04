@@ -450,3 +450,13 @@ a.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .export-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin-bottom: 16px; }
 .export-bar label { min-width: 150px; }
 .export-bar .hint { align-self: center; }
+.mb { margin-bottom: 16px; }
+
+/* Update-planning */
+.schedule-list { display: grid; gap: 12px; }
+.schedule { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; padding: 14px 16px; border-radius: var(--radius-md); background: var(--surface-sunken); border-left: 3px solid var(--ok); }
+.schedule.off { border-left-color: var(--text-muted); opacity: .8; }
+.schedule .name { font-weight: 700; color: var(--text-default); }
+.schedule .sub { font-size: var(--text-xs); color: var(--text-muted); }
+.schedule .schedule-actions { display: flex; gap: 8px; grid-row: span 2; }
+.day-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; }

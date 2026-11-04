@@ -72,6 +72,7 @@ final class Visual
                 $check->forceFill(['after_image' => base64_encode($after), 'diff_image' => base64_encode($diff), 'diff_percent' => $percent, 'after_at' => now(), 'status' => 'done'])->save();
                 if ($check->changed()) {
                     Activity::log('visual_change', ['percent' => $percent, 'jobs' => $check->job_ids], $check->site, null);
+                    UpdateSchedules::afterVisualCheck($check);
                 }
             } catch (\Throwable $e) {
                 $check->forceFill(['status' => 'skipped', 'error' => 'Tweede screenshot mislukt: ' . mb_substr($e->getMessage(), 0, 400)])->save();
