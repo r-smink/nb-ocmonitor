@@ -168,8 +168,8 @@ final class ReportPdf
         ];
     }
 
-    /** Breedte/hoogte van de uitsnede op de voorpagina: het bovenste deel van de homepage (16:10). */
-    private const SHOT_RATIO = 0.625;
+    /** Breedte/hoogte van de uitsnede op de voorpagina: het bovenste deel van de homepage (zoals het kader in de mockup). */
+    private const SHOT_RATIO = 0.46;
 
     /**
      * Zet de screenshot (base64 JPEG, volledige pagina) om naar een bestand dat mPDF kan lezen:
@@ -181,7 +181,7 @@ final class ReportPdf
         if ($bytes === false || $bytes === '' || !function_exists('imagecreatefromstring')) {
             return null;
         }
-        $path = $dir . '/covershot-' . substr(sha1($bytes), 0, 16) . '.jpg';
+        $path = $dir . '/covershot-' . substr(sha1($bytes . '|' . self::SHOT_RATIO), 0, 16) . '.jpg';
         if (is_file($path)) {
             return $path;
         }
@@ -206,24 +206,24 @@ final class ReportPdf
         if (!function_exists('imagecreatetruecolor')) {
             return null;
         }
-        $img = imagecreatetruecolor(600, 375);
+        $img = imagecreatetruecolor(600, 276);
         $c = fn (int $r, int $g, int $b) => (int) imagecolorallocate($img, $r, $g, $b);
         imagefill($img, 0, 0, $c(247, 246, 243));
-        imagefilledrectangle($img, 0, 0, 600, 44, $c(255, 255, 255));
-        imagefilledrectangle($img, 24, 16, 120, 28, $c(226, 40, 48));
+        imagefilledrectangle($img, 0, 0, 600, 36, $c(255, 255, 255));
+        imagefilledrectangle($img, 24, 13, 120, 24, $c(226, 40, 48));
         foreach ([300, 360, 420, 480] as $x) {
-            imagefilledrectangle($img, $x, 19, $x + 40, 25, $c(150, 150, 148));
+            imagefilledrectangle($img, $x, 16, $x + 40, 21, $c(150, 150, 148));
         }
-        imagefilledrectangle($img, 0, 44, 600, 230, $c(40, 38, 34));
-        imagefilledrectangle($img, 40, 100, 330, 122, $c(255, 255, 255));
-        imagefilledrectangle($img, 40, 134, 260, 144, $c(169, 167, 161));
-        imagefilledrectangle($img, 40, 168, 150, 196, $c(226, 40, 48));
+        imagefilledrectangle($img, 0, 36, 600, 176, $c(40, 38, 34));
+        imagefilledrectangle($img, 40, 76, 330, 96, $c(255, 255, 255));
+        imagefilledrectangle($img, 40, 106, 260, 115, $c(169, 167, 161));
+        imagefilledrectangle($img, 40, 132, 150, 156, $c(226, 40, 48));
         foreach ([0, 1, 2] as $i) {
             $x = 24 + $i * 192;
-            imagefilledrectangle($img, $x, 252, $x + 168, 350, $c(255, 255, 255));
-            imagefilledrectangle($img, $x + 14, 268, $x + 110, 276, $c(40, 38, 34));
-            imagefilledrectangle($img, $x + 14, 288, $x + 150, 294, $c(169, 167, 161));
-            imagefilledrectangle($img, $x + 14, 302, $x + 130, 308, $c(169, 167, 161));
+            imagefilledrectangle($img, $x, 192, $x + 168, 268, $c(255, 255, 255));
+            imagefilledrectangle($img, $x + 14, 206, $x + 110, 213, $c(40, 38, 34));
+            imagefilledrectangle($img, $x + 14, 224, $x + 150, 229, $c(169, 167, 161));
+            imagefilledrectangle($img, $x + 14, 237, $x + 130, 242, $c(169, 167, 161));
         }
         ob_start();
         imagejpeg($img, null, 85);

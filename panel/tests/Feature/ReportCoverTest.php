@@ -53,7 +53,7 @@ class ReportCoverTest extends TestCase
         $pages = preg_match_all('/\/Type \/Page\b(?!s)/', $pdf);
         $this->assertGreaterThanOrEqual(3, $pages);
         $this->assertSame($pages, $this->backgroundPatterns($pdf), 'elke pagina een achtergrond');
-        $this->assertMatchesRegularExpression('#/Width 600\s*/Height 375#', $pdf, 'screenshot van de voorbeeld-homepage op de voorpagina');
+        $this->assertMatchesRegularExpression('#/Width 600\s*/Height 276#', $pdf, 'screenshot van de voorbeeld-homepage op de voorpagina');
     }
 
     public function test_without_a_cover_background_the_white_cover_text_falls_back_to_the_text_colour(): void
@@ -64,7 +64,7 @@ class ReportCoverTest extends TestCase
         $pdf = ReportPdf::render($data, ReportDesign::normalize([]));
 
         $this->assertSame(0, $this->backgroundPatterns($pdf));
-        $this->assertDoesNotMatchRegularExpression('#/Width 600\s*/Height 375#', $pdf, 'geen screenshot: geen kader');
+        $this->assertDoesNotMatchRegularExpression('#/Width 600\s*/Height 276#', $pdf, 'geen screenshot: geen kader');
     }
 
     public function test_cover_shot_is_the_latest_after_update_screenshot_cropped_to_the_top(): void
@@ -82,7 +82,7 @@ class ReportCoverTest extends TestCase
         $this->assertSame('https://klant.example.nl', $data['cover_shot']['url']);
 
         $pdf = ReportPdf::render($data, ReportDesign::normalize([]));
-        $this->assertMatchesRegularExpression('#/Width 600\s*/Height 375#', $pdf, 'bovenste deel van de homepage (16:10)');
+        $this->assertMatchesRegularExpression('#/Width 600\s*/Height 276#', $pdf, 'bovenste deel van de homepage (zoals het kader in de mockup)');
     }
 
     public function test_customer_without_visual_check_has_no_cover_shot(): void
