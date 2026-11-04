@@ -67,6 +67,14 @@ return [
         'endpoint' => env('OCM_WORDFENCE_FEED', 'https://www.wordfence.com/api/intelligence/v3/vulnerabilities/production'),
     ],
 
+    // Meldingen (ocm:alerts): pas melden als een probleem zo lang open staat; herinnering bij kritiek.
+    'alerts' => [
+        'enabled' => (bool) env('OCM_ALERTS', true),
+        'delay_minutes' => (int) env('OCM_ALERT_DELAY_MINUTES', 10),
+        'repeat_hours' => (int) env('OCM_ALERT_REPEAT_HOURS', 0),
+        'keep_days' => 180,
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),
@@ -81,6 +89,7 @@ return [
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update',
             'backup.create', 'backup.restore', 'db.cleanup', 'license.activate',
             'users.list', 'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor',
+            'plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance', 'security.integrity',
         ],
         'max_jobs_per_site_per_minute' => 30,
         'job_lifetime_seconds' => 300,
@@ -96,6 +105,9 @@ return [
             'backup.restore' => 1200,
             'db.cleanup' => 600,
             'license.activate' => 120,
+            'plugin.install' => 300,
+            'plugin.delete' => 180,
+            'security.integrity' => 300,
         ],
         'max_response_bytes' => 5 * 1024 * 1024,
     ],

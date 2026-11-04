@@ -49,6 +49,9 @@
         @elseif (!$site->isPaired())
           <div class="site-problem info">{{ collect($site->issues())->first()['text'] ?? 'Nog niet gekoppeld' }}</div>
         @endif
+        @foreach ($site->pinnedNotes as $note)
+          <div class="site-note" title="Vastgezette notitie">@include('partials.icon', ['name' => 'pin', 'size' => 13]) {{ \Illuminate\Support\Str::limit($note->body, 90) }}</div>
+        @endforeach
         <div class="site-stats">
           <div><span>WordPress</span><b>{{ $site->wp_version ?? '–' }}</b></div>
           <div><span>PHP</span><b>{{ $site->php_version ?? '–' }}</b></div>

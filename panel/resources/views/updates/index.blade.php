@@ -16,6 +16,7 @@
       <span @class(['chip', 'crit', 'has' => $counts['core'] > 0])>{{ $counts['core'] }} WordPress</span>
     </div>
   </div>
+  @include('updates.tabs')
 
   <div class="toolbar">
     <nav class="tabs-nav">
@@ -103,7 +104,7 @@
                     @endif
                   </td>
                 @endcan
-                <td><a href="{{ route('sites.show', $row['site']) }}"><b>{{ $row['site']->name }}</b></a></td>
+                <td><a href="{{ route('sites.show', $row['site']) }}"><b>{{ $row['site']->name }}</b></a>@foreach ($row['site']->pinnedNotes as $note)<div class="site-note" title="Vastgezette notitie">@include('partials.icon', ['name' => 'pin', 'size' => 12]) {{ \Illuminate\Support\Str::limit($note->body, 70) }}</div>@endforeach</td>
                 <td>{{ $row['name'] }} @if ($row['type'] !== 'core')<span class="muted mono">{{ $row['slug'] }}</span>@endif</td>
                 <td class="muted">{{ $types[$row['type']] }}</td>
                 <td><span class="ver">{{ $row['from'] }}</span> → <span class="ver-to">{{ $row['to'] }}</span></td>

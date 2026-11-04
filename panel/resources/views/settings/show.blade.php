@@ -8,10 +8,7 @@
     </div>
   </div>
 
-  <nav class="tabs-nav mt">
-    <a href="{{ route('settings.show') }}" @class(['on' => request()->routeIs('settings.*')])>Algemeen en menu</a>
-    <a href="{{ route('users.index') }}" @class(['on' => request()->routeIs('users.*')])>Portalgebruikers</a>
-  </nav>
+  @include('settings.tabs')
 
   @php($field = fn (string $key) => \App\Ocm\AppSettings::FIELDS[$key])
   <form method="POST" action="{{ route('settings.update') }}" class="form">
@@ -67,6 +64,16 @@
         </div>
       </section>
     </div>
+
+    <section class="panel">
+      <h3>Meldingen</h3>
+      <p class="note">Wie wat krijgt stel je per gebruiker in (Portalgebruikers of Account); Slack, Teams en webhooks onder het tabblad Meldingen.</p>
+      <div class="form-row mt">
+        @foreach (['alerts_enabled', 'alert_delay_minutes', 'alert_repeat_hours'] as $key)
+          @include('settings.field', ['key' => $key])
+        @endforeach
+      </div>
+    </section>
 
     <section class="panel">
       <h3>PageSpeed en kwetsbaarheden</h3>

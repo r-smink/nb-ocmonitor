@@ -29,7 +29,7 @@ class SiteController extends Controller
 
     public function index(Request $request): View
     {
-        $all = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->orderBy('name')->get(), $request->integer('tag') ?: null);
+        $all = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags', 'pinnedNotes'])->orderBy('name')->get(), $request->integer('tag') ?: null);
         SiteIssues::load($all);
         $sites = $all;
         $q = trim((string) $request->query('q', ''));
@@ -270,14 +270,18 @@ class SiteController extends Controller
     public function queueCommand(Request $request, Site $site): RedirectResponse
     {
         $command = (string) $request->input('command');
-        if (!array_key_exists($command, self::MANUAL_COMMANDS) || !$site->isPaired()) {
+        $allowed = self::MANUAL_COMMANDS + ['security.integrity' => 'Integriteitscontrole'];
+        if (!array_key_exists($command, $allowed) || !$site->isPaired()) {
             abort(422);
+        }
+        if ($command === 'security.integrity' && !$site->supports('0.9.0')) {
+            return back()->withErrors(['command' => 'De integriteitscontrole kan vanaf client-plugin 0.9.0.']);
         }
         $args = $command === 'site.inventory' ? ['refresh' => true] : [];
         $job = JobQueue::enqueue($site, $command, $args, $request->user());
         Activity::log('job_requested', ['job_id' => $job->job_id, 'command' => $command], $site);
 
-        return redirect()->route('sites.show', $site)->with('status', self::MANUAL_COMMANDS[$command] . ' ingepland. Ververs de pagina over een paar seconden.');
+        return redirect()->route('sites.show', $site)->with('status', $allowed[$command] . ' ingepland. Ververs de pagina over een paar seconden.');
     }
 
     public function destroy(Request $request, Site $site): RedirectResponse

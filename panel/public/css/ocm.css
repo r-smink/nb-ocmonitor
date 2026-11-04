@@ -437,3 +437,38 @@ a.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .sla-month.crit b { color: var(--crit); }
 .sla-month.warn b { color: var(--warn-fg); }
 .sla-month small { font-size: var(--text-xs); color: var(--text-muted); }
+/* Meldingen */
+.field-label { display: block; margin-bottom: 8px; font-size: var(--text-sm); font-weight: 600; color: var(--text-default); }
+.check.self-end, label.self-end { align-self: end; min-height: 40px; }
+.channel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.channel-head .right { margin-left: auto; display: flex; gap: 8px; }
+.delivery-error { color: var(--crit); font-size: var(--text-xs); }
+
+/* Notities per site */
+.notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.note-item { padding: 10px 14px; border-radius: var(--radius-md); background: var(--surface-sunken); border-left: 3px solid transparent; }
+.note-item.pinned { border-left-color: var(--warn); background: var(--warn-bg); }
+.note-body { white-space: pre-line; color: var(--text-default); font-size: var(--text-sm); }
+.note-meta { margin-top: 6px; font-size: var(--text-xs); color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--text-muted); font: inherit; font-size: var(--text-xs); text-decoration: underline; cursor: pointer; box-shadow: none; }
+.link-btn:hover { color: var(--text-default); }
+.site-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 5px 8px; border-radius: var(--radius-sm, 8px); background: var(--warn-bg); color: var(--warn-fg); font-size: var(--text-xs); font-weight: 600; }
+.site-note svg { flex: none; margin-top: 1px; }
+
+/* API-tokens */
+.token-once { display: grid; gap: 8px; }
+.token-once code { font-size: 14px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-sunken); word-break: break-all; }
+.export-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin-bottom: 16px; }
+.export-bar label { min-width: 150px; }
+.export-bar .hint { align-self: center; }
+.mb { margin-bottom: 16px; }
+
+/* Update-planning */
+.schedule-list { display: grid; gap: 12px; }
+.schedule { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: center; padding: 14px 16px; border-radius: var(--radius-md); background: var(--surface-sunken); border-left: 3px solid var(--ok); }
+.schedule.off { border-left-color: var(--text-muted); opacity: .8; }
+.schedule .name { font-weight: 700; color: var(--text-default); }
+.schedule .sub { font-size: var(--text-xs); color: var(--text-muted); }
+.schedule .schedule-actions { display: flex; gap: 8px; grid-row: span 2; }
+.day-grid { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.file-list { margin: 6px 0 0; padding-left: 18px; font-size: var(--text-xs); max-height: 220px; overflow: auto; }

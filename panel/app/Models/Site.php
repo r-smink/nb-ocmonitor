@@ -15,7 +15,7 @@ class Site extends Model
 
     protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host'];
 
-    protected $hidden = ['pairing_secret', 'inventory', 'wp_users'];
+    protected $hidden = ['pairing_secret', 'inventory', 'wp_users', 'integrity'];
 
     /** @var list<array{level: string, category: string, text: string}>|null */
     private ?array $issuesCache = null;
@@ -41,12 +41,24 @@ class Site extends Model
             'wp_users' => 'array',
             'wp_users_at' => 'datetime',
             'uptime_since' => 'datetime',
+            'integrity' => 'array',
+            'integrity_at' => 'datetime',
         ];
     }
 
     public function getRouteKeyName(): string
     {
         return 'site_id';
+    }
+
+    public function notes(): HasMany
+    {
+        return $this->hasMany(SiteNote::class)->orderByDesc('pinned')->orderByDesc('id');
+    }
+
+    public function pinnedNotes(): HasMany
+    {
+        return $this->hasMany(SiteNote::class)->where('pinned', true)->orderByDesc('id');
     }
 
     public function customer(): BelongsTo
@@ -63,6 +75,12 @@ class Site extends Model
     public function allTags(): \Illuminate\Support\Collection
     {
         return $this->tags->concat($this->customer?->tags ?? collect())->unique('id')->sortBy('name')->values();
+    }
+
+    /** Heeft deze site minstens deze versie van de client-plugin? */
+    public function supports(string $version): bool
+    {
+        return $this->isPaired() && $this->plugin_version !== null && version_compare($this->plugin_version, $version, '>=');
     }
 
     /** Database opschonen vanuit het panel: plugin 0.6.0+ en scope maintenance. */

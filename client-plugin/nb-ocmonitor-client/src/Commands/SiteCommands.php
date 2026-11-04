@@ -7,6 +7,7 @@ namespace NextBuzz\OcMonitor\Client\Commands;
 use NextBuzz\OcMonitor\Client\CommandContext;
 use NextBuzz\OcMonitor\Client\CommandError;
 use NextBuzz\OcMonitor\Client\CommandRegistry;
+use NextBuzz\OcMonitor\Client\MaintenanceMode;
 use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
@@ -150,6 +151,8 @@ final class SiteCommands
                 'file_mods_allowed' => wp_is_file_mod_allowed('nb_ocm_updates'),
                 'plugin_version' => NB_OCM_VERSION,
             ],
+            'cron' => self::cronHealth(),
+            'maintenance_mode' => MaintenanceMode::status(),
             'last_event_seq' => $this->events->lastSeq(),
         ];
     }
@@ -203,6 +206,41 @@ final class SiteCommands
         $value = get_site_transient($transient);
 
         return is_object($value) && isset($value->{$field}) ? (array) $value->{$field} : [];
+    }
+
+    /**
+     * WP-Cron: hoeveel geplande taken te laat zijn. Draait cron niet (DISABLE_WP_CRON zonder
+     * servercron, of een site zonder bezoekers), dan blijven back-ups, e-mails en updates liggen.
+     *
+     * @return array<string, mixed>
+     */
+    public static function cronHealth(): array
+    {
+        $crons = function_exists('_get_cron_array') ? _get_cron_array() : [];
+        $now = time();
+        $total = 0;
+        $overdue = 0;
+        $oldest = null;
+        foreach ((array) $crons as $timestamp => $hooks) {
+            $count = 0;
+            foreach ((array) $hooks as $events) {
+                $count += count((array) $events);
+            }
+            $total += $count;
+            // Een kwartier speling: bij weinig bezoekers start cron pas bij het volgende bezoek.
+            if ((int) $timestamp < $now - 900) {
+                $overdue += $count;
+                $oldest = $oldest === null ? (int) $timestamp : min($oldest, (int) $timestamp);
+            }
+        }
+
+        return [
+            'disabled' => defined('DISABLE_WP_CRON') && DISABLE_WP_CRON,
+            'alternate' => defined('ALTERNATE_WP_CRON') && ALTERNATE_WP_CRON,
+            'events' => $total,
+            'overdue' => $overdue,
+            'oldest_overdue_seconds' => $oldest !== null ? $now - $oldest : null,
+        ];
     }
 
     /** Wanneer de bestanden van een plugin of thema voor het laatst zijn geschreven (installatie of update). */

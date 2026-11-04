@@ -33,6 +33,9 @@ final class ResultProcessor
             'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
             'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
             'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
+            'security.integrity' => $site->forceFill(['integrity' => $result, 'integrity_at' => now()])->save(),
+            // Na plugin-beheer of de onderhoudsmodus: inventaris bijwerken (zonder update-check bij wordpress.org).
+            'plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance' => JobQueue::enqueue($site, 'site.inventory'),
             default => null,
         };
     }
