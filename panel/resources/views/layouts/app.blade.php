@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>@yield('title', 'Sites') — {{ \App\Ocm\AppSettings::get('app_name') ?: 'OC Monitor' }}</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <script src="/js/theme.js"></script>
-  <link rel="stylesheet" href="/css/ds/styles.css">
-  <link rel="stylesheet" href="/css/serverdash.css">
-  <link rel="stylesheet" href="/css/ocm.css">
-  <script src="/js/app.js" defer></script>
+  @include('partials.assets')
 </head>
 <body class="app-shell">
   @php($navCounts = \App\Ocm\Menu::counts())
