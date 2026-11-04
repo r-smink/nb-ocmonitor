@@ -72,12 +72,14 @@ final class Monitor
             // Het eerste mislukte moment telt als begin van de storing.
             $since = $site->uptime_checked_at && $failures > 1 ? $site->uptime_checked_at : now();
             $site->down_since = $since;
+            Incidents::open($site, $since, $error);
             Activity::log('site_down', ['error' => $error], $site, null);
         } elseif ($state === 'up' && $wasDown) {
+            Incidents::close($site, now());
             Activity::log('site_up', ['down_minutes' => $site->down_since ? (int) $site->down_since->diffInMinutes(now()) : null], $site, null);
             $site->down_since = null;
         }
-        $site->forceFill(['uptime_state' => $state, 'uptime_failures' => min($failures, 65000), 'uptime_checked_at' => now(), 'response_ms' => $ms ?? $site->response_ms])->save();
+        $site->forceFill(['uptime_state' => $state, 'uptime_failures' => min($failures, 65000), 'uptime_checked_at' => now(), 'response_ms' => $ms ?? $site->response_ms, 'uptime_since' => $site->uptime_since ?? now()])->save();
     }
 
     public static function checkSsl(Site $site): void
@@ -163,43 +165,25 @@ final class Monitor
     }
 
     /**
-     * Uptime-percentage en storingen in een periode, uit de losse controles.
+     * Uptime-percentage en storingen in een periode (uit de storingen), plus de gemiddelde
+     * reactietijd (uit de losse controles).
      *
-     * @return array{percent: ?float, checks: int, incidents: int, down_minutes: int, avg_ms: ?int}
+     * @return array{percent: ?float, checks: int, incidents: int, down_minutes: int, avg_ms: ?int, list: \Illuminate\Support\Collection<int, \App\Models\UptimeIncident>}
      */
     public static function stats(Site $site, CarbonImmutable $from, CarbonImmutable $to): array
     {
-        $checks = UptimeCheck::query()->where('site_id', $site->id)->whereBetween('checked_at', [$from, $to])->orderBy('checked_at')->get(['checked_at', 'ok', 'response_ms']);
-        if ($checks->isEmpty()) {
-            return ['percent' => null, 'checks' => 0, 'incidents' => 0, 'down_minutes' => 0, 'avg_ms' => null];
-        }
-        $incidents = 0;
-        $downMinutes = 0;
-        $run = 0;
-        $interval = max(1, (int) config('ocm.monitoring.interval_minutes', 5));
-        foreach ($checks as $check) {
-            if ($check->ok) {
-                if ($run >= self::FAILURES_FOR_DOWN) {
-                    $incidents++;
-                    $downMinutes += $run * $interval;
-                }
-                $run = 0;
-            } else {
-                $run++;
-            }
-        }
-        if ($run >= self::FAILURES_FOR_DOWN) {
-            $incidents++;
-            $downMinutes += $run * $interval;
-        }
-        $ok = $checks->where('ok', true);
+        $period = Incidents::period($site, $from, $to);
+        $checks = UptimeCheck::query()->where('site_id', $site->id)->whereBetween('checked_at', [$from, $to]);
+        $count = (clone $checks)->count();
+        $avg = (clone $checks)->where('ok', true)->avg('response_ms');
 
         return [
-            'percent' => round($ok->count() / $checks->count() * 100, 2),
-            'checks' => $checks->count(),
-            'incidents' => $incidents,
-            'down_minutes' => $downMinutes,
-            'avg_ms' => $ok->isNotEmpty() ? (int) round($ok->avg('response_ms')) : null,
+            'percent' => $count > 0 || $period['incidents'] > 0 ? $period['percent'] : null,
+            'checks' => $count,
+            'incidents' => $period['incidents'],
+            'down_minutes' => $period['down_minutes'],
+            'avg_ms' => $avg !== null ? (int) round((float) $avg) : null,
+            'list' => $period['list'],
         ];
     }
 }

@@ -119,6 +119,10 @@ final class ReportData
         ])->values()->take(40)->all();
 
         $login = $inventory['environment']['login_security'] ?? null;
+        $uptime = \App\Ocm\Monitoring\Monitor::stats($site, $start, $end);
+        $uptime['list'] = $uptime['list']->take(15)->map(fn (\App\Models\UptimeIncident $i) => [
+            'start' => $i->started_at, 'end' => $i->ended_at, 'duration' => $i->durationLabel(), 'cause' => $i->cause,
+        ])->values()->all();
 
         return [
             'name' => $site->name,
@@ -128,7 +132,7 @@ final class ReportData
             'plugins' => count((array) ($inventory['plugins'] ?? [])),
             'themes' => count((array) ($inventory['themes'] ?? [])),
             'https' => $inventory['environment']['https'] ?? null,
-            'uptime' => \App\Ocm\Monitoring\Monitor::stats($site, $start, $end),
+            'uptime' => $uptime,
             'ssl_expires_at' => $site->ssl_expires_at,
             'domain_expires_at' => $site->domain_expires_at,
             'updates' => $updates,

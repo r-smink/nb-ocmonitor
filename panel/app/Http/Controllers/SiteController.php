@@ -138,6 +138,8 @@ class SiteController extends Controller
             'pagespeed' => PagespeedResult::latestPerSite()->get($site->id, collect()),
             'lastUpdated' => self::lastUpdated($site),
             'uptime' => \App\Ocm\Monitoring\Monitor::stats($site, \Carbon\CarbonImmutable::now()->subDays(30), \Carbon\CarbonImmutable::now()),
+            'monthly' => \App\Ocm\Monitoring\Incidents::monthly($site, 6),
+            'incidents' => \App\Models\UptimeIncident::query()->where('site_id', $site->id)->orderByDesc('started_at')->limit(20)->get(),
             'visual' => $site->visualChecks()->latest('id')->first(),
             'backups' => \App\Models\Backup::query()->where('site_id', $site->id)->where(fn ($q) => $q->whereIn('status', ['pending', 'ready', 'restoring'])->orWhere('created_at', '>=', now()->subDays(7)))->latest('id')->limit(10)->get(),
             'wpUsers' => collect((array) (($site->wp_users ?? [])['users'] ?? []))->map(fn ($u) => $u + ['site' => $site]),
