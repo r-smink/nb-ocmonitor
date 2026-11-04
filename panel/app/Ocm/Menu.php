@@ -25,20 +25,21 @@ final class Menu
         'wp-users' => ['WP-gebruikers', 'wp-users.index', ['wp-users.*', 'sites.two-factor'], false],
         'reports' => ['Rapporten', 'reports.index', ['reports.*', 'customers.report', 'customers.report.send'], false],
         'activity' => ['Activiteit', 'activity.index', ['activity.*'], false],
+        'bulk' => ['Bulk-acties', 'bulk.index', ['bulk.*'], false],
     ];
 
     /** Indeling van de zijbalk: groep => onderdelen, in deze volgorde. */
     public const GROUPS = [
         'Monitoring' => ['dashboard', 'sites', 'pagespeed', 'vulnerabilities'],
         'Onderhoud' => ['updates', 'customers', 'reports', 'versions'],
-        'Beheer' => ['licenses', 'wp-users', 'activity'],
+        'Beheer' => ['licenses', 'wp-users', 'bulk', 'activity'],
     ];
 
     /** Icoon per onderdeel (namen uit partials/icon). */
     public const ICONS = [
         'dashboard' => 'grid', 'sites' => 'server', 'pagespeed' => 'gauge', 'vulnerabilities' => 'bug',
         'updates' => 'refresh', 'customers' => 'calendar', 'reports' => 'filetext', 'versions' => 'layers',
-        'licenses' => 'key', 'wp-users' => 'users', 'activity' => 'activity',
+        'licenses' => 'key', 'wp-users' => 'users', 'bulk' => 'check', 'activity' => 'activity',
     ];
 
     /**

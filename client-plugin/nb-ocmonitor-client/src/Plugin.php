@@ -11,6 +11,8 @@ use NextBuzz\OcMonitor\Client\Commands\CleanupCommands;
 use NextBuzz\OcMonitor\Client\Commands\LicenseCommands;
 use NextBuzz\OcMonitor\Client\Commands\UpdateCommands;
 use NextBuzz\OcMonitor\Client\Commands\UserCommands;
+use NextBuzz\OcMonitor\Client\Commands\ManageCommands;
+use NextBuzz\OcMonitor\Client\Commands\IntegrityCommands;
 use NextBuzz\OcMonitor\Client\Security\TwoFactor;
 use NextBuzz\OcMonitor\Client\Events\EventPusher;
 use NextBuzz\OcMonitor\Client\Events\EventRecorder;
@@ -40,6 +42,7 @@ final class Plugin
         $recorder->register();
         (new LoginSecurity($recorder))->register();
         (new TwoFactor($recorder))->register();
+        MaintenanceMode::register();
         $users = new UserCommands($recorder);
         $users->register();
         Cron::register($recorder, $store);
@@ -51,6 +54,8 @@ final class Plugin
         (new BackupCommands($recorder))->registerOn($commands);
         (new CleanupCommands($recorder))->registerOn($commands);
         (new LicenseCommands($recorder))->registerOn($commands);
+        (new ManageCommands($recorder))->registerOn($commands);
+        (new IntegrityCommands())->registerOn($commands);
 
         add_action('rest_api_init', static function () use ($commands, $recorder): void {
             (new RestController(static function () use ($commands, $recorder): Endpoint {

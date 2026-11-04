@@ -22,6 +22,8 @@ use NextBuzz\OcMonitor\Client\Security\LoginSecurity;
 use NextBuzz\OcMonitor\Client\Security\TrustedDevice;
 use NextBuzz\OcMonitor\Client\Commands\UserArgs;
 use NextBuzz\OcMonitor\Client\Commands\LicenseArgs;
+use NextBuzz\OcMonitor\Client\Commands\ManageArgs;
+use NextBuzz\OcMonitor\Client\Commands\IntegrityCheck;
 use NextBuzz\OcMonitor\Client\Release;
 use NextBuzz\OcMonitor\Client\Backup\BackupArgs;
 use NextBuzz\OcMonitor\Client\Backup\BackupCrypto;
@@ -598,6 +600,73 @@ test('licentie-argumenten: vaste methodes, nette sleutel, alleen licentie-opties
         }
         check($threw, 'geval ' . $i);
     }
+});
+
+test('plugin-beheer: alleen een wordpress.org-slug, deze plugin is beschermd', function () {
+    check(ManageArgs::install(['slug' => 'wordfence']) === ['slug' => 'wordfence', 'activate' => false]);
+    check(ManageArgs::install(['slug' => 'contact-form-7', 'activate' => true])['activate'] === true);
+    $bad = [
+        ['slug' => 'https://evil.example/x.zip'], ['slug' => '../x'], ['slug' => 'Wordfence'], ['slug' => ''],
+        ['slug' => 'nb-ocmonitor-client'], ['slug' => 'akismet', 'url' => 'https://x'], ['slug' => 'akismet', 'activate' => 'ja'],
+    ];
+    foreach ($bad as $i => $args) {
+        $threw = false;
+        try {
+            ManageArgs::install($args);
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'install ' . $i);
+    }
+    check(ManageArgs::plugins(['plugins' => ['akismet/akismet.php']]) === ['akismet/akismet.php']);
+    check(ManageArgs::plugins(['plugins' => ['nb-ocmonitor-client/nb-ocmonitor-client.php']], true) === ['nb-ocmonitor-client/nb-ocmonitor-client.php']);
+    $threw = false;
+    try {
+        ManageArgs::plugins(['plugins' => ['nb-ocmonitor-client/nb-ocmonitor-client.php']]);
+    } catch (CommandError $e) {
+        $threw = $e->errorCode() === 'forbidden';
+    }
+    check($threw, 'eigen plugin deactiveren/verwijderen moet geweigerd worden');
+});
+
+test('onderhoudsmodus: geldige argumenten, hoogstens 7 dagen', function () {
+    $on = ManageArgs::maintenance(['enabled' => true, 'message' => ' Even geduld '], NOW);
+    check($on['enabled'] === true && $on['message'] === 'Even geduld' && $on['until'] === NOW + ManageArgs::MAX_MAINTENANCE_SECONDS);
+    check(ManageArgs::maintenance(['enabled' => true, 'until' => NOW + 3600], NOW)['until'] === NOW + 3600);
+    check(ManageArgs::maintenance(['enabled' => true, 'until' => NOW + 30 * 86400], NOW)['until'] === NOW + ManageArgs::MAX_MAINTENANCE_SECONDS);
+    check(ManageArgs::maintenance(['enabled' => false], NOW) === ['enabled' => false, 'message' => '', 'until' => null]);
+    foreach ([['enabled' => 'true'], ['enabled' => true, 'until' => NOW - 1], ['enabled' => true, 'message' => str_repeat('x', 501)], ['enabled' => true, 'html' => '<b>']] as $i => $args) {
+        $threw = false;
+        try {
+            ManageArgs::maintenance($args, NOW);
+        } catch (CommandError $e) {
+            $threw = true;
+        }
+        check($threw, 'maintenance ' . $i);
+    }
+});
+
+test('integriteit: gewijzigd, ontbrekend en extra PHP worden herkend', function () {
+    $checksums = ['wp-includes/a.php' => md5('a'), 'wp-includes/b.php' => md5('b'), 'wp-admin/c.php' => md5('c'), 'wp-content/x.php' => md5('x')];
+    $core = IntegrityCheck::coreOnly($checksums);
+    check(!isset($core['wp-content/x.php']));
+    $files = ['wp-includes/a.php' => 'a', 'wp-includes/b.php' => 'B!', 'wp-includes/evil.php' => '<?php', 'wp-includes/readme.txt' => 'x'];
+    $r = IntegrityCheck::compare($core, function (string $p) use ($files): ?string {
+        return isset($files[$p]) ? md5($files[$p]) : null;
+    }, array_keys($files));
+    check($r['modified'] === ['wp-includes/b.php'], 'modified');
+    check($r['missing'] === ['wp-admin/c.php'], 'missing');
+    check($r['unknown'] === ['wp-includes/evil.php'], 'alleen php telt als onbekend');
+    check($r['counts'] === ['modified' => 1, 'missing' => 1, 'unknown' => 1]);
+
+    check(IntegrityCheck::unknownRootPhp(['index.php', 'wp-config.php', 'x1.php', 'robots.txt', 'shell.PHTML'], ['index.php' => md5('i')]) === ['shell.PHTML', 'x1.php']);
+
+    $plugin = IntegrityCheck::pluginChecksums(['files' => ['a.php' => ['md5' => md5('a')], 'b.php' => ['md5' => [md5('b1'), md5('b2')]], '../x.php' => ['md5' => 'x']]]);
+    check(count($plugin) === 2, 'paden met .. vallen weg');
+    $r = IntegrityCheck::compare($plugin, function (string $p): ?string {
+        return $p === 'a.php' ? md5('a') : md5('b2');
+    }, ['a.php', 'b.php']);
+    check($r['modified'] === [] && $r['missing'] === [], 'een van meerdere md5-waarden is genoeg');
 });
 
 foreach ($failures as $failure) {

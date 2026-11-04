@@ -25,6 +25,9 @@ final class SiteIssues
 
     public const LEVEL_RANK = ['crit' => 0, 'warn' => 1, 'info' => 2];
 
+    /** @var array<string, \App\Models\PluginDirectoryEntry>|null gegevens van wordpress.org, per load() opnieuw */
+    private static ?array $directory = null;
+
     /** Hoe ver terug events meetellen (nieuwe beheerders, gewijzigde site-URL e.d.). */
     public const EVENT_WINDOW_DAYS = 14;
 
@@ -58,6 +61,7 @@ final class SiteIssues
      */
     public static function load(Collection $sites): void
     {
+        self::$directory = PluginDirectory::all();
         $paired = $sites->filter(fn (Site $s) => $s->isPaired());
         $ids = $paired->pluck('id')->all();
         $events = collect();
@@ -176,6 +180,7 @@ final class SiteIssues
         }
 
         self::environment($site, $add);
+        self::health($site, $add, self::$directory ?? []);
         self::events($events, $add);
 
         // Updates
@@ -298,6 +303,84 @@ final class SiteIssues
             } elseif ($eol !== null && now()->addDays(90)->gt($eol)) {
                 $add('info', 'beveiliging', "PHP {$m[1]}: beveiligingsupdates stoppen op " . \Illuminate\Support\Carbon::parse($eol)->format('d-m-Y'), ['key' => 'php-eol']);
             }
+        }
+    }
+
+    /**
+     * Integriteit (plugin 0.9.0+), WP-Cron, onderhoudsmodus, inactieve thema's, gesloten en
+     * verlaten plugins en een grote autoload.
+     *
+     * @param callable(string, string, string, array<string, mixed>=): void $add
+     * @param array<string, \App\Models\PluginDirectoryEntry> $directory
+     */
+    private static function health(Site $site, callable $add, array $directory): void
+    {
+        $inv = $site->inventory ?? [];
+        $integrity = $site->integrity;
+        if (is_array($integrity)) {
+            $core = $integrity['core'] ?? null;
+            if (is_array($core)) {
+                $n = (int) (($core['counts']['modified'] ?? 0) + ($core['counts']['unknown'] ?? 0));
+                if ($n > 0) {
+                    $add('crit', 'beveiliging', "WordPress-bestanden gewijzigd of toegevoegd ({$n}): vergelijk met wordpress.org", ['key' => 'integrity-core']);
+                }
+            }
+            $root = (array) ($integrity['root_unknown'] ?? []);
+            if ($root !== []) {
+                $add('crit', 'beveiliging', 'Onbekende PHP-bestanden in de hoofdmap: ' . implode(', ', array_slice($root, 0, 5)) . (count($root) > 5 ? ' …' : ''), ['key' => 'integrity-root']);
+            }
+            $uploads = (int) ($integrity['uploads_php_count'] ?? 0);
+            if ($uploads > 0) {
+                $add('crit', 'beveiliging', "PHP-bestanden in uploads ({$uploads}): daar hoort geen code, mogelijk een webshell", ['key' => 'integrity-uploads']);
+            }
+            foreach ((array) ($integrity['plugins'] ?? []) as $slug => $r) {
+                if (is_array($r) && ($r['status'] ?? '') === 'modified') {
+                    $n = (int) (($r['counts']['modified'] ?? 0) + ($r['counts']['unknown'] ?? 0));
+                    $add('warn', 'beveiliging', "Plugin {$slug} wijkt af van wordpress.org ({$n} bestand" . ($n === 1 ? '' : 'en') . ')', ['key' => 'integrity-plugin:' . $slug]);
+                }
+            }
+        }
+
+        $cron = $inv['cron'] ?? null;
+        if (is_array($cron) && (int) ($cron['overdue'] ?? 0) > 0 && (int) ($cron['oldest_overdue_seconds'] ?? 0) >= 6 * 3600) {
+            $hours = intdiv((int) $cron['oldest_overdue_seconds'], 3600);
+            $add('warn', 'beschikbaarheid', 'WP-Cron loopt achter: ' . (int) $cron['overdue'] . ' taak/taken te laat, de oudste ' . ($hours >= 48 ? intdiv($hours, 24) . ' dagen' : $hours . ' uur')
+                . (!empty($cron['disabled']) ? ' (DISABLE_WP_CRON staat aan: controleer de servercron)' : ''), ['key' => 'cron']);
+        }
+
+        $maintenance = $inv['maintenance_mode'] ?? null;
+        if (is_array($maintenance) && !empty($maintenance['enabled'])) {
+            $until = !empty($maintenance['until']) ? ' tot ' . \Illuminate\Support\Carbon::createFromTimestamp((int) $maintenance['until'])->timezone('Europe/Amsterdam')->format('d-m H:i') : '';
+            $add('warn', 'beschikbaarheid', 'Onderhoudsmodus staat aan' . $until . ': bezoekers zien de site niet', ['key' => 'maintenance']);
+        }
+
+        // Inactieve thema's, behalve het hoofdthema van een child-thema en één standaardthema als reserve.
+        $themes = collect((array) ($inv['themes'] ?? []))->filter(fn ($t) => is_array($t));
+        $parent = $themes->firstWhere('active', true)['parent'] ?? null;
+        $inactive = $themes->filter(fn ($t) => empty($t['active']) && ($t['stylesheet'] ?? null) !== $parent);
+        $spare = $inactive->contains(fn ($t) => str_starts_with((string) ($t['stylesheet'] ?? ''), 'twenty')) ? 1 : 0;
+        $extra = $inactive->count() - $spare;
+        if ($extra > 0) {
+            $add('info', 'beveiliging', $extra . ' inactie' . ($extra === 1 ? 'f thema' : 've thema\'s') . ' (verwijderen verkleint het aanvalsoppervlak; één standaardthema als reserve is genoeg)', ['key' => 'inactive-themes']);
+        }
+
+        foreach ((array) ($inv['plugins'] ?? []) as $p) {
+            $entry = is_array($p) ? ($directory[(string) ($p['slug'] ?? '')] ?? null) : null;
+            if ($entry === null) {
+                continue;
+            }
+            if ($entry->closed) {
+                $add('warn', 'beveiliging', "Plugin {$p['name']} is gesloten op wordpress.org" . ($entry->closed_reason ? " ({$entry->closed_reason})" : '') . ': zoek een vervanger', ['key' => 'abandoned:' . $p['slug']]);
+            } elseif ($entry->last_updated !== null && $entry->last_updated->lt(now()->subYears(PluginDirectory::ABANDONED_YEARS))) {
+                $add('info', 'beveiliging', "Plugin {$p['name']} is sinds " . $entry->last_updated->format('m-Y') . ' niet bijgewerkt (mogelijk verlaten)', ['key' => 'abandoned:' . $p['slug']]);
+            }
+        }
+
+        $autoload = (int) (($inv['cleanup'] ?? [])['autoload_bytes'] ?? 0);
+        if ($autoload > 2 * 1024 * 1024) {
+            $add('warn', 'prestaties', 'Autoload-opties zijn ' . number_format($autoload / 1048576, 1, ',', '') . ' MB: dat wordt bij elke pagina geladen', ['key' => 'autoload']);
+        } elseif ($autoload > 1024 * 1024) {
+            $add('info', 'prestaties', 'Autoload-opties zijn ' . number_format($autoload / 1048576, 1, ',', '') . ' MB', ['key' => 'autoload']);
         }
     }
 

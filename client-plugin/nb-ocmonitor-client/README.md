@@ -1,6 +1,6 @@
 # NB OC Monitor Client (WordPress-plugin)
 
-Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.8.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, een versleutelde backup vóór updates, database opschonen, en licenties van premium plugins activeren.
+Koppelt een WordPress-site aan het NB OC Monitor-panel. Versie 0.9.0: koppelen, site-info als heartbeat, inventaris, registratie van **alle** wijzigingen, updates van plugins, thema's, vertalingen en WordPress vanuit het panel, inlogbeveiliging, gebruikersbeheer met 2FA, zichzelf bijwerken met ondertekende releases, een versleutelde backup vóór updates, database opschonen, licenties van premium plugins activeren, plugins installeren (alleen van wordpress.org), activeren, deactiveren en verwijderen, een onderhoudsmodus, een integriteitscontrole van WordPress en plugins tegen de checksums van wordpress.org, en de gezondheid van WP-Cron.
 
 Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `sodium_compat` dat WordPress meelevert.
 
