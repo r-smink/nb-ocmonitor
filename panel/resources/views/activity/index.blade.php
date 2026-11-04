@@ -14,6 +14,16 @@
     </div>
   </div>
 
+  @if ($tab === 'sites' || auth()->user()->can('manage-users'))
+    <form method="GET" action="{{ route('activity.export') }}" class="export-bar">
+      <input type="hidden" name="tab" value="{{ $tab }}">
+      <label>Van<input type="date" name="van" value="{{ now('Europe/Amsterdam')->subDays(30)->toDateString() }}"></label>
+      <label>Tot<input type="date" name="tot" value="{{ now('Europe/Amsterdam')->toDateString() }}"></label>
+      <button class="btn ghost small" type="submit">@include('partials.icon', ['name' => 'download', 'size' => 15]) Exporteren (CSV)</button>
+      <span class="hint">{{ $tab === 'audit' ? 'Met de hash-keten, zodat je de export kunt controleren. Maximaal een jaar.' : 'Maximaal een jaar.' }}</span>
+    </form>
+  @endif
+
   <div class="panel">
     @if ($tab === 'sites')
       @include('partials.events-table', ['events' => $events, 'showSite' => true])

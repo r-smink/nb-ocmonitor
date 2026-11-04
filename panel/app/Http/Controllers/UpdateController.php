@@ -17,7 +17,7 @@ class UpdateController extends Controller
 
     public function index(Request $request): View
     {
-        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
+        $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags', 'pinnedNotes'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
         $open = Updates::openJobs($sites);
 
         $rows = collect();

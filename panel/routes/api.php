@@ -19,3 +19,10 @@ Route::get('/plugin/nb-ocmonitor-client-{version}.zip', function (string $versio
 Route::post('/sites/{siteId}/events', EventsController::class)
     ->where('siteId', 'site_[a-z0-9]{1,59}')
     ->middleware('throttle:240,1');
+
+// Alleen-lezen API voor eigen koppelingen. Token aanmaken: Instellingen → API.
+Route::prefix('v1')->middleware([\App\Http\Middleware\ApiTokenAuth::class, 'throttle:120,1'])->group(function () {
+    Route::get('/sites', [\App\Http\Controllers\Api\V1Controller::class, 'sites']);
+    Route::get('/sites/{siteId}', [\App\Http\Controllers\Api\V1Controller::class, 'site'])->where('siteId', 'site_[a-z0-9]{1,59}');
+    Route::get('/updates', [\App\Http\Controllers\Api\V1Controller::class, 'updates']);
+});

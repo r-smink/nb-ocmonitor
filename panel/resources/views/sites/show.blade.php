@@ -47,6 +47,46 @@
     </div>
   @endif
 
+  @php($notes = $site->notes()->with('user')->get())
+  <div class="panel" id="notities">
+    <div class="panel-head"><h3>Notities</h3>@if ($notes->isNotEmpty())<span class="badge">{{ $notes->count() }}</span>@endif<span class="hint">Afspraken en bijzonderheden, bijv. "klant wil in december geen updates".</span></div>
+    @if ($notes->isNotEmpty())
+      <ul class="notes">
+        @foreach ($notes as $note)
+          <li @class(['note-item', 'pinned' => $note->pinned])>
+            <div class="note-body">{{ $note->body }}</div>
+            <div class="note-meta">
+              {{ $note->user?->name ?? 'Onbekend' }} · {{ $note->created_at->timezone('Europe/Amsterdam')->format('d-m-Y H:i') }}@if ($note->pinned) · <b>vastgezet</b>@endif
+              @can('manage-sites')
+                <form method="POST" action="{{ route('sites.notes.pin', [$site, $note]) }}" class="inline">
+                  @csrf
+                  <button class="link-btn" type="submit">{{ $note->pinned ? 'Losmaken' : 'Vastzetten' }}</button>
+                </form>
+                @if (auth()->user()->isAdmin() || $note->user_id === auth()->id())
+                  <form method="POST" action="{{ route('sites.notes.destroy', [$site, $note]) }}" class="inline" data-confirm="Deze notitie verwijderen?">
+                    @csrf
+                    @method('DELETE')
+                    <button class="link-btn" type="submit">Verwijderen</button>
+                  </form>
+                @endif
+              @endcan
+            </div>
+          </li>
+        @endforeach
+      </ul>
+    @endif
+    @can('manage-sites')
+      <form method="POST" action="{{ route('sites.notes.store', $site) }}" class="form mt">
+        @csrf
+        <label>Nieuwe notitie<textarea name="body" rows="2" maxlength="2000" required></textarea></label>
+        <div class="actions">
+          <button class="btn small" type="submit">Toevoegen</button>
+          <label class="check"><input type="checkbox" name="pinned" value="1"> Vastzetten (ook zichtbaar op de sitekaart en bij updates)</label>
+        </div>
+      </form>
+    @endcan
+  </div>
+
   @if (!$site->isPaired())
     <div class="panel">
       <div class="panel-head"><h3>Koppelen</h3></div>

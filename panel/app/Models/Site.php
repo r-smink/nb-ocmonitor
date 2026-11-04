@@ -48,6 +48,16 @@ class Site extends Model
         return 'site_id';
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(SiteNote::class)->orderByDesc('pinned')->orderByDesc('id');
+    }
+
+    public function pinnedNotes(): HasMany
+    {
+        return $this->hasMany(SiteNote::class)->where('pinned', true)->orderByDesc('id');
+    }
+
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
