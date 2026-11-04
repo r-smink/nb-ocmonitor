@@ -11,6 +11,8 @@
     @endcan
   </div>
 
+  {{-- In de kalender en de lijst de websitenaam tonen (meerdere sites: "Site A +2"); zonder sites de klantnaam. --}}
+  @php($siteLabel = fn ($c) => $c->sites->isEmpty() ? $c->name : $c->sites->sortBy('name')->first()->name . ($c->sites->count() > 1 ? ' +' . ($c->sites->count() - 1) : ''))
   <div class="cols cols-wide">
     <section class="panel">
       <div class="panel-head">
@@ -28,7 +30,7 @@
           <div @class(['out' => !$day->isSameMonth($month), 'today' => $day->isSameDay($today)])>
             <span class="day-no">{{ $day->day }}</span>
             @foreach ($days[$day->toDateString()] ?? [] as $item)
-              <a class="cal-item {{ $item['state'] }}" href="{{ route('customers.show', $item['customer']) }}" title="{{ $item['customer']->name }} · {{ ['done' => 'afgerond', 'overdue' => 'achterstallig', 'planned' => 'gepland'][$item['state']] }}">{{ $item['customer']->name }}</a>
+              <a class="cal-item {{ $item['state'] }}" href="{{ route('customers.show', $item['customer']) }}" title="{{ $item['customer']->sites->sortBy('name')->pluck('name')->implode(', ') ?: $item['customer']->name }} ({{ $item['customer']->name }}) · {{ ['done' => 'afgerond', 'overdue' => 'achterstallig', 'planned' => 'gepland'][$item['state']] }}">{{ $siteLabel($item['customer']) }}</a>
             @endforeach
           </div>
         @endfor
@@ -43,8 +45,8 @@
           @php($overdue = $row['date']->lessThan($today))
           <div class="mini-row">
             <div class="grow">
-              <a class="name" href="{{ route('customers.show', $row['customer']) }}">{{ $row['customer']->name }}</a>
-              <div @class(['sub', 'issue-text', 'crit' => $overdue])>{{ $row['date']->format('d-m-Y') }}{{ $overdue ? ' · achterstallig' : ($row['date']->isSameDay($today) ? ' · vandaag' : '') }}</div>
+              <a class="name" href="{{ route('customers.show', $row['customer']) }}" title="{{ $row['customer']->sites->sortBy('name')->pluck('name')->implode(', ') }}">{{ $siteLabel($row['customer']) }}</a>
+              <div @class(['sub', 'issue-text', 'crit' => $overdue])>@if ($row['customer']->sites->isNotEmpty()){{ $row['customer']->name }} · @endif{{ $row['date']->format('d-m-Y') }}{{ $overdue ? ' · achterstallig' : ($row['date']->isSameDay($today) ? ' · vandaag' : '') }}</div>
             </div>
             <span class="sub">{{ $row['customer']->sites->count() }} {{ $row['customer']->sites->count() === 1 ? 'site' : 'sites' }} · {{ $row['customer']->sites->sum(fn ($s) => count($s->availableUpdates())) }} upd.</span>
           </div>
