@@ -34,7 +34,8 @@ final class ReportDesign
         'margin_top' => 30,
         'margin_bottom' => 22,
         'margin_side' => 18,
-        'cover_text_color' => '#1F2937',
+        // Wit op de donkere Next Buzz-voorpagina. Zonder eigen achtergrond valt ReportPdf terug op color_text.
+        'cover_text_color' => '#FFFFFF',
     ];
 
     /** @return array<string, mixed> */

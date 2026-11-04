@@ -57,6 +57,7 @@ final class ReportData
             'sections' => $customer->sections(),
             'sites' => $siteData,
             'runs' => $runs,
+            'cover_shot' => self::coverShot($sites),
             'totals' => [
                 'sites' => count($siteData),
                 'updates' => array_sum(array_map(fn ($s) => count(array_filter($s['updates'], fn ($u) => $u['ok'])), $siteData)),
@@ -65,6 +66,26 @@ final class ReportData
                 'blocked_ips' => array_sum(array_column(array_column($siteData, 'security'), 'locked')),
             ],
         ];
+    }
+
+    /**
+     * Screenshot van de homepage na de laatste updates (visuele controle) van de eerste site die er
+     * een heeft, voor de voorpagina. null = geen opname, dan laat de voorpagina het kader weg.
+     *
+     * @param Collection<int, Site> $sites
+     * @return array{url: string, image: string, at: ?CarbonImmutable}|null image = base64 JPEG
+     */
+    private static function coverShot(Collection $sites): ?array
+    {
+        foreach ($sites->filter(fn (Site $s) => $s->isPaired()) as $site) {
+            $check = \App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'done')->whereNotNull('after_image')
+                ->latest('after_at')->first(['id', 'after_image', 'after_at']);
+            if ($check !== null) {
+                return ['url' => $site->url, 'image' => (string) $check->after_image, 'at' => $check->after_at ? CarbonImmutable::parse($check->after_at) : null];
+            }
+        }
+
+        return null;
     }
 
     /**

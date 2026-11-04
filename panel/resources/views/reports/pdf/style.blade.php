@@ -1,10 +1,14 @@
 {{-- CSS voor mPDF (geen flex/grid; tabellen voor de opmaak). --}}
-@page {
-  @if ($pageImage) background: url("{{ $pageImage }}") no-repeat 0 0; background-image-resize: 6; @endif
-}
-@page :first {
-  margin-top: 0; margin-bottom: 0; margin-header: 0; margin-footer: 0;
+{{-- Benoemde pagina's: mPDF negeert een achtergrondafbeelding op een gewone @page als de pagina's met
+     AddPage() worden gemaakt. ReportPdf opent de voorpagina met "cover" en de rest met "inhoud". --}}
+@page cover {
+  margin-top: 0; margin-bottom: 0; margin-left: 0; margin-right: 0; margin-header: 0; margin-footer: 0;
   @if ($coverImage) background: url("{{ $coverImage }}") no-repeat 0 0; background-image-resize: 6; @endif
+}
+@page inhoud {
+  margin-top: {{ $design['margin_top'] }}mm; margin-bottom: {{ $design['margin_bottom'] }}mm;
+  margin-left: {{ $design['margin_side'] }}mm; margin-right: {{ $design['margin_side'] }}mm; margin-header: 8mm; margin-footer: 8mm;
+  @if ($pageImage) background: url("{{ $pageImage }}") no-repeat 0 0; background-image-resize: 6; @endif
 }
 body { font-family: {{ $design['font_body'] }}; color: {{ $design['color_text'] }}; font-size: {{ $design['font_size'] }}pt; line-height: 1.45; }
 h1, h2, h3 { font-family: {{ $design['font_heading'] }}; color: {{ $design['color_accent'] }}; font-weight: bold; margin: 0; }
