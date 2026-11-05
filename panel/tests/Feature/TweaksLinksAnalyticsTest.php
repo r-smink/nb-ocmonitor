@@ -144,16 +144,20 @@ class TweaksLinksAnalyticsTest extends TestCase
         $this->assertStringContainsString('access_type=offline', $location);
         $this->assertStringContainsString("form-action 'self' https://accounts.google.com", (string) $redirect->headers->get('Content-Security-Policy'));
 
-        $this->get('/instellingen/google/terug?state=fout&code=x')->assertRedirect('/instellingen')->assertSessionHasErrors('google');
+        $this->get('/instellingen/google/terug?state=fout&code=x')->assertStatus(400)->assertSee('Ongeldig of verlopen');
 
         parse_str((string) parse_url($location, PHP_URL_QUERY), $q);
         Http::fake([
             'oauth2.googleapis.com/token' => Http::response(['access_token' => 'at', 'refresh_token' => 'rt', 'expires_in' => 3600]),
             'www.googleapis.com/oauth2/v2/userinfo' => Http::response(['email' => 'seo@nextbuzz.nl']),
         ]);
-        $this->post('/instellingen/google/koppelen');
-        $state = session('google_oauth_state');
-        $this->get('/instellingen/google/terug?state=' . $state . '&code=abc')->assertRedirect('/instellingen')->assertSessionHas('status');
+        // Terugkeer zonder sessie (zoals de browser doet bij SameSite=strict): de state is genoeg.
+        auth()->logout();
+        $this->flushSession();
+        $this->get('/instellingen/google/terug?state=' . $q['state'] . '&code=abc')->assertOk()
+            ->assertSee('Google gekoppeld als seo@nextbuzz.nl')->assertSee('http-equiv="refresh"', false);
+        // De state werkt maar één keer.
+        $this->get('/instellingen/google/terug?state=' . $q['state'] . '&code=abc')->assertStatus(400);
         $this->assertTrue(GoogleApi::connected());
         $this->assertSame('seo@nextbuzz.nl', GoogleApi::status()['email']);
         $this->assertStringNotContainsString('"rt"', json_encode(Setting::get(GoogleApi::SETTING)));

@@ -84,29 +84,43 @@ class SiteToolsController extends Controller
         if (!GoogleApi::configured()) {
             return back()->withErrors(['google' => 'Vul eerst de OAuth-client-ID en het geheim in.']);
         }
-        $state = bin2hex(random_bytes(16));
-        $request->session()->put('google_oauth_state', $state);
+        // State op de server (niet in de sessie): bij de terugkeer van Google ontbreekt het sessiecookie.
+        $state = bin2hex(random_bytes(24));
+        Cache::put('ocm.google.state.' . $state, $request->user()->id, now()->addMinutes(15));
 
         return redirect()->away(GoogleApi::authUrl($state));
     }
 
-    public function callback(Request $request): RedirectResponse
+    /**
+     * Terugkeer van Google. Er is hier geen sessie (zie routes/web.php); de eenmalige state bepaalt
+     * welke beheerder het koppelen startte. Daarna een pagina die binnen het panel doorstuurt, zodat
+     * de browser het sessiecookie weer meestuurt.
+     */
+    public function callback(Request $request): \Illuminate\Http\Response
     {
-        $expected = (string) $request->session()->pull('google_oauth_state', '');
-        if ($expected === '' || !hash_equals($expected, (string) $request->query('state'))) {
-            return redirect()->route('settings.show')->withErrors(['google' => 'Ongeldig antwoord van Google (state klopt niet). Probeer opnieuw.']);
+        $state = preg_replace('/[^a-f0-9]/', '', (string) $request->query('state'));
+        $userId = $state !== '' ? Cache::pull('ocm.google.state.' . $state) : null;
+        $user = $userId ? \App\Models\User::query()->find($userId) : null;
+
+        if ($user === null || !$user->isAdmin()) {
+            return self::done(false, 'Ongeldig of verlopen antwoord van Google. Start het koppelen opnieuw vanuit Instellingen.');
         }
         if ($request->filled('error')) {
-            return redirect()->route('settings.show')->withErrors(['google' => 'Google: ' . $request->query('error')]);
+            return self::done(false, 'Google: ' . mb_substr((string) $request->query('error'), 0, 100));
         }
         try {
             $email = GoogleApi::connect((string) $request->query('code'));
         } catch (\Throwable $e) {
-            return redirect()->route('settings.show')->withErrors(['google' => $e->getMessage()]);
+            return self::done(false, $e->getMessage());
         }
-        Activity::log('google_connected', ['email' => $email]);
+        Activity::log('google_connected', ['email' => $email], null, $user);
 
-        return redirect()->route('settings.show')->with('status', "Google gekoppeld als {$email}.");
+        return self::done(true, "Google gekoppeld als {$email}.");
+    }
+
+    private static function done(bool $ok, string $message): \Illuminate\Http\Response
+    {
+        return response()->view('settings.google-done', ['ok' => $ok, 'message' => $message], $ok ? 200 : 400);
     }
 
     public function disconnect(): RedirectResponse
