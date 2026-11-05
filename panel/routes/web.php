@@ -67,6 +67,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::put('/klanten/{customer}', [CustomerController::class, 'update'])->name('customers.update')->can('manage-sites');
     Route::delete('/klanten/{customer}', [CustomerController::class, 'destroy'])->name('customers.destroy')->can('manage-sites');
     Route::post('/klanten/{customer}/onderhoud', [CustomerController::class, 'complete'])->name('customers.complete')->can('manage-sites');
+    Route::post('/klanten/{customer}/onderhoud/verplaatsen', [CustomerController::class, 'move'])->name('customers.move')->can('manage-sites');
     Route::post('/klanten/{customer}/onderhoud/{run}/heropenen', [CustomerController::class, 'reopen'])->name('customers.reopen')->can('manage-sites');
     Route::post('/klanten/{customer}/updates', [CustomerController::class, 'startUpdates'])->name('customers.updates')->can('manage-sites')->middleware('throttle:20,1');
     Route::match(['get', 'post'], '/klanten/{customer}/rapport/bekijken', [CustomerController::class, 'report'])->name('customers.report')->middleware('throttle:30,1');

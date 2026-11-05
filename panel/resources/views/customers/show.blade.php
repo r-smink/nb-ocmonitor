@@ -17,7 +17,8 @@
       <div class="panel-head">
         <h3>Volgend onderhoud</h3>
         @if ($next)
-          <span @class(['badge', 'sec' => $next->lessThan($today)])>{{ $next->format('d-m-Y') }}{{ $next->lessThan($today) ? ' · achterstallig' : '' }}</span>
+          @php($nextPlanned = $customer->plannedOn($next))
+          <span @class(['badge', 'sec' => $nextPlanned->lessThan($today)])>{{ $nextPlanned->format('d-m-Y') }}{{ $nextPlanned->lessThan($today) ? ' · achterstallig' : '' }}{{ !$nextPlanned->isSameDay($next) ? ' · verplaatst van ' . $next->format('d-m') : '' }}</span>
         @endif
       </div>
       @if (!$customer->hasContract())
@@ -98,9 +99,22 @@
           <tbody>
             @foreach (array_reverse($schedule) as $date)
               @php($run = $runs->get($date->toDateString()))
-              @php($state = $run?->done_at ? 'done' : ($date->lessThan($today) ? 'overdue' : 'planned'))
+              @php($state = $run?->done_at ? 'done' : ($customer->plannedOn($date)->lessThan($today) ? 'overdue' : 'planned'))
               <tr>
-                <td>{{ $date->format('d-m-Y') }}</td>
+                @php($plannedDate = $customer->plannedOn($date))
+                <td>
+                  {{ $plannedDate->format('d-m-Y') }}@if (!$plannedDate->isSameDay($date)) <span class="muted">(contract: {{ $date->format('d-m') }})</span>@endif
+                  @can('manage-sites')
+                    @if (!$run?->done_at)
+                      <form method="POST" action="{{ route('customers.move', $customer) }}" class="row-actions">
+                        @csrf
+                        <input type="hidden" name="due_on" value="{{ $date->toDateString() }}">
+                        <input type="date" name="planned_on" value="{{ $plannedDate->toDateString() }}" class="w-auto" aria-label="Nieuwe datum voor de beurt van {{ $date->format('d-m-Y') }}">
+                        <button class="btn ghost small" type="submit">Verplaatsen</button>
+                      </form>
+                    @endif
+                  @endcan
+                </td>
                 <td><span @class(['state', 'bad' => $state === 'overdue', 'idle' => $state === 'planned'])>{{ ['done' => 'afgerond', 'overdue' => 'niet afgerond', 'planned' => 'gepland'][$state] }}</span></td>
                 <td>{{ $run?->done_at ? ($run->doneBy?->name ?? '') . ' · ' . $run->done_at->timezone('Europe/Amsterdam')->format('d-m-Y') : '' }}</td>
                 <td>{{ $run?->report_sent_at?->timezone('Europe/Amsterdam')->format('d-m-Y') ?? '' }}</td>
