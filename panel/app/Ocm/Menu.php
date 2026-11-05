@@ -26,12 +26,13 @@ final class Menu
         'reports' => ['Rapporten', 'reports.index', ['reports.*', 'customers.report', 'customers.report.send'], false],
         'activity' => ['Activiteit', 'activity.index', ['activity.*'], false],
         'bulk' => ['Bulk-acties', 'bulk.index', ['bulk.*'], false],
+        'links' => ['Kapotte links', 'links.index', ['links.*', 'sites.links.request'], false],
     ];
 
     /** Indeling van de zijbalk: groep => onderdelen, in deze volgorde. */
     public const GROUPS = [
         'Monitoring' => ['dashboard', 'sites', 'pagespeed', 'vulnerabilities'],
-        'Onderhoud' => ['updates', 'customers', 'reports', 'versions'],
+        'Onderhoud' => ['updates', 'customers', 'reports', 'versions', 'links'],
         'Beheer' => ['licenses', 'wp-users', 'bulk', 'activity'],
     ];
 
@@ -39,7 +40,7 @@ final class Menu
     public const ICONS = [
         'dashboard' => 'grid', 'sites' => 'server', 'pagespeed' => 'gauge', 'vulnerabilities' => 'bug',
         'updates' => 'refresh', 'customers' => 'calendar', 'reports' => 'filetext', 'versions' => 'layers',
-        'licenses' => 'key', 'wp-users' => 'users', 'bulk' => 'check', 'activity' => 'activity',
+        'licenses' => 'key', 'wp-users' => 'users', 'bulk' => 'check', 'activity' => 'activity', 'links' => 'filetext',
     ];
 
     /**

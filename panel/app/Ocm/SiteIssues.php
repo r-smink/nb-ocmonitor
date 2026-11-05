@@ -161,6 +161,13 @@ final class SiteIssues
                 $add('warn', 'updates', "{$name}: licentie niet actief, dus geen updates", ['license' => $key]);
             }
         }
+        if (\App\Ocm\Menu::enabled('links')) {
+            $broken = \App\Models\BrokenLink::query()->where('site_id', $site->id)->whereNull('ignored_at')->get(['internal']);
+            if ($broken->isNotEmpty()) {
+                $internal = $broken->where('internal', true)->count();
+                $add($internal > 0 ? 'warn' : 'info', 'prestaties', $broken->count() . ' kapotte link' . ($broken->count() === 1 ? '' : 's') . ($internal > 0 ? " ({$internal} intern)" : ''));
+            }
+        }
         if ($visual !== null && $visual->changed()) {
             $add('warn', 'updates', 'Homepage zichtbaar veranderd na updates (' . number_format($visual->diff_percent, 0) . '%): controleer de site', ['visual' => $visual->id]);
         }

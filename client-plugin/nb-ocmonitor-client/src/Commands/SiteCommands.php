@@ -136,6 +136,7 @@ final class SiteCommands
             'themes' => $themes,
             'cleanup' => CleanupCommands::stats(),
             'licenses' => LicenseCommands::status(),
+            'tweaks' => \NextBuzz\OcMonitor\Client\Tweaks::current(),
             'translations_pending' => count(wp_get_translation_updates()),
             'users' => ['total' => (int) $users['total_users'], 'by_role' => $users['avail_roles']],
             'environment' => [
@@ -147,6 +148,7 @@ final class SiteCommands
                 'users_can_register' => (bool) get_option('users_can_register'),
                 'default_role' => (string) get_option('default_role'),
                 'login_security' => LoginSecurity::summary(),
+                'panel_login' => \NextBuzz\OcMonitor\Client\Security\PanelLogin::enabled(),
                 'two_factor' => TwoFactor::disabledByConstant() ? 'disabled' : TwoFactor::mode(),
                 'file_mods_allowed' => wp_is_file_mod_allowed('nb_ocm_updates'),
                 'plugin_version' => NB_OCM_VERSION,

@@ -20,7 +20,10 @@
       'updates' => $paired ? ['Updates', 'refresh', $openUpdates, 'warn'] : null,
       'backups' => $paired ? ['Back-ups', 'clock', 0, null] : null,
       'beveiliging' => $paired ? ['Beveiliging', 'shield', $openVulns, 'crit'] : null,
+      'schakelaars' => $paired ? ['Schakelaars', 'check', 0, null] : null,
       'pagespeed' => $showPsi ? ['PageSpeed', 'gauge', 0, null] : null,
+      'links' => $paired && \App\Ocm\Menu::enabled('links') ? ['Kapotte links', 'filetext', \App\Models\BrokenLink::query()->where('site_id', $site->id)->whereNull('ignored_at')->count(), 'warn'] : null,
+      'bezoekers' => $paired ? ['Bezoekers', 'activity', 0, null] : null,
       'gebruikers' => $showUsers ? ['Gebruikers', 'users', 0, null] : null,
       'activiteit' => ['Activiteit', 'activity', 0, null],
   ]))
@@ -45,8 +48,17 @@
         @include('sites.show.backups')
         @include('sites.show.security')
       @endif
+      @if ($paired)
+        @include('sites.show.tweaks')
+      @endif
       @if ($showPsi)
         @include('sites.show.pagespeed')
+      @endif
+      @if ($paired && \App\Ocm\Menu::enabled('links'))
+        @include('sites.show.links')
+      @endif
+      @if ($paired)
+        @include('sites.show.analytics')
       @endif
       @if ($showUsers)
         @include('sites.show.users')

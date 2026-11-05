@@ -125,6 +125,7 @@ class CustomerController extends Controller
         $run = MaintenanceRun::query()->firstOrNew(['customer_id' => $customer->id, 'due_on' => $data['due_on']]);
         $run->fill(['done_at' => now(), 'done_by' => $request->user()->id, 'notes' => $data['notes'] ?? null])->save();
         Activity::log('maintenance_done', ['customer' => $customer->name, 'due_on' => $data['due_on']]);
+        \App\Ocm\SiteSchedule::pushCustomer($customer);
 
         $status = 'Onderhoud van ' . CarbonImmutable::parse($data['due_on'])->format('d-m-Y') . ' afgerond.';
         if (!empty($data['send_report'])) {
@@ -139,6 +140,8 @@ class CustomerController extends Controller
     {
         abort_unless($run->customer_id === $customer->id, 404);
         $run->update(['done_at' => null, 'done_by' => null]);
+
+        \App\Ocm\SiteSchedule::pushCustomer($customer);
 
         return back()->with('status', 'Onderhoud weer op open gezet.');
     }
@@ -276,11 +279,16 @@ class CustomerController extends Controller
 
     private function syncSites(Customer $customer, Request $request): void
     {
+        $previous = Site::query()->where('customer_id', $customer->id)->get();
         $tags = array_map('intval', array_filter((array) $request->input('tags', []), 'is_numeric'));
         $customer->tags()->sync(\App\Models\Tag::query()->whereIn('id', $tags)->pluck('id')->all());
         $ids = array_map('intval', (array) $request->input('sites', []));
         Site::query()->where('customer_id', $customer->id)->whereNotIn('id', $ids)->update(['customer_id' => null]);
         Site::query()->whereIn('id', $ids)->update(['customer_id' => $customer->id, 'client_name' => $customer->name]);
+        \App\Ocm\SiteSchedule::pushCustomer($customer->fresh());
+        foreach ($previous->whereNotIn('id', $ids ?? []) as $old) {
+            \App\Ocm\SiteSchedule::push($old->fresh());
+        }
     }
 
     /** Sites zonder klant, plus de sites van deze klant. */

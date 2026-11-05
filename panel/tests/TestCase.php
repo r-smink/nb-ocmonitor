@@ -21,6 +21,8 @@ abstract class TestCase extends BaseTestCase
         $this->panelKeys = KeyPair::fromSeed(str_repeat("\x01", 32));
         $this->siteKeys = KeyPair::fromSeed(str_repeat("\x02", 32));
         config([
+            // Niet de echte releasemap: anders hangt de uitkomst af van welke plugin-release er net klaarstaat.
+            'ocm.client_plugin_dist' => storage_path('framework/testing/no-dist'),
             'app.url' => 'https://ocm.test',
             'ocm.panel_public_key' => $this->panelKeys->publicKeyB64(),
             'ocm.signing_key' => $this->panelKeys->secretKeyB64(),

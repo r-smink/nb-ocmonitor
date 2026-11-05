@@ -17,4 +17,10 @@ Schedule::command('ocm:queue-checks --users')->dailyAt('03:45')->withoutOverlapp
 Schedule::command('ocm:alerts')->everyFiveMinutes()->withoutOverlapping(10);
 Schedule::command('ocm:update-schedules')->everyFiveMinutes()->withoutOverlapping(30);
 Schedule::command('ocm:queue-checks --integrity')->dailyAt('04:15')->withoutOverlapping();
+Schedule::call(function () {
+    foreach (\App\Models\Site::query()->with('customer')->whereNotNull('public_key')->get() as $site) {
+        \App\Ocm\SiteSchedule::push($site);
+    }
+})->name('ocm:schedule-widget')->dailyAt('06:00')->withoutOverlapping();
+Schedule::command('ocm:links')->everyTenMinutes()->withoutOverlapping(30);
 Schedule::command('ocm:plugin-directory')->dailyAt('05:10')->withoutOverlapping(60);

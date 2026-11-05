@@ -43,6 +43,10 @@ final class Plugin
         (new LoginSecurity($recorder))->register();
         (new TwoFactor($recorder))->register();
         MaintenanceMode::register();
+        Tweaks::register();
+        Admin\DashboardWidget::register();
+        $panelLogin = new Security\PanelLogin($recorder);
+        $panelLogin->register();
         $users = new UserCommands($recorder);
         $users->register();
         Cron::register($recorder, $store);
@@ -56,6 +60,15 @@ final class Plugin
         (new LicenseCommands($recorder))->registerOn($commands);
         (new ManageCommands($recorder))->registerOn($commands);
         (new IntegrityCommands())->registerOn($commands);
+        $commands->add('auth.login_link', 'users', static function (array $args) use ($panelLogin): array {
+            return $panelLogin->link($args);
+        });
+        $commands->add('site.schedule', 'maintenance', static function (array $args): array {
+            return Admin\DashboardWidget::store($args);
+        });
+        $commands->add('tweaks.set', 'maintenance', static function (array $args) use ($recorder): array {
+            return Tweaks::set($args, $recorder);
+        });
 
         add_action('rest_api_init', static function () use ($commands, $recorder): void {
             (new RestController(static function () use ($commands, $recorder): Endpoint {

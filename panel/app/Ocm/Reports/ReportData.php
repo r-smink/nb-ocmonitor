@@ -93,6 +93,16 @@ final class ReportData
      * @param Collection<string, PagespeedResult> $pagespeed
      * @return array<string, mixed>
      */
+    /** @return array<string, mixed>|null */
+    private static function analytics(Site $site, CarbonImmutable $start, CarbonImmutable $end): ?array
+    {
+        try {
+            return \App\Ocm\GoogleApi::report($site, $start, $end->min(CarbonImmutable::today()->subDay()));
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     private static function site(Site $site, Collection $events, Collection $pagespeed, CarbonImmutable $start, CarbonImmutable $end): array
     {
         $inventory = $site->inventory ?? [];
@@ -154,6 +164,9 @@ final class ReportData
             'themes' => count((array) ($inventory['themes'] ?? [])),
             'https' => $inventory['environment']['https'] ?? null,
             'uptime' => $uptime,
+            'analytics' => self::analytics($site, $start, $end),
+            'broken_links' => \App\Models\BrokenLink::query()->where('site_id', $site->id)->whereNull('ignored_at')->orderByDesc('internal')->limit(30)->get()
+                ->map(fn ($l) => ['url' => $l->url, 'error' => $l->label(), 'page' => $l->found_on[0] ?? null, 'internal' => $l->internal])->all(),
             'ssl_expires_at' => $site->ssl_expires_at,
             'domain_expires_at' => $site->domain_expires_at,
             'updates' => $updates,

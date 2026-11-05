@@ -23,6 +23,10 @@ class CleanupCommand extends Command
 
         \App\Models\UptimeCheck::query()->where('checked_at', '<', now()->subDays((int) config('ocm.monitoring.keep_days', 120)))->delete();
         \App\Models\VisualCheck::query()->where('created_at', '<', now()->subDays(90))->delete();
+        // Ongebruikte inloglinks uit het archief (ze zijn na 60 seconden toch verlopen).
+        SiteJob::query()->where('command', 'auth.login_link')->where('created_at', '<', now()->subMinutes(5))->get()
+            ->filter(fn (SiteJob $j) => isset(($j->result ?? [])['url']))
+            ->each(fn (SiteJob $j) => $j->update(['result' => ['user' => ($j->result ?? [])['user'] ?? null, 'expired' => true]]));
         // Licentiesleutels uit mislukte of geweigerde activeringen weghalen.
         SiteJob::query()->where('command', 'license.activate')->whereIn('status', ['failed', 'rejected', 'done'])->get()
             ->filter(fn (SiteJob $j) => isset(($j->args ?? [])['key']))

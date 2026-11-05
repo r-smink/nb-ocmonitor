@@ -81,6 +81,21 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/sites/{site}/visueel/{check}/gezien', [SiteController::class, 'reviewVisual'])->name('sites.visual.review')->can('manage-sites');
 
     Route::get('/versies', [VersionController::class, 'index'])->name('versions.index');
+    Route::get('/kapotte-links', [\App\Http\Controllers\SiteToolsController::class, 'links'])->name('links.index');
+    Route::middleware('can:manage-sites')->group(function () {
+        Route::post('/sites/{site}/schakelaars', [\App\Http\Controllers\SiteToolsController::class, 'tweaks'])->name('sites.tweaks')->middleware('throttle:20,1');
+        Route::post('/sites/{site}/links', [\App\Http\Controllers\SiteToolsController::class, 'requestLinks'])->name('sites.links.request')->middleware('throttle:10,1');
+        Route::post('/kapotte-links/{link}/negeren', [\App\Http\Controllers\SiteToolsController::class, 'ignoreLink'])->name('links.ignore');
+        Route::post('/sites/{site}/google', [\App\Http\Controllers\SiteToolsController::class, 'analytics'])->name('sites.analytics');
+    });
+    Route::middleware('can:manage-users')->group(function () {
+        Route::post('/sites/{site}/inloggen', [\App\Http\Controllers\PanelLoginController::class, 'start'])->name('sites.login')->middleware('throttle:20,1');
+        Route::get('/sites/{site}/inloggen/{job}', [\App\Http\Controllers\PanelLoginController::class, 'wait'])->name('sites.login.wait');
+        Route::post('/instellingen/google/koppelen', [\App\Http\Controllers\SiteToolsController::class, 'connect'])->name('analytics.connect');
+        Route::get('/instellingen/google/terug', [\App\Http\Controllers\SiteToolsController::class, 'callback'])->name('analytics.callback');
+        Route::post('/instellingen/google/ontkoppelen', [\App\Http\Controllers\SiteToolsController::class, 'disconnect'])->name('analytics.disconnect');
+        Route::post('/instellingen/google/vernieuwen', [\App\Http\Controllers\SiteToolsController::class, 'refreshGoogleLists'])->name('analytics.refresh');
+    });
     Route::get('/kwetsbaarheden', [\App\Http\Controllers\VulnerabilityController::class, 'index'])->name('vulnerabilities.index');
     Route::get('/licenties', [LicenseController::class, 'index'])->name('licenses.index');
     Route::middleware('can:manage-sites')->group(function () {

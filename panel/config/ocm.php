@@ -75,6 +75,20 @@ return [
         'keep_days' => 180,
     ],
 
+    // Kapotte links (ocm:links in de scheduler, vanaf het panel).
+    'links' => [
+        'interval_days' => (int) env('OCM_LINKS_INTERVAL_DAYS', 7),
+        'max_pages' => 250,
+        'max_links' => 3000,
+        'cache_days' => 7,
+    ],
+
+    // Google Analytics 4 en Search Console: OAuth-client (type "Intern") uit Google Cloud.
+    'google' => [
+        'client_id' => env('OCM_GOOGLE_CLIENT_ID'),
+        'client_secret' => env('OCM_GOOGLE_CLIENT_SECRET'),
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),
@@ -87,7 +101,7 @@ return [
         'allowed_commands' => [
             'site.info', 'site.inventory', 'events.pull', 'events.ack',
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update',
-            'backup.create', 'backup.restore', 'db.cleanup', 'license.activate',
+            'backup.create', 'backup.restore', 'db.cleanup', 'license.activate', 'tweaks.set', 'auth.login_link', 'site.schedule',
             'users.list', 'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor',
             'plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance', 'security.integrity',
         ],

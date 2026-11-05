@@ -36,6 +36,15 @@
                 </select>
                 <button class="btn ghost small" type="submit">Uitvoeren</button>
               </form>
+              @can('manage-users')
+                @if (!$u['locked'] && \App\Http\Controllers\PanelLoginController::blockedReason($u['site']) === null)
+                  <form method="POST" action="{{ route('sites.login', $u['site']) }}" target="_blank" class="inline">
+                    @csrf
+                    <input type="hidden" name="user_id" value="{{ $u['id'] }}">
+                    <button class="btn small" type="submit" title="Inloggen in WP-admin als {{ $u['login'] }} (eenmalige link)">Inloggen</button>
+                  </form>
+                @endif
+              @endcan
             </td>
           @endcan
         </tr>
