@@ -27,6 +27,11 @@ Route::middleware('guest')->group(function () {
     Route::post('/login/2fa/instellen', [TwoFactorController::class, 'confirm'])->middleware('throttle:20,1');
 });
 
+// Terugkeer van Google na "Koppelen met Google". Buiten de inlogcontrole: de browser stuurt het
+// sessiecookie (SameSite=strict) niet mee bij een navigatie vanaf accounts.google.com. De controle
+// zit in de eenmalige state, die op de server aan de beheerder is gekoppeld.
+Route::get('/instellingen/google/terug', [\App\Http\Controllers\SiteToolsController::class, 'callback'])->name('analytics.callback')->middleware('throttle:20,1');
+
 Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
@@ -92,7 +97,6 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::post('/sites/{site}/inloggen', [\App\Http\Controllers\PanelLoginController::class, 'start'])->name('sites.login')->middleware('throttle:20,1');
         Route::get('/sites/{site}/inloggen/{job}', [\App\Http\Controllers\PanelLoginController::class, 'wait'])->name('sites.login.wait');
         Route::post('/instellingen/google/koppelen', [\App\Http\Controllers\SiteToolsController::class, 'connect'])->name('analytics.connect');
-        Route::get('/instellingen/google/terug', [\App\Http\Controllers\SiteToolsController::class, 'callback'])->name('analytics.callback');
         Route::post('/instellingen/google/ontkoppelen', [\App\Http\Controllers\SiteToolsController::class, 'disconnect'])->name('analytics.disconnect');
         Route::post('/instellingen/google/vernieuwen', [\App\Http\Controllers\SiteToolsController::class, 'refreshGoogleLists'])->name('analytics.refresh');
     });
