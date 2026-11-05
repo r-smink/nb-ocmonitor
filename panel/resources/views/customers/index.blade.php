@@ -27,15 +27,25 @@
       <div class="cal">
         @foreach (['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'] as $dow)<div class="dow">{{ $dow }}</div>@endforeach
         @for ($day = $gridStart; $day->lessThanOrEqualTo($gridEnd); $day = $day->addDay())
-          <div @class(['out' => !$day->isSameMonth($month), 'today' => $day->isSameDay($today)])>
+          <div @class(['out' => !$day->isSameMonth($month), 'today' => $day->isSameDay($today)]) @can('manage-sites') data-cal-drop="{{ $day->toDateString() }}" @endcan>
             <span class="day-no">{{ $day->day }}</span>
             @foreach ($days[$day->toDateString()] ?? [] as $item)
-              <a class="cal-item {{ $item['state'] }}" href="{{ route('customers.show', $item['customer']) }}" title="{{ $item['customer']->sites->sortBy('name')->pluck('name')->implode(', ') ?: $item['customer']->name }} ({{ $item['customer']->name }}) · {{ ['done' => 'afgerond', 'overdue' => 'achterstallig', 'planned' => 'gepland'][$item['state']] }}">{{ $siteLabel($item['customer']) }}</a>
+              @php($movable = $item['state'] !== 'done' && auth()->user()->can('manage-sites'))
+              <a @class(['cal-item', $item['state'], 'moved' => $item['moved']]) href="{{ route('customers.show', $item['customer']) }}"
+                 title="{{ $item['customer']->sites->sortBy('name')->pluck('name')->implode(', ') ?: $item['customer']->name }} ({{ $item['customer']->name }}) · {{ ['done' => 'afgerond', 'overdue' => 'achterstallig', 'planned' => 'gepland'][$item['state']] }}{{ $item['moved'] ? ' · verplaatst van ' . \Carbon\Carbon::parse($item['due'])->format('d-m') : '' }}{{ $movable ? ' · sleep naar een andere dag om te verplaatsen' : '' }}"
+                 @if ($movable) draggable="true" data-cal-move="{{ route('customers.move', $item['customer']) }}" data-due="{{ $item['due'] }}" @endif>{{ $siteLabel($item['customer']) }}</a>
             @endforeach
           </div>
         @endfor
       </div>
-      <p class="note mt">Blauw = gepland, groen = afgerond, rood = achterstallig. Valt een beurt in het weekend, dan staat hij op maandag.</p>
+      <p class="note mt">Blauw = gepland, groen = afgerond, rood = achterstallig, gestippeld = verplaatst. Valt een beurt in het weekend, dan staat hij op maandag. Sleep een beurt naar een andere dag om alleen die beurt te verplaatsen; de volgende datums blijven hetzelfde.</p>
+      @can('manage-sites')
+        <form method="POST" id="calMoveForm" class="hidden">
+          @csrf
+          <input type="hidden" name="due_on">
+          <input type="hidden" name="planned_on">
+        </form>
+      @endcan
     </section>
 
     <section class="panel">

@@ -36,13 +36,14 @@ class CustomerController extends Controller
         $days = [];
         foreach ($customers as $customer) {
             $done = $customer->runs->whereNotNull('done_at')->keyBy(fn (MaintenanceRun $r) => $r->due_on->toDateString());
-            foreach ($customer->dueDates($gridStart, $gridEnd) as $date) {
-                $key = $date->toDateString();
-                $days[$key][] = ['customer' => $customer, 'state' => isset($done[$key]) ? 'done' : ($date->lessThan($today) ? 'overdue' : 'planned')];
+            foreach ($customer->plannedDates($gridStart, $gridEnd) as $item) {
+                $due = $item['due']->toDateString();
+                $days[$item['date']->toDateString()][] = ['customer' => $customer, 'due' => $due, 'moved' => $item['moved'],
+                    'state' => isset($done[$due]) ? 'done' : ($item['date']->lessThan($today) ? 'overdue' : 'planned')];
             }
         }
 
-        $upcoming = $customers->map(fn (Customer $c) => ['customer' => $c, 'date' => $c->nextDue($today)])
+        $upcoming = $customers->map(fn (Customer $c) => ['customer' => $c, 'date' => ($due = $c->nextDue($today)) ? $c->plannedOn($due) : null])
             ->filter(fn ($row) => $row['date'] !== null)->sortBy(fn ($row) => $row['date']->timestamp)->values();
 
         return view('customers.index', [
@@ -122,7 +123,7 @@ class CustomerController extends Controller
             'notes' => ['nullable', 'string', 'max:5000'],
             'send_report' => ['nullable', 'boolean'],
         ]);
-        $run = MaintenanceRun::query()->firstOrNew(['customer_id' => $customer->id, 'due_on' => $data['due_on']]);
+        $run = self::run($customer, $data['due_on']);
         $run->fill(['done_at' => now(), 'done_by' => $request->user()->id, 'notes' => $data['notes'] ?? null])->save();
         Activity::log('maintenance_done', ['customer' => $customer->name, 'due_on' => $data['due_on']]);
         \App\Ocm\SiteSchedule::pushCustomer($customer);
@@ -134,6 +135,41 @@ class CustomerController extends Controller
         }
 
         return back()->with('status', $status);
+    }
+
+    /**
+     * Eén beurt naar een andere dag verplaatsen (slepen in de kalender of de datum op de klantpagina).
+     * Alleen deze beurt: het contract en de volgende datums blijven zoals ze zijn.
+     */
+    public function move(Request $request, Customer $customer): RedirectResponse
+    {
+        $data = $request->validate([
+            'due_on' => ['required', 'date_format:Y-m-d'],
+            'planned_on' => ['required', 'date_format:Y-m-d'],
+        ]);
+        $due = CarbonImmutable::parse($data['due_on']);
+        $planned = CarbonImmutable::parse($data['planned_on']);
+        $isContractDate = collect($customer->dueDates($due->subDay(), $due->addDay()))->contains(fn ($d) => $d->isSameDay($due));
+        if (!$isContractDate) {
+            return back()->withErrors(['planned_on' => 'Dit is geen onderhoudsdatum uit het contract van deze klant.']);
+        }
+        $run = self::run($customer, $due->toDateString());
+        if ($run->done_at !== null) {
+            return back()->withErrors(['planned_on' => 'Deze beurt is al afgerond.']);
+        }
+        $run->planned_on = $planned->isSameDay($due) ? null : $planned->toDateString();
+        $run->save();
+        Activity::log('maintenance_moved', ['customer' => $customer->name, 'due_on' => $due->toDateString(), 'planned_on' => $planned->toDateString()]);
+        \App\Ocm\SiteSchedule::pushCustomer($customer);
+
+        return back()->with('status', 'Onderhoud van ' . $due->format('d-m-Y') . ($planned->isSameDay($due) ? ' staat weer op de contractdatum.' : ' verplaatst naar ' . $planned->locale('nl')->translatedFormat('l j F Y') . '. De volgende datums blijven hetzelfde.'));
+    }
+
+    /** Bestaande beurt op contractdatum, of een nieuwe. Op datum zoeken (SQLite bewaart ook een tijd). */
+    private static function run(Customer $customer, string $dueOn): MaintenanceRun
+    {
+        return MaintenanceRun::query()->where('customer_id', $customer->id)->whereDate('due_on', $dueOn)->first()
+            ?? new MaintenanceRun(['customer_id' => $customer->id, 'due_on' => $dueOn]);
     }
 
     public function reopen(Customer $customer, MaintenanceRun $run): RedirectResponse

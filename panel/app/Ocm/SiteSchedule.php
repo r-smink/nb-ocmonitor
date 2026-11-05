@@ -42,10 +42,11 @@ final class SiteSchedule
         $next = null;
         if ($customer?->hasContract()) {
             $today = \Carbon\CarbonImmutable::today();
-            $done = $customer->runs()->whereNotNull('done_at')->pluck('due_on')->map(fn ($d) => \Carbon\CarbonImmutable::parse($d)->toDateString())->all();
-            foreach ($customer->dueDates($today, $today->addMonthsNoOverflow($customer->intervalMonths() * 2 + 1)) as $date) {
-                if (!in_array($date->toDateString(), $done, true)) {
-                    $next = $date->toDateString();
+            $customer->load('runs');
+            $done = $customer->runs->whereNotNull('done_at')->map(fn ($r) => $r->due_on->toDateString())->all();
+            foreach ($customer->plannedDates($today, $today->addMonthsNoOverflow($customer->intervalMonths() * 2 + 1)) as $item) {
+                if (!in_array($item['due']->toDateString(), $done, true)) {
+                    $next = $item['date']->toDateString();
                     break;
                 }
             }

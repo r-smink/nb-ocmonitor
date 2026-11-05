@@ -127,6 +127,42 @@ class Customer extends Model
         return null;
     }
 
+    /**
+     * De dag waarop een beurt echt gepland staat: de contractdatum, of de dag waar hij naartoe is
+     * gesleept. Het contract en de volgende datums veranderen daar niet door.
+     */
+    public function plannedOn(CarbonInterface $due): CarbonImmutable
+    {
+        $due = CarbonImmutable::parse($due)->startOfDay();
+        $run = $this->runs->first(fn (MaintenanceRun $r) => $r->due_on->isSameDay($due) && $r->planned_on !== null);
+
+        return $run ? $run->planned_on : $due;
+    }
+
+    /**
+     * Beurten die (na eventueel verplaatsen) tussen $from en $to vallen.
+     *
+     * @return list<array{due: CarbonImmutable, date: CarbonImmutable, moved: bool}>
+     */
+    public function plannedDates(CarbonInterface $from, CarbonInterface $to): array
+    {
+        if (!$this->hasContract()) {
+            return [];
+        }
+        $from = CarbonImmutable::parse($from)->startOfDay();
+        $to = CarbonImmutable::parse($to)->startOfDay();
+        $margin = $this->intervalMonths() + 1;
+        $out = [];
+        foreach ($this->dueDates($from->subMonthsNoOverflow($margin)->max($this->contract_start), $to->addMonthsNoOverflow($margin)) as $due) {
+            $date = $this->plannedOn($due);
+            if ($date->betweenIncluded($from, $to)) {
+                $out[] = ['due' => $due, 'date' => $date, 'moved' => !$date->isSameDay($due)];
+            }
+        }
+
+        return $out;
+    }
+
     /** @return string[] */
     public function sections(): array
     {

@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MaintenanceRun extends Model
 {
-    protected $fillable = ['customer_id', 'due_on', 'done_at', 'done_by', 'notes', 'report_sent_at'];
+    protected $fillable = ['customer_id', 'due_on', 'planned_on', 'done_at', 'done_by', 'notes', 'report_sent_at'];
 
     protected function casts(): array
     {
         return [
             'due_on' => 'immutable_date',
+            'planned_on' => 'immutable_date',
             'done_at' => 'datetime',
             'report_sent_at' => 'datetime',
         ];

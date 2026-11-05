@@ -52,6 +52,43 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Onderhoudskalender: <a data-cal-move="url" data-due="Y-m-d" draggable> naar een dag <div data-cal-drop="Y-m-d"> slepen.
+  const calForm = document.getElementById('calMoveForm');
+  if (calForm) {
+    let dragging = null;
+    document.querySelectorAll('[data-cal-move]').forEach(function (item) {
+      item.addEventListener('dragstart', function (e) {
+        dragging = item;
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.dataset.due);
+      });
+      item.addEventListener('dragend', function () {
+        item.classList.remove('dragging');
+        document.querySelectorAll('.drop-target').forEach(function (d) { d.classList.remove('drop-target'); });
+        dragging = null;
+      });
+    });
+    document.querySelectorAll('[data-cal-drop]').forEach(function (day) {
+      day.addEventListener('dragover', function (e) {
+        if (!dragging) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        day.classList.add('drop-target');
+      });
+      day.addEventListener('dragleave', function () { day.classList.remove('drop-target'); });
+      day.addEventListener('drop', function (e) {
+        e.preventDefault();
+        day.classList.remove('drop-target');
+        if (!dragging || dragging.parentElement === day) return;
+        calForm.action = dragging.dataset.calMove;
+        calForm.elements.due_on.value = dragging.dataset.due;
+        calForm.elements.planned_on.value = day.dataset.calDrop;
+        calForm.submit();
+      });
+    });
+  }
+
   // Tabellen met klikbare rijen: <tr data-href="...">
   document.querySelectorAll('tr[data-href]').forEach(function (tr) {
     tr.addEventListener('click', function (e) {
