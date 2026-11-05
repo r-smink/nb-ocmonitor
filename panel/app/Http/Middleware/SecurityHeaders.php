@@ -23,7 +23,9 @@ class SecurityHeaders
             "img-src 'self' data:",
             "font-src 'self'",
             "connect-src 'self'",
-            "form-action 'self'",
+            // Google: "Koppelen met Google" is een formulier dat doorstuurt naar het inlogscherm van Google;
+            // browsers passen form-action ook toe op die doorverwijzing.
+            "form-action 'self' https://accounts.google.com",
             "frame-ancestors 'none'",
             "base-uri 'none'",
             "object-src 'none'",
