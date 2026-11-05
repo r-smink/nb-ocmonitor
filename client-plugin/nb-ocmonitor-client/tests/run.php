@@ -669,6 +669,14 @@ test('integriteit: gewijzigd, ontbrekend en extra PHP worden herkend', function 
     check($r['modified'] === [] && $r['missing'] === [], 'een van meerdere md5-waarden is genoeg');
 });
 
+// ---------------------------------------------------------------- schakelaars
+
+test('schakelaars: alleen bekende sleutels, waarden begrensd', function () {
+    $t = \NextBuzz\OcMonitor\Client\Tweaks::normalize(['disable_comments' => 1, 'revisions' => 999, 'heartbeat' => 'eval', 'onbekend' => true]);
+    check($t['disable_comments'] === true && $t['revisions'] === 50 && $t['heartbeat'] === 'default' && !isset($t['onbekend']));
+    check(\NextBuzz\OcMonitor\Client\Tweaks::normalize(null)['revisions'] === -1);
+});
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL {$failure}\n");
 }

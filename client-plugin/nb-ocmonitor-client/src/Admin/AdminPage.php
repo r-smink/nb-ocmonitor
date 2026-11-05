@@ -61,6 +61,11 @@ final class AdminPage
             'xmlrpc' => (string) ($post['nb_ocm_xmlrpc'] ?? ''),
             'hide_users' => !empty($post['nb_ocm_hide_users']),
         ]);
+        $panelLogin = !empty($post['nb_ocm_panel_login']);
+        if ($panelLogin !== \NextBuzz\OcMonitor\Client\Security\PanelLogin::enabled()) {
+            \NextBuzz\OcMonitor\Client\Security\PanelLogin::setEnabled($panelLogin);
+            $this->recorder->record('ocm.panel_login_changed', 'panel_login', $panelLogin ? 'uit' : 'aan', $panelLogin ? 'aan' : 'uit');
+        }
         $twoFactor = TwoFactor::setMode((string) ($post['nb_ocm_two_factor'] ?? 'off'));
         if ($twoFactor['from'] !== $twoFactor['to']) {
             $this->recorder->record('ocm.two_factor_changed', 'two_factor', $twoFactor['from'], $twoFactor['to']);
@@ -155,6 +160,10 @@ final class AdminPage
         printf(
             '<tr><th scope="row">Gebruikersnamen afschermen</th><td><label><input type="checkbox" name="nb_ocm_hide_users" value="1"%s> Voor bezoekers die niet zijn ingelogd: geen gebruikerslijst via de REST API (<code>/wp-json/wp/v2/users</code>), geen <code>?author=1</code> en geen gebruikers in de sitemap.</label></td></tr>',
             $c['hide_users'] ? ' checked' : ''
+        );
+        printf(
+            '<tr><th scope="row">Inloggen vanuit het panel</th><td><label><input type="checkbox" name="nb_ocm_panel_login" value="1"%s> Beheerders van Next Buzz mogen vanuit het panel met een eenmalige link (60 seconden geldig) inloggen.</label><p class="description">Elke inlog komt in het wijzigingslog. Het panel kan deze instelling niet zelf aanzetten.</p></td></tr>',
+            \NextBuzz\OcMonitor\Client\Security\PanelLogin::enabled() ? ' checked' : ''
         );
         echo '<tr><th scope="row"><label for="nb_ocm_two_factor">Tweestapsverificatie afdwingen</label></th><td><select id="nb_ocm_two_factor" name="nb_ocm_two_factor">';
         foreach (TwoFactor::MODES as $mode => $label) {

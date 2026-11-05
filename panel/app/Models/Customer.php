@@ -27,6 +27,8 @@ class Customer extends Model
         'pending' => 'Openstaande updates',
         'security' => 'Beveiliging',
         'pagespeed' => 'PageSpeed',
+        'analytics' => 'Bezoekers en Google (Analytics, Search Console)',
+        'links' => 'Kapotte links',
         'environment' => 'Technische gegevens',
         'changes' => 'Overige wijzigingen',
     ];

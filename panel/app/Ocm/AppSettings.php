@@ -36,6 +36,10 @@ final class AppSettings
         'alert_delay_minutes' => ['Meldingen: pas melden na zoveel minuten (tegen korte haperingen)', 'int', 'ocm.alerts.delay_minutes', 0, 120],
         'alert_repeat_hours' => ['Meldingen: kritiek opnieuw melden na zoveel uur (0 = nooit)', 'int', 'ocm.alerts.repeat_hours', 0, 168],
         'update_chunk' => ['Updates: onderdelen per opdracht', 'int', 'ocm.updates.chunk_size', 1, 10],
+        'widget_contact' => ['Dashboardwidget op de sites: tekst onderaan (bijv. contactgegevens)', 'text', null, null, 300],
+        'links_interval_days' => ['Kapotte links: elke zoveel dagen controleren', 'int', 'ocm.links.interval_days', 1, 60],
+        'google_client_id' => ['Google OAuth-client-ID', 'text', 'ocm.google.client_id', null, 200],
+        'google_client_secret' => ['Google OAuth-clientgeheim', 'secret', 'ocm.google.client_secret', null, null],
     ];
 
     /** @var array<string, mixed>|null */

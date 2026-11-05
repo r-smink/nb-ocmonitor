@@ -107,6 +107,9 @@ final class Cli
      * [--two-factor=<off|admins|editors>]
      * : Tweestapsverificatie afdwingen (code per e-mail voor wie geen 2FA-plugin heeft).
      *
+     * [--panel-login=<on|off>]
+     * : Inloggen vanuit het panel toestaan.
+     *
      * [--unlock]
      * : Alle blokkades opheffen.
      *
@@ -130,6 +133,11 @@ final class Cli
                 $config[$key] = in_array($key, ['lockout', 'hide_users'], true) ? $flag((string) $assoc[$option]) : $assoc[$option];
                 $changed = true;
             }
+        }
+        if (isset($assoc['panel-login'])) {
+            \NextBuzz\OcMonitor\Client\Security\PanelLogin::setEnabled($flag((string) $assoc['panel-login']));
+            $this->recorder->record('ocm.panel_login_changed', 'panel_login', null, $flag((string) $assoc['panel-login']) ? 'aan' : 'uit', 'success', ['via' => 'wp-cli']);
+            $this->recorder->flush();
         }
         if (isset($assoc['two-factor'])) {
             if (!isset(TwoFactor::MODES[(string) $assoc['two-factor']])) {

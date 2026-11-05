@@ -30,9 +30,10 @@ class BulkController extends Controller
         'maintenance_off' => 'Onderhoudsmodus uit',
         'user_lock' => 'WP-gebruiker blokkeren',
         'user_logout' => 'WP-gebruiker overal uitloggen',
+        'tweak' => 'Schakelaar instellen',
     ];
 
-    public const COMMANDS = ['plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance', 'users.lock', 'users.logout'];
+    public const COMMANDS = ['tweaks.set', 'plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance', 'users.lock', 'users.logout'];
 
     public function index(): View
     {
@@ -58,6 +59,8 @@ class BulkController extends Controller
             'message' => ['nullable', 'string', 'max:500'],
             'hours' => ['nullable', 'integer', 'between:1,168'],
             'login' => ['required_if:action,user_lock,user_logout', 'nullable', 'string', 'max:191'],
+            'tweak' => ['required_if:action,tweak', 'nullable', Rule::in(array_merge(array_keys(\App\Ocm\TweakCatalog::SWITCHES), ['revisions', 'heartbeat']))],
+            'tweak_value' => ['required_if:action,tweak', 'nullable', 'string', 'max:20'],
         ], ['slug.regex' => 'Gebruik de slug van wordpress.org, bijv. "wordfence".', 'plugin.regex' => 'Kies een plugin uit de lijst.']);
         $action = $data['action'];
         $user = in_array($action, ['user_lock', 'user_logout'], true);
@@ -99,6 +102,20 @@ class BulkController extends Controller
      */
     private function planFor(Site $site, string $action, array $data): array
     {
+        if ($action === 'tweak') {
+            if ($reason = \App\Ocm\TweakCatalog::blockedReason($site)) {
+                return [null, [], $reason];
+            }
+            $key = (string) $data['tweak'];
+            $value = (string) $data['tweak_value'];
+            $value = match ($key) {
+                'revisions' => array_key_exists((int) $value, \App\Ocm\TweakCatalog::REVISIONS) ? (int) $value : -1,
+                'heartbeat' => isset(\App\Ocm\TweakCatalog::HEARTBEAT[$value]) ? $value : 'default',
+                default => $value === '1',
+            };
+
+            return ['tweaks.set', [['tweaks' => [$key => $value]]], null];
+        }
         if (in_array($action, ['user_lock', 'user_logout'], true)) {
             if ($reason = $site->usersBlockedReason()) {
                 return [null, [], $reason];

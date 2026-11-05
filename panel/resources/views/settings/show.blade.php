@@ -50,7 +50,7 @@
       <section class="panel">
         <h3>Algemeen en monitoring</h3>
         <div class="stack mt">
-          @foreach (['app_name', 'heartbeat_minutes', 'ssl_warn_days', 'domain_warn_days'] as $key)
+          @foreach (['app_name', 'widget_contact', 'heartbeat_minutes', 'ssl_warn_days', 'domain_warn_days'] as $key)
             @include('settings.field', ['key' => $key])
           @endforeach
         </div>
@@ -76,6 +76,22 @@
     </section>
 
     <section class="panel">
+      <h3>Google Analytics en Search Console</h3>
+      @php($google = \App\Ocm\GoogleApi::status())
+      <p class="note">Maak in Google Cloud een OAuth-client (webapplicatie) in een project met OAuth-toestemmingsscherm type <b>Intern</b>, zet de Google Analytics Data API, de Google Analytics Admin API en de Google Search Console API aan, en gebruik als redirect-URI: <code>{{ \App\Ocm\GoogleApi::redirectUri() }}</code></p>
+      <div class="form-row mt">
+        @foreach (['google_client_id', 'google_client_secret', 'links_interval_days'] as $key)
+          @include('settings.field', ['key' => $key])
+        @endforeach
+      </div>
+      <p class="mt">
+        Status:
+        @if ($google['connected'])<span class="state">gekoppeld als {{ $google['email'] }}</span>@else<span class="state idle">niet gekoppeld</span>@endif
+        @if ($google['error'])<span class="issue-text warn">{{ $google['error'] }}</span>@endif
+      </p>
+    </section>
+
+    <section class="panel">
       <h3>PageSpeed en kwetsbaarheden</h3>
       <div class="form-row mt">
         @foreach (['pagespeed_api_key', 'pagespeed_interval_days', 'pagespeed_drop', 'wordfence_api_key'] as $key)
@@ -86,4 +102,19 @@
 
     <div class="actions"><button class="btn" type="submit">Instellingen opslaan</button></div>
   </form>
+
+  <section class="panel narrow mt">
+    <h3>Google koppelen</h3>
+    @if (\App\Ocm\GoogleApi::connected())
+      <div class="row-actions">
+        <form method="POST" action="{{ route('analytics.refresh') }}" class="inline">@csrf<button class="btn ghost small" type="submit">Lijsten met properties vernieuwen</button></form>
+        <form method="POST" action="{{ route('analytics.disconnect') }}" class="inline" data-confirm="Google ontkoppelen? De cijfers verdwijnen dan uit het panel en de rapporten.">@csrf<button class="btn danger small" type="submit">Ontkoppelen</button></form>
+      </div>
+    @elseif (\App\Ocm\GoogleApi::configured())
+      <form method="POST" action="{{ route('analytics.connect') }}">@csrf<button class="btn" type="submit">Koppelen met Google</button></form>
+      <p class="note mt">Log in met het Next Buzz-account dat toegang heeft tot de Analytics- en Search Console-gegevens van de klanten. Alleen leesrechten.</p>
+    @else
+      <p class="muted">Vul eerst hierboven de OAuth-client-ID en het geheim in en sla op.</p>
+    @endif
+  </section>
 @endsection

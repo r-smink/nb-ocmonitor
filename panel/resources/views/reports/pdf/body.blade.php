@@ -137,6 +137,49 @@
     <p class="small muted">Gemeten met Google PageSpeed Insights. 90–100 is goed, 50–89 kan beter, onder 50 is slecht.</p>
   @endif
 
+  @if ($on('analytics') && !empty($site['analytics']) && (!empty($site['analytics']['ga4']) || !empty($site['analytics']['gsc'])))
+    <h3>Bezoekers en Google</h3>
+    <table class="data">
+      <tr>
+        @if (!empty($site['analytics']['ga4']))<th>Bezoekers</th><th>Sessies</th><th>Paginaweergaven</th>@endif
+        @if (!empty($site['analytics']['gsc']))<th>Klikken in Google</th><th>Vertoningen</th><th>Gem. positie</th>@endif
+      </tr>
+      <tr>
+        @if (!empty($site['analytics']['ga4']))
+          <td>{{ number_format($site['analytics']['ga4']['users'], 0, ',', '.') }}</td><td>{{ number_format($site['analytics']['ga4']['sessions'], 0, ',', '.') }}</td><td>{{ number_format($site['analytics']['ga4']['pageviews'], 0, ',', '.') }}</td>
+        @endif
+        @if (!empty($site['analytics']['gsc']))
+          <td>{{ number_format($site['analytics']['gsc']['clicks'], 0, ',', '.') }}</td><td>{{ number_format($site['analytics']['gsc']['impressions'], 0, ',', '.') }}</td><td>{{ number_format($site['analytics']['gsc']['position'], 1, ',', '') }}</td>
+        @endif
+      </tr>
+    </table>
+    @if (!empty($site['analytics']['ga4']['pages']))
+      <table class="data">
+        <tr><th>Populairste pagina's</th><th class="num">Weergaven</th></tr>
+        @foreach (array_slice($site['analytics']['ga4']['pages'], 0, 5) as $p)<tr><td>{{ \Illuminate\Support\Str::limit($p['path'], 70) }}</td><td class="num">{{ number_format($p['views'], 0, ',', '.') }}</td></tr>@endforeach
+      </table>
+    @endif
+    @if (!empty($site['analytics']['gsc']['queries']))
+      <table class="data">
+        <tr><th>Zoektermen in Google</th><th class="num">Klikken</th><th class="num">Positie</th></tr>
+        @foreach (array_slice($site['analytics']['gsc']['queries'], 0, 5) as $q)<tr><td>{{ $q['query'] }}</td><td class="num">{{ $q['clicks'] }}</td><td class="num">{{ number_format($q['position'], 1, ',', '') }}</td></tr>@endforeach
+      </table>
+    @endif
+    <p class="small muted">Bron: Google Analytics en Google Search Console.</p>
+  @endif
+
+  @if ($on('links'))
+    <h3>Kapotte links</h3>
+    @if (empty($site['broken_links']))
+      <p class="ok">Geen kapotte links gevonden.</p>
+    @else
+      <table class="data">
+        <tr><th>Link</th><th>Fout</th><th>Gevonden op</th></tr>
+        @foreach ($site['broken_links'] as $l)<tr><td>{{ \Illuminate\Support\Str::limit($l['url'], 60) }}</td><td>{{ $l['error'] }}</td><td>{{ $l['page'] ? (parse_url($l['page'], PHP_URL_PATH) ?: '/') : '' }}</td></tr>@endforeach
+      </table>
+    @endif
+  @endif
+
   @if ($on('environment'))
     <h3>Technische gegevens</h3>
     <table class="data">

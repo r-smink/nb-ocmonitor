@@ -30,6 +30,7 @@ final class ResultProcessor
             'users.list' => $this->users($site, $result),
             'db.cleanup' => $this->cleaned($site, $job, $result),
             'license.activate' => $this->licensed($site, $job, $result),
+            'tweaks.set' => $this->tweaked($site, $result),
             'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
             'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
             'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
@@ -88,6 +89,17 @@ final class ResultProcessor
         ];
         $site->wp_users_at = now();
         $site->save();
+    }
+
+    /** @param array<string, mixed> $result */
+    private function tweaked(Site $site, array $result): void
+    {
+        if (is_array($result['tweaks'] ?? null)) {
+            $inventory = $site->inventory ?? [];
+            $inventory['tweaks'] = $result['tweaks'];
+            $site->inventory = $inventory;
+            $site->save();
+        }
     }
 
     /** @param array<string, mixed> $result */

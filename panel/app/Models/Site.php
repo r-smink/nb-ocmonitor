@@ -106,6 +106,11 @@ class Site extends Model
         return $this->hasMany(SiteJob::class);
     }
 
+    public function linkScans(): HasMany
+    {
+        return $this->hasMany(LinkScan::class);
+    }
+
     public function visualChecks(): HasMany
     {
         return $this->hasMany(VisualCheck::class);

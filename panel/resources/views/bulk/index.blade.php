@@ -72,6 +72,30 @@
         </section>
 
         <section class="panel">
+          <h3>Schakelaar instellen</h3>
+          <div class="stack mt">
+            <div class="form-row">
+              <label>Schakelaar
+                <select name="tweak">
+                  @foreach (\App\Ocm\TweakCatalog::SWITCHES as $key => [$label])<option value="{{ $key }}" @selected(old('tweak') === $key)>{{ $label }}</option>@endforeach
+                  <option value="revisions" @selected(old('tweak') === 'revisions')>Revisies bewaren</option>
+                  <option value="heartbeat" @selected(old('tweak') === 'heartbeat')>Heartbeat-API</option>
+                </select>
+              </label>
+              <label>Waarde
+                <select name="tweak_value">
+                  <optgroup label="Aan/uit"><option value="1">Aan</option><option value="0">Uit</option></optgroup>
+                  <optgroup label="Revisies">@foreach (\App\Ocm\TweakCatalog::REVISIONS as $v => $label)<option value="{{ $v }}">{{ $label }}</option>@endforeach</optgroup>
+                  <optgroup label="Heartbeat">@foreach (\App\Ocm\TweakCatalog::HEARTBEAT as $v => $label)<option value="{{ $v }}">{{ $label }}</option>@endforeach</optgroup>
+                </select>
+              </label>
+            </div>
+            <div><button class="btn small" type="submit" name="action" value="tweak">Instellen op de gekozen sites</button></div>
+            <p class="note">Vanaf client-plugin {{ \App\Ocm\TweakCatalog::MIN_VERSION }}. Kies bij aan/uit-schakelaars "Aan" of "Uit", bij revisies een aantal en bij de Heartbeat een stand.</p>
+          </div>
+        </section>
+
+        <section class="panel">
           <h3>Onderhoudsmodus</h3>
           <div class="stack mt">
             <label>Bericht voor bezoekers<textarea name="message" rows="2" maxlength="500" placeholder="We voeren onderhoud uit aan deze website. Probeer het straks opnieuw.">{{ old('message') }}</textarea></label>
