@@ -142,6 +142,7 @@ class TweaksLinksAnalyticsTest extends TestCase
         $this->assertStringContainsString('accounts.google.com/o/oauth2/v2/auth', $location);
         $this->assertStringContainsString('analytics.readonly', urldecode($location));
         $this->assertStringContainsString('access_type=offline', $location);
+        $this->assertStringContainsString("form-action 'self' https://accounts.google.com", (string) $redirect->headers->get('Content-Security-Policy'));
 
         $this->get('/instellingen/google/terug?state=fout&code=x')->assertRedirect('/instellingen')->assertSessionHasErrors('google');
 
