@@ -32,7 +32,14 @@
             <button class="btn small" type="submit" @disabled($openUpdates === 0)>Updates starten ({{ $openUpdates }})</button>
             <label class="check-grid"><span><input type="checkbox" name="core" value="1"> ook WordPress zelf</span></label>
           </form>
-          <p class="note">Plugins, thema's en vertalingen op alle sites van deze klant, met kopie en automatische rollback per onderdeel. De voortgang zie je op <a href="{{ route('updates.index') }}">Updates</a>.</p>
+          <p class="note">Plugins, thema's en vertalingen op alle sites van deze klant, met kopie en automatische rollback per onderdeel. De voortgang zie je in de <a href="{{ route('updates.queue', ['klant' => $customer->id]) }}">wachtrij</a>.</p>
+          @php($removableBackups = \App\Ocm\Backups::removable($customer->sites()->get(['id']))->count())
+          @if ($removableBackups > 0)
+            <form method="POST" action="{{ route('customers.backup.clear', $customer) }}" class="row-actions" data-confirm="Alles gecontroleerd bij {{ $customer->name }}? Dan worden {{ $removableBackups }} back-up(s) direct verwijderd. Back-ups van updates die nog lopen blijven staan.">
+              @csrf
+              <button class="btn small quiet" type="submit">Alles werkt: {{ $removableBackups }} back-up{{ $removableBackups === 1 ? '' : 's' }} opruimen</button>
+            </form>
+          @endif
 
           <form method="POST" action="{{ route('customers.complete', $customer) }}" class="form mt">
             @csrf

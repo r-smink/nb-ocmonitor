@@ -7,17 +7,26 @@
     <div class="panel-head">
       <span class="sd-ic">@include('partials.icon', ['name' => 'clock', 'size' => 18])</span>
       <h3>Back-ups</h3>
-      <span class="hint">{{ config('ocm.backups.keep_days') }} dagen bewaard, of tot de visuele controle in orde is</span>
+      <span class="hint">{{ config('ocm.backups.keep_days') }} dagen bewaard, of tot de visuele controle in orde is of je ze opruimt</span>
       @can('manage-sites')
-        @if (\App\Ocm\Backups::enabled() && \App\Ocm\Backups::supportsFull($site))
+        @php($removable = \App\Ocm\Backups::removable($site)->count())
+        @if ($removable > 0 || (\App\Ocm\Backups::enabled() && \App\Ocm\Backups::supportsFull($site)))
           <div class="right">
-            @if ($backups->contains(fn ($b) => $b->status === 'pending' && !empty($b->components['full'])))
-              @include('partials.row-action', ['action' => ['kind' => 'done', 'label' => 'Wordt gemaakt']])
-            @else
-              <form method="POST" action="{{ route('sites.backup.full', $site) }}" class="inline" data-confirm="Volledige back-up maken van {{ $site->name }}? Bij grote sites kan dat even duren.">
+            @if ($removable > 0)
+              <form method="POST" action="{{ route('sites.backup.clear', $site) }}" class="inline" data-confirm="Alles gecontroleerd en in orde? Dan worden {{ $removable }} back-up(s) van {{ $site->name }} direct verwijderd. Back-ups van updates die nog lopen blijven staan.">
                 @csrf
-                <button class="btn small quiet" type="submit">Nu back-up maken</button>
+                <button class="btn small quiet" type="submit">Alles werkt: {{ $removable }} back-up{{ $removable === 1 ? '' : 's' }} opruimen</button>
               </form>
+            @endif
+            @if (\App\Ocm\Backups::enabled() && \App\Ocm\Backups::supportsFull($site))
+              @if ($backups->contains(fn ($b) => $b->status === 'pending' && !empty($b->components['full'])))
+                @include('partials.row-action', ['action' => ['kind' => 'done', 'label' => 'Wordt gemaakt']])
+              @else
+                <form method="POST" action="{{ route('sites.backup.full', $site) }}" class="inline" data-confirm="Volledige back-up maken van {{ $site->name }}? Bij grote sites kan dat even duren.">
+                  @csrf
+                  <button class="btn small quiet" type="submit">Nu back-up maken</button>
+                </form>
+              @endif
             @endif
           </div>
         @endif
@@ -61,12 +70,12 @@
                       <button class="btn small" type="submit">Terugzetten</button>
                     </div>
                   </form>
-                  <form method="POST" action="{{ route('sites.backup.delete', [$site, $backup]) }}" class="inline" data-confirm="Back-up verwijderen?">
-                    @csrf
-                    @method('DELETE')
-                    <button class="link-btn" type="submit">Back-up verwijderen</button>
-                  </form>
                 </details>
+                <form method="POST" action="{{ route('sites.backup.delete', [$site, $backup]) }}" class="inline" data-confirm="Back-up van {{ $backup->created_at->timezone('Europe/Amsterdam')->format('d-m H:i') }} verwijderen?">
+                  @csrf
+                  @method('DELETE')
+                  <button class="btn small ghost" type="submit" title="Back-up verwijderen" aria-label="Back-up verwijderen">Verwijderen</button>
+                </form>
               @elseif ($backup->status === 'restoring')
                 @include('partials.row-action', ['action' => ['kind' => 'done', 'label' => 'Wordt teruggezet']])
               @endif

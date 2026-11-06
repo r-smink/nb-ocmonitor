@@ -275,6 +275,14 @@ class SiteController extends Controller
         return back()->with('status', 'Backup verwijderd.');
     }
 
+    /** Alles gecontroleerd en in orde: alle back-ups van deze site opruimen (niet die van lopende updates). */
+    public function clearBackups(Request $request, Site $site): RedirectResponse
+    {
+        $n = \App\Ocm\Backups::deleteChecked($site, $request->user());
+
+        return back()->with('status', $n > 0 ? "{$n} back-up(s) verwijderd." : 'Geen back-ups om op te ruimen.');
+    }
+
     public function regeneratePairing(Site $site): RedirectResponse
     {
         if ($site->isPaired()) {

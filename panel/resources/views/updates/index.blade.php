@@ -17,6 +17,9 @@
     </div>
   </div>
   @include('updates.tabs')
+  @if ($hasOpenJobs)
+    <div class="alert info mb">Er lopen updates. <a href="{{ route('updates.queue') }}">Bekijk de voortgang in de wachtrij</a>.</div>
+  @endif
 
   <div class="toolbar">
     <nav class="tabs-nav">

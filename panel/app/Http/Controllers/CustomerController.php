@@ -216,7 +216,17 @@ class CustomerController extends Controller
             $status .= ' Niet mogelijk: ' . implode('; ', $blocked) . '.';
         }
 
-        return back()->with('status', $status);
+        $redirect = $queued > 0 ? redirect()->route('updates.queue', ['klant' => $customer->id]) : back();
+
+        return $redirect->with('status', $status);
+    }
+
+    /** Alles gecontroleerd bij deze klant: de back-ups van al zijn sites opruimen. */
+    public function clearBackups(Request $request, Customer $customer): RedirectResponse
+    {
+        $n = \App\Ocm\Backups::deleteChecked($customer->sites()->get(), $request->user());
+
+        return back()->with('status', $n > 0 ? "{$n} back-up(s) van {$customer->name} verwijderd." : 'Geen back-ups om op te ruimen.');
     }
 
     public function report(Request $request, Customer $customer): Response

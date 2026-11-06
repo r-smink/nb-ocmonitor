@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\Site;
 use App\Models\SiteJob;
+use App\Ocm\UpdateQueue;
 use App\Ocm\Updates;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -70,6 +72,19 @@ class UpdateController extends Controller
             'jobs' => SiteJob::query()->with(['site', 'requester'])->whereIn('command', array_values(Updates::COMMANDS))->orderByDesc('id')->limit(25)->get(),
             'hasOpenJobs' => $open !== [],
             'types' => self::TYPES,
+        ]);
+    }
+
+    /** Wachtrij: wat er loopt en recent klaar is, overall en per klant, met de fase per opdracht. */
+    public function queue(Request $request): View
+    {
+        $hours = in_array($request->integer('uren'), [6, 24, 72, 168], true) ? $request->integer('uren') : 24;
+        $customerId = $request->integer('klant') ?: null;
+
+        return view('updates.queue', UpdateQueue::overview($hours, $customerId) + [
+            'hours' => $hours,
+            'customerId' => $customerId,
+            'customers' => Customer::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
