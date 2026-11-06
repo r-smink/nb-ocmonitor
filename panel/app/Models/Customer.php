@@ -35,13 +35,14 @@ class Customer extends Model
 
     public const DEFAULT_SECTIONS = ['summary', 'uptime', 'maintenance', 'updates', 'security', 'pagespeed'];
 
-    protected $fillable = ['name', 'contact_name', 'email', 'report_cc', 'phone', 'notes', 'visits_per_year', 'contract_start', 'report_enabled', 'report_sections'];
+    protected $fillable = ['name', 'contact_name', 'email', 'report_cc', 'phone', 'notes', 'visits_per_year', 'contract_start', 'report_enabled', 'widget_report', 'report_sections'];
 
     protected function casts(): array
     {
         return [
             'contract_start' => 'immutable_date',
             'report_enabled' => 'boolean',
+            'widget_report' => 'boolean',
             'report_sections' => 'array',
             'visits_per_year' => 'integer',
         ];

@@ -20,6 +20,7 @@
       'updates' => $paired ? ['Updates', 'refresh', $openUpdates, 'warn'] : null,
       'backups' => $paired ? ['Back-ups', 'clock', 0, null] : null,
       'beveiliging' => $paired ? ['Beveiliging', 'shield', $openVulns, 'crit'] : null,
+      'fouten' => $paired ? ['PHP-fouten', 'bug', \App\Models\PhpError::query()->where('site_id', $site->id)->where('last_seen_at', '>=', now()->subDays(7))->get()->filter->isOpen()->count(), 'warn'] : null,
       'schakelaars' => $paired ? ['Schakelaars', 'check', 0, null] : null,
       'pagespeed' => $showPsi ? ['PageSpeed', 'gauge', 0, null] : null,
       'links' => $paired && \App\Ocm\Menu::enabled('links') ? ['Kapotte links', 'filetext', \App\Models\BrokenLink::query()->where('site_id', $site->id)->whereNull('ignored_at')->count(), 'warn'] : null,
@@ -49,6 +50,7 @@
         @include('sites.show.security')
       @endif
       @if ($paired)
+        @include('sites.show.errors')
         @include('sites.show.tweaks')
       @endif
       @if ($showPsi)

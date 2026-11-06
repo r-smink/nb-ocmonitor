@@ -86,6 +86,8 @@ class UpdateScheduleController extends Controller
             'days' => ['required', 'array', 'min:1'], 'days.*' => ['integer', 'between:1,7'],
             'time' => ['required', 'date_format:H:i'],
             'exclude' => ['nullable', 'string', 'max:2000'],
+            'only_mode' => ['nullable', Rule::in(['all', 'selected'])],
+            'include' => ['nullable', 'array', 'max:500'], 'include.*' => ['string', 'max:100', 'regex:/^[A-Za-z0-9._-]+$/'],
             'paused_until' => ['nullable', 'date_format:Y-m-d'],
             'rollback_on_visual' => ['nullable', 'boolean'],
         ], ['types.required' => 'Kies minstens één soort update.', 'days.required' => 'Kies minstens één dag.']);
@@ -100,6 +102,10 @@ class UpdateScheduleController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages(['scope' => 'Kies minstens één ' . ['tags' => 'tag', 'customers' => 'klant', 'sites' => 'site'][$data['scope']] . '.']);
         }
         $exclude = collect(preg_split('/[\s,]+/', (string) ($data['exclude'] ?? '')))->map(fn ($s) => strtolower(trim($s)))->filter()->unique()->take(200)->values()->all();
+        $include = ($data['only_mode'] ?? 'all') === 'selected' ? collect($data['include'] ?? [])->map(fn ($s) => strtolower($s))->unique()->values()->all() : [];
+        if (($data['only_mode'] ?? 'all') === 'selected' && $include === []) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['include' => 'Kies minstens één plugin of thema, of kies "Alle plugins en thema\'s".']);
+        }
 
         return [
             'name' => trim($data['name']),
@@ -111,6 +117,7 @@ class UpdateScheduleController extends Controller
             'days' => array_values(array_unique(array_map('intval', $data['days']))),
             'time' => $data['time'],
             'exclude' => $exclude,
+            'include' => $include,
             'paused_until' => $data['paused_until'] ?? null,
             'rollback_on_visual' => !empty($data['rollback_on_visual']),
         ];
@@ -123,9 +130,41 @@ class UpdateScheduleController extends Controller
             'schedule' => $schedule,
             'tags' => Tag::query()->orderBy('name')->get(),
             'customers' => Customer::query()->orderBy('name')->get(['id', 'name']),
+            'components' => self::components(),
             'sites' => Site::query()->whereNotNull('public_key')->orderBy('name')->get(['id', 'name']),
             'backups' => Backups::enabled(),
             'visual' => Visual::enabled(),
         ];
+    }
+
+    /**
+     * Alle plugins en thema's die op de gekoppelde sites staan, om "alleen deze" uit te kiezen.
+     *
+     * @return array{plugin: array<string, array{name: string, sites: int}>, theme: array<string, array{name: string, sites: int}>}
+     */
+    private static function components(): array
+    {
+        $out = ['plugin' => [], 'theme' => []];
+        foreach (\App\Models\Site::query()->whereNotNull('public_key')->get(['id', 'inventory']) as $site) {
+            foreach ((array) (($site->inventory ?? [])['plugins'] ?? []) as $p) {
+                $slug = strtolower((string) ($p['slug'] ?? ''));
+                if ($slug !== '' && $slug !== 'nb-ocmonitor-client') {
+                    $out['plugin'][$slug] ??= ['name' => (string) ($p['name'] ?? $slug), 'sites' => 0];
+                    $out['plugin'][$slug]['sites']++;
+                }
+            }
+            foreach ((array) (($site->inventory ?? [])['themes'] ?? []) as $t) {
+                $slug = strtolower((string) ($t['stylesheet'] ?? ''));
+                if ($slug !== '') {
+                    $out['theme'][$slug] ??= ['name' => (string) ($t['name'] ?? $slug), 'sites' => 0];
+                    $out['theme'][$slug]['sites']++;
+                }
+            }
+        }
+        foreach ($out as &$list) {
+            uasort($list, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+        }
+
+        return $out;
     }
 }

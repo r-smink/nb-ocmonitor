@@ -168,6 +168,12 @@ final class SiteIssues
                 $add($internal > 0 ? 'warn' : 'info', 'prestaties', $broken->count() . ' kapotte link' . ($broken->count() === 1 ? '' : 's') . ($internal > 0 ? " ({$internal} intern)" : ''));
             }
         }
+        $errors = \App\Models\PhpError::query()->where('site_id', $site->id)->where('last_seen_at', '>=', now()->subDays(7))->get()->filter->isOpen();
+        if ($errors->isNotEmpty()) {
+            $recent = $errors->filter(fn ($e) => $e->last_seen_at->gt(now()->subDay()));
+            $add($recent->isNotEmpty() ? 'warn' : 'info', 'beschikbaarheid', $errors->count() . ' PHP-fout' . ($errors->count() === 1 ? '' : 'en')
+                . ($recent->isNotEmpty() ? ' (' . $recent->sum('count') . 'x in 24 uur)' : ' deze week'));
+        }
         if ($visual !== null && $visual->changed()) {
             $add('warn', 'updates', 'Homepage zichtbaar veranderd na updates (' . number_format($visual->diff_percent, 0) . '%): controleer de site', ['visual' => $visual->id]);
         }

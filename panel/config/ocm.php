@@ -101,7 +101,7 @@ return [
         'allowed_commands' => [
             'site.info', 'site.inventory', 'events.pull', 'events.ack',
             'update.plugin', 'update.theme', 'update.core', 'update.translations', 'plugin.self_update',
-            'backup.create', 'backup.restore', 'db.cleanup', 'license.activate', 'tweaks.set', 'auth.login_link', 'site.schedule',
+            'backup.create', 'backup.restore', 'db.cleanup', 'license.activate', 'tweaks.set', 'auth.login_link', 'site.schedule', 'errors.list',
             'users.list', 'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor',
             'plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance', 'security.integrity',
         ],

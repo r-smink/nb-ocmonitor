@@ -52,6 +52,7 @@ final class SiteCommands
             'php_version' => PHP_VERSION,
             'plugin_version' => NB_OCM_VERSION,
             'last_event_seq' => $this->events->lastSeq(),
+            'php_errors_at' => \NextBuzz\OcMonitor\Client\ErrorCatcher::lastAt(),
             'scopes' => $context->config->scopes,
             'time' => $context->now,
         ];

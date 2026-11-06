@@ -39,6 +39,7 @@ class Site extends Model
             'domain_expires_at' => 'datetime',
             'domain_checked_at' => 'datetime',
             'wp_users' => 'array',
+            'debug_log' => 'array',
             'wp_users_at' => 'datetime',
             'uptime_since' => 'datetime',
             'integrity' => 'array',

@@ -44,6 +44,7 @@ final class Plugin
         (new TwoFactor($recorder))->register();
         MaintenanceMode::register();
         Tweaks::register();
+        ErrorCatcher::register();
         Admin\DashboardWidget::register();
         $panelLogin = new Security\PanelLogin($recorder);
         $panelLogin->register();
@@ -62,6 +63,9 @@ final class Plugin
         (new IntegrityCommands())->registerOn($commands);
         $commands->add('auth.login_link', 'users', static function (array $args) use ($panelLogin): array {
             return $panelLogin->link($args);
+        });
+        $commands->add('errors.list', 'read', static function (): array {
+            return ErrorCatcher::list();
         });
         $commands->add('site.schedule', 'maintenance', static function (array $args): array {
             return Admin\DashboardWidget::store($args);

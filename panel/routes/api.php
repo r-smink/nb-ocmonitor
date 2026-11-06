@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Route;
 // Aangeroepen door de client-plugin op klantsites. Geen sessies/CSRF; authenticatie via HMAC/Ed25519.
 Route::post('/pair', PairController::class)->middleware('throttle:10,1');
 
+// Laatste onderhoudsrapport voor de dashboardwidget op de site (tijdelijke, ondertekende link).
+Route::get('/rapport/{customer}', \App\Http\Controllers\PublicReportController::class)->name('report.public')->middleware(['signed:relative', 'throttle:20,1']);
+
 // Ondertekende plugin-release voor zelf bijwerken. Openbaar: de code is niet geheim en de plugin
 // controleert de handtekening met de release-sleutel, die niet op deze server staat.
 Route::get('/plugin/nb-ocmonitor-client-{version}.zip', function (string $version) {

@@ -70,6 +70,10 @@ final class UpdateSchedules
                     continue;
                 }
                 $items = $available->where('type', $type)->filter(function ($u) use ($schedule, $security, $site, &$result) {
+                    // Plugins en thema's: bij "alleen deze" alleen de gekozen onderdelen (WordPress en de OC-plugin vallen daarbuiten).
+                    if (in_array($u['type'], ['plugin', 'theme'], true) && !$schedule->includes((string) $u['slug'])) {
+                        return false;
+                    }
                     if ($schedule->excludes((string) $u['slug'])) {
                         $result['excluded'][] = $site->name . ': ' . $u['name'];
 

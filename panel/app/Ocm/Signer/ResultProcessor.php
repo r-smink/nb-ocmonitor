@@ -31,6 +31,7 @@ final class ResultProcessor
             'db.cleanup' => $this->cleaned($site, $job, $result),
             'license.activate' => $this->licensed($site, $job, $result),
             'tweaks.set' => $this->tweaked($site, $result),
+            'errors.list' => $this->phpErrors($site, $result),
             'backup.create' => \App\Ocm\Backups::created($job, $site, $result),
             'backup.restore' => \App\Ocm\Backups::restored($job, $site, $result),
             'users.lock', 'users.unlock', 'users.logout', 'users.reset_password', 'users.demote', 'security.two_factor' => $this->userAction($site, $job, $result),
@@ -91,6 +92,37 @@ final class ResultProcessor
         $site->save();
     }
 
+    /**
+     * Fouten van de site bewaren. Komt van de site, dus alleen bekende velden, ingekort.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function phpErrors(Site $site, array $result): void
+    {
+        $text = fn ($v, int $max) => is_scalar($v) ? mb_substr((string) $v, 0, $max) : '';
+        foreach (array_slice((array) ($result['items'] ?? []), 0, 50) as $e) {
+            if (!is_array($e) || !is_string($e['hash'] ?? null) || preg_match('/^[a-f0-9]{16}$/', $e['hash']) !== 1) {
+                continue;
+            }
+            $first = is_int($e['first_seen'] ?? null) ? \Carbon\Carbon::createFromTimestamp($e['first_seen']) : now();
+            $last = is_int($e['last_seen'] ?? null) ? \Carbon\Carbon::createFromTimestamp($e['last_seen']) : now();
+            \App\Models\PhpError::query()->updateOrCreate(['site_id' => $site->id, 'hash' => $e['hash']], [
+                'type' => $text($e['type'] ?? 'Error', 30),
+                'message' => $text($e['message'] ?? '', 500),
+                'file' => $text($e['file'] ?? '', 300),
+                'line' => (int) ($e['line'] ?? 0),
+                'url' => $text($e['url'] ?? '', 300) ?: null,
+                'count' => max(1, (int) ($e['count'] ?? 1)),
+                'first_seen_at' => $first,
+                'last_seen_at' => $last,
+            ]);
+        }
+        $site->forceFill([
+            'php_errors_seen' => (int) ($result['last_at'] ?? time()),
+            'debug_log' => is_array($result['debug_log'] ?? null) ? ['path' => $text($result['debug_log']['path'] ?? '', 100), 'size' => (int) ($result['debug_log']['size'] ?? 0)] : null,
+        ])->save();
+    }
+
     /** @param array<string, mixed> $result */
     private function tweaked(Site $site, array $result): void
     {
@@ -139,6 +171,10 @@ final class ResultProcessor
         $site->wp_version = self::str($result['wp_version'] ?? null);
         $site->php_version = self::str($result['php_version'] ?? null);
         $site->plugin_version = self::str($result['plugin_version'] ?? null);
+        // Nieuwe PHP-fouten op de site: de lijst ophalen.
+        if (is_int($result['php_errors_at'] ?? null) && $result['php_errors_at'] > (int) $site->php_errors_seen) {
+            JobQueue::enqueue($site, 'errors.list');
+        }
         if (isset($result['scopes']) && is_array($result['scopes'])) {
             $site->scopes = array_values(array_filter($result['scopes'], fn ($s) => is_string($s) && preg_match('/^[a-z_]{1,32}$/', $s)));
         }
