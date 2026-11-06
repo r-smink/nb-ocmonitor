@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Ocm\Activity;
 use App\Ocm\Alerts\AlertFilter;
 use App\Ocm\Alerts\Channels;
+use App\Ocm\MailSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -66,6 +67,38 @@ class AlertController extends Controller
         }
 
         return back()->with('status', 'Testbericht verstuurd naar ' . Channels::TYPES[$type] . '.');
+    }
+
+    /** Eigen SMTP-server voor alle e-mail van de tool. */
+    public function saveSmtp(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'enabled' => ['nullable', 'boolean'],
+            'host' => ['required_if:enabled,1', 'nullable', 'string', 'max:255', 'regex:/^[A-Za-z0-9.-]+$/'],
+            'port' => ['required', 'integer', 'min:1', 'max:65535'],
+            'encryption' => ['required', Rule::in(array_keys(MailSettings::ENCRYPTION))],
+            'username' => ['nullable', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'max:500'],
+            'clear_password' => ['nullable', 'boolean'],
+            'from_address' => ['required_if:enabled,1', 'nullable', 'email', 'max:255'],
+            'from_name' => ['nullable', 'string', 'max:100'],
+        ], ['host.required_if' => 'Vul de SMTP-server in.', 'host.regex' => 'Alleen een hostnaam of IP-adres, zonder http:// of poort.', 'from_address.required_if' => 'Vul het afzenderadres in.']);
+        MailSettings::save($data);
+        Activity::log('smtp_updated', ['enabled' => !empty($data['enabled']), 'host' => $data['host'] ?? null]);
+
+        return redirect()->to(route('settings.alerts') . '#smtp')->with('status', !empty($data['enabled']) ? 'SMTP-server opgeslagen. Stuur een testmail om te controleren of hij werkt.' : 'SMTP-instellingen opgeslagen; de mail gaat weer via .env.');
+    }
+
+    public function testSmtp(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        try {
+            Mail::to($user->email)->send(new AlertDigest($user, [self::testItem()]));
+        } catch (\Throwable $e) {
+            return redirect()->to(route('settings.alerts') . '#smtp')->withErrors(['smtp' => 'Testmail mislukt: ' . mb_substr($e->getMessage(), 0, 300)]);
+        }
+
+        return redirect()->to(route('settings.alerts') . '#smtp')->with('status', "Testmail verstuurd naar {$user->email} via " . (MailSettings::enabled() ? config('mail.mailers.smtp.host') : 'de mailinstellingen uit .env') . '.');
     }
 
     public function editUser(User $user): View

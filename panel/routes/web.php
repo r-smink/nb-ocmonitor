@@ -49,7 +49,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/updates', [UpdateController::class, 'index'])->name('updates.index');
     Route::post('/updates', [UpdateController::class, 'store'])->name('updates.store')->can('manage-sites')->middleware('throttle:30,1');
     Route::get('/pagespeed', [PageSpeedController::class, 'index'])->name('pagespeed.index');
-    Route::get('/updates/automatisch', [\App\Http\Controllers\UpdateScheduleController::class, 'index'])->name('updates.schedules.index');
+    Route::get('/updates/wachtrij', [UpdateController::class, 'queue'])->name('updates.queue');
+    Route::get('/updates/automatisch',[\App\Http\Controllers\UpdateScheduleController::class, 'index'])->name('updates.schedules.index');
     Route::middleware('can:manage-sites')->group(function () {
         Route::get('/updates/automatisch/nieuw', [\App\Http\Controllers\UpdateScheduleController::class, 'create'])->name('updates.schedules.create');
         Route::post('/updates/automatisch', [\App\Http\Controllers\UpdateScheduleController::class, 'store'])->name('updates.schedules.store');
@@ -80,7 +81,9 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/sites/{site}/wp-gebruikers/{userId}', [WpUserController::class, 'action'])->whereNumber('userId')->name('wp-users.action')->can('manage-sites')->middleware('throttle:30,1');
     Route::post('/sites/{site}/backups/volledig', [SiteController::class, 'fullBackup'])->name('sites.backup.full')->can('manage-sites')->middleware('throttle:5,1');
     Route::post('/sites/{site}/backups/{backup}/terugzetten', [SiteController::class, 'restoreBackup'])->name('sites.backup.restore')->can('manage-sites')->middleware('throttle:10,1');
-    Route::delete('/sites/{site}/backups/{backup}', [SiteController::class, 'deleteBackup'])->name('sites.backup.delete')->can('manage-sites');
+    Route::post('/sites/{site}/backups/opruimen', [SiteController::class, 'clearBackups'])->name('sites.backup.clear')->can('manage-sites')->middleware('throttle:20,1');
+    Route::post('/klanten/{customer}/backups/opruimen', [CustomerController::class, 'clearBackups'])->name('customers.backup.clear')->can('manage-sites')->middleware('throttle:20,1');
+    Route::delete('/sites/{site}/backups/{backup}',[SiteController::class, 'deleteBackup'])->name('sites.backup.delete')->can('manage-sites');
     Route::post('/sites/{site}/notities', [\App\Http\Controllers\SiteNoteController::class, 'store'])->name('sites.notes.store')->can('manage-sites');
     Route::post('/sites/{site}/notities/{note}/vastzetten', [\App\Http\Controllers\SiteNoteController::class, 'pin'])->name('sites.notes.pin')->can('manage-sites');
     Route::delete('/sites/{site}/notities/{note}', [\App\Http\Controllers\SiteNoteController::class, 'destroy'])->name('sites.notes.destroy')->can('manage-sites');
@@ -141,6 +144,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::get('/instellingen', [\App\Http\Controllers\SettingsController::class, 'show'])->name('settings.show');
         Route::put('/instellingen', [\App\Http\Controllers\SettingsController::class, 'update'])->name('settings.update');
         Route::get('/instellingen/meldingen', [\App\Http\Controllers\AlertController::class, 'channels'])->name('settings.alerts');
+        Route::put('/instellingen/meldingen/smtp', [\App\Http\Controllers\AlertController::class, 'saveSmtp'])->name('settings.smtp');
+        Route::post('/instellingen/meldingen/smtp/test', [\App\Http\Controllers\AlertController::class, 'testSmtp'])->name('settings.smtp.test')->middleware('throttle:5,1');
         Route::put('/instellingen/meldingen/{type}', [\App\Http\Controllers\AlertController::class, 'saveChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.channel');
         Route::post('/instellingen/meldingen/{type}/test', [\App\Http\Controllers\AlertController::class, 'testChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.test')->middleware('throttle:10,1');
         Route::get('/instellingen/api', [\App\Http\Controllers\ApiTokenController::class, 'index'])->name('settings.api');

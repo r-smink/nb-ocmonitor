@@ -213,6 +213,34 @@ final class Backups
             ->each(fn (Backup $b) => self::delete($b, 'visuele controle in orde'));
     }
 
+    /**
+     * Back-ups die weg kunnen zodra gecontroleerd is dat alles werkt: klaar, en geen van de
+     * bijbehorende updates loopt nog (anders is het de vangnet-back-up van een lopende update).
+     *
+     * @param \Illuminate\Support\Collection<int, Site>|Site $sites
+     * @return \Illuminate\Support\Collection<int, Backup>
+     */
+    public static function removable($sites): \Illuminate\Support\Collection
+    {
+        $ids = collect($sites instanceof Site ? [$sites] : $sites)->pluck('id');
+        $backups = Backup::query()->with('site')->whereIn('site_id', $ids)->where('status', 'ready')->get();
+        $open = SiteJob::query()->whereIn('id', $backups->flatMap(fn (Backup $b) => $b->update_job_ids ?? [])->unique()->values())
+            ->whereIn('status', ['pending', 'running'])->pluck('id')->all();
+
+        return $backups->reject(fn (Backup $b) => array_intersect($b->update_job_ids ?? [], $open) !== [])->values();
+    }
+
+    /** "Alles werkt": de opruimbare back-ups van deze site(s) direct verwijderen. */
+    public static function deleteChecked($sites, ?\App\Models\User $user): int
+    {
+        $removable = self::removable($sites);
+        foreach ($removable as $backup) {
+            self::delete($backup, 'gecontroleerd, alles werkt' . ($user ? ' (' . $user->name . ')' : ''));
+        }
+
+        return $removable->count();
+    }
+
     /** Elke minuut: mislukte backups afhandelen en verlopen backups opruimen. */
     public static function tick(): void
     {

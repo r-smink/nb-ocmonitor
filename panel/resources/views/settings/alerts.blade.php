@@ -46,6 +46,60 @@
     </section>
   </div>
 
+  @php($smtp = \App\Ocm\MailSettings::stored())
+  <section class="panel" id="smtp">
+    <div class="channel-head">
+      <h3>E-mail (SMTP-server)</h3>
+      @if (\App\Ocm\MailSettings::enabled())
+        <span class="state">eigen server: {{ $smtp['host'] }}</span>
+      @else
+        <span class="state idle">via .env ({{ config('mail.default') === 'log' ? 'niet ingesteld, alleen log' : config('mail.default') }})</span>
+      @endif
+      <div class="right">
+        <form method="POST" action="{{ route('settings.smtp.test') }}" class="inline">
+          @csrf
+          <button class="btn ghost small" type="submit">Testmail naar mij</button>
+        </form>
+      </div>
+    </div>
+    @error('smtp')<div class="alert mt">{{ $message }}</div>@enderror
+    <form method="POST" action="{{ route('settings.smtp') }}" class="form mt" autocomplete="off">
+      @csrf
+      @method('PUT')
+      <label class="check"><input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" @checked(old('enabled', $smtp['enabled'] ?? false))> Eigen SMTP-server gebruiken voor alle e-mail (meldingen, rapporten, wachtwoord-reset)</label>
+      <div class="grid-2">
+        <label>SMTP-server
+          <input type="text" name="host" value="{{ old('host', $smtp['host'] ?? '') }}" placeholder="smtp.example.nl" maxlength="255" spellcheck="false">
+        </label>
+        <label>Poort
+          <input type="number" name="port" value="{{ old('port', $smtp['port'] ?? 587) }}" min="1" max="65535">
+        </label>
+        <label>Versleuteling
+          <select name="encryption">
+            @foreach (\App\Ocm\MailSettings::ENCRYPTION as $key => $label)
+              <option value="{{ $key }}" @selected(old('encryption', $smtp['encryption'] ?? 'starttls') === $key)>{{ $label }}</option>
+            @endforeach
+          </select>
+        </label>
+        <label>Gebruikersnaam
+          <input type="text" name="username" value="{{ old('username', $smtp['username'] ?? '') }}" maxlength="255" autocomplete="off" spellcheck="false">
+        </label>
+        <label>Wachtwoord
+          <input type="password" name="password" autocomplete="new-password" placeholder="{{ \App\Ocm\MailSettings::hasPassword() ? 'opgeslagen, laat leeg om te houden' : '' }}">
+          @if (\App\Ocm\MailSettings::hasPassword())<span class="hint"><input type="checkbox" name="clear_password" value="1"> wachtwoord verwijderen</span>@endif
+        </label>
+        <label>Afzenderadres
+          <input type="email" name="from_address" value="{{ old('from_address', $smtp['from_address'] ?? '') }}" placeholder="{{ config('mail.from.address') }}" maxlength="255">
+        </label>
+        <label>Afzendernaam
+          <input type="text" name="from_name" value="{{ old('from_name', $smtp['from_name'] ?? '') }}" placeholder="{{ config('mail.from.name') }}" maxlength="100">
+        </label>
+      </div>
+      <p class="note">Het wachtwoord staat versleuteld in de database. Zorg dat het afzenderadres bij het domein van de SMTP-server hoort (SPF/DKIM), anders belandt de mail in de spam. Uitgezet: de mailinstellingen uit .env gelden weer.</p>
+      <div class="actions"><button class="btn" type="submit">Opslaan</button></div>
+    </form>
+  </section>
+
   @foreach ($channels as $type => $channel)
     <section class="panel" id="kanaal-{{ $type }}">
       <div class="channel-head">
