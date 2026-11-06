@@ -91,6 +91,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::middleware('can:manage-sites')->group(function () {
         Route::post('/sites/{site}/schakelaars', [\App\Http\Controllers\SiteToolsController::class, 'tweaks'])->name('sites.tweaks')->middleware('throttle:20,1');
         Route::post('/sites/{site}/links', [\App\Http\Controllers\SiteToolsController::class, 'requestLinks'])->name('sites.links.request')->middleware('throttle:10,1');
+        Route::post('/php-fouten/{error}/opgelost', [\App\Http\Controllers\SiteToolsController::class, 'resolveError'])->name('php-errors.resolve');
         Route::post('/kapotte-links/{link}/negeren', [\App\Http\Controllers\SiteToolsController::class, 'ignoreLink'])->name('links.ignore');
         Route::post('/sites/{site}/google', [\App\Http\Controllers\SiteToolsController::class, 'analytics'])->name('sites.analytics');
     });

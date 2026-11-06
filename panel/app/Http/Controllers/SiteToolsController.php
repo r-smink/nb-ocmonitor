@@ -51,6 +51,14 @@ class SiteToolsController extends Controller
         return back()->with('status', 'Linkcontrole aangevraagd. Die start binnen 10 minuten en duurt een paar minuten.');
     }
 
+    public function resolveError(\App\Models\PhpError $error): RedirectResponse
+    {
+        $error->update(['resolved_at' => $error->isOpen() ? now() : null]);
+        Activity::log('php_error_resolved', ['hash' => $error->hash, 'message' => mb_substr($error->message, 0, 120)], $error->site);
+
+        return back()->with('status', $error->resolved_at ? 'PHP-fout gemarkeerd als opgelost. Treedt hij opnieuw op, dan zie je hem weer.' : 'PHP-fout weer open.');
+    }
+
     public function ignoreLink(BrokenLink $link): RedirectResponse
     {
         $link->update(['ignored_at' => $link->ignored_at ? null : now()]);

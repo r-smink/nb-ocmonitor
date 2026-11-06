@@ -45,6 +45,26 @@
           </div>
           <p class="note">WordPress zelf heeft geen automatische rollback per component; alleen de backup vooraf.</p>
           <label class="check"><input type="checkbox" name="security_only" value="1" @checked(old('security_only', $schedule->security_only))> Alleen updates die een bekende kwetsbaarheid oplossen</label>
+          @php($mode = old('only_mode', !empty($schedule->include) ? 'selected' : 'all'))
+          @php($chosen = array_map('strtolower', old('include', $schedule->include ?? [])))
+          <fieldset class="stack">
+            <legend class="hint">Welke plugins en thema's</legend>
+            <label class="check"><input type="radio" name="only_mode" value="all" @checked($mode === 'all')> Alle plugins en thema's (behalve wat hieronder bij "nooit" staat)</label>
+            <label class="check"><input type="radio" name="only_mode" value="selected" @checked($mode === 'selected')> Alleen deze plugins en thema's:</label>
+            @foreach (['plugin' => 'Plugins', 'theme' => 'Thema\'s'] as $type => $label)
+              @if (!empty($components[$type]))
+                <details @if ($mode === 'selected') open @endif>
+                  <summary>{{ $label }} ({{ count($components[$type]) }})</summary>
+                  <div class="check-grid mt">
+                    @foreach ($components[$type] as $slug => $c)
+                      <label title="{{ $slug }}"><input type="checkbox" name="include[]" value="{{ $slug }}" @checked(in_array($slug, $chosen, true))> {{ $c['name'] }} <span class="muted">({{ $c['sites'] }})</span></label>
+                    @endforeach
+                  </div>
+                </details>
+              @endif
+            @endforeach
+            <p class="note">WordPress zelf, vertalingen en de OC-plugin volgen de soorten hierboven, niet deze keuze.</p>
+          </fieldset>
           <label>Nooit automatisch (slugs, één per regel of met komma's)
             <textarea name="exclude" rows="3" placeholder="elementor-pro, woocommerce">{{ old('exclude', implode("\n", $schedule->exclude ?? [])) }}</textarea>
           </label>

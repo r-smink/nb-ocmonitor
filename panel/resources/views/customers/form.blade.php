@@ -61,6 +61,7 @@
         <span class="hint">De opmaak stel je in onder <a href="{{ route('reports.index') }}">Rapporten</a>.</span>
       </div>
       <label class="check-grid"><span><input type="checkbox" name="report_enabled" value="1" @checked(old('report_enabled', $customer->report_enabled))> Deze klant krijgt een rapport na elke onderhoudsbeurt</span></label>
+      <label class="check-grid"><span><input type="checkbox" name="widget_report" value="1" @checked(old('widget_report', $customer->widget_report))> Laatste rapport downloadbaar in de widget op het WordPress-dashboard van de site(s)</span></label>
       <h4 class="mt">Tags</h4>
       @php($tagIds = array_map('intval', old('tags', $customer->exists ? $customer->tags->pluck('id')->all() : [])))
       @php($allTags = \App\Models\Tag::query()->orderBy('name')->get())

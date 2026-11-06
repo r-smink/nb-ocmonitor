@@ -304,10 +304,12 @@ class CustomerController extends Controller
             'visits_per_year' => ['required', 'integer', Rule::in(array_keys(Customer::VISITS))],
             'contract_start' => ['nullable', 'required_unless:visits_per_year,0', 'date_format:Y-m-d'],
             'report_enabled' => ['nullable', 'boolean'],
+            'widget_report' => ['nullable', 'boolean'],
             'report_sections' => ['nullable', 'array'],
             'report_sections.*' => ['string', Rule::in(array_keys(Customer::REPORT_SECTIONS))],
         ]);
         $data['report_enabled'] = $request->boolean('report_enabled');
+        $data['widget_report'] = $request->boolean('widget_report');
         $data['report_sections'] = array_values($data['report_sections'] ?? []);
 
         return $data;

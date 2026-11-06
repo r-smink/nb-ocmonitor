@@ -17,7 +17,7 @@ class UpdateSchedule extends Model
     /** Wordt de geplande tijd gemist (scheduler stond stil), dan tot zoveel uur erna nog inhalen. */
     public const CATCH_UP_HOURS = 2;
 
-    protected $fillable = ['name', 'enabled', 'scope', 'scope_ids', 'types', 'security_only', 'days', 'time', 'exclude', 'paused_until', 'rollback_on_visual', 'created_by'];
+    protected $fillable = ['name', 'enabled', 'scope', 'scope_ids', 'types', 'security_only', 'days', 'time', 'exclude', 'include', 'paused_until', 'rollback_on_visual', 'created_by'];
 
     protected function casts(): array
     {
@@ -28,6 +28,7 @@ class UpdateSchedule extends Model
             'security_only' => 'boolean',
             'days' => 'array',
             'exclude' => 'array',
+            'include' => 'array',
             'paused_until' => 'date',
             'rollback_on_visual' => 'boolean',
             'last_run_at' => 'datetime',
@@ -87,6 +88,12 @@ class UpdateSchedule extends Model
             'sites' => in_array((int) $s->id, $ids, true),
             default => true,
         })->values();
+    }
+
+    /** Is er gekozen voor "alleen deze"? Dan telt alleen wat in include staat. */
+    public function includes(string $slug): bool
+    {
+        return empty($this->include) || in_array(strtolower($slug), array_map('strtolower', $this->include), true);
     }
 
     public function excludes(string $slug): bool

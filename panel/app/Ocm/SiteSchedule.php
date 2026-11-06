@@ -58,6 +58,25 @@ final class SiteSchedule
             'contract' => $customer && $customer->hasContract() ? $customer->contractLabel() : null,
             'company' => ReportDesign::get()['company'] ?: 'Next Buzz',
             'contact' => AppSettings::get('widget_contact') ?: null,
-        ];
+        ] + self::branding() + self::report($customer, $last);
+    }
+
+    /** @return array<string, string> Next Buzz-kleuren uit de rapportopmaak */
+    private static function branding(): array
+    {
+        $design = ReportDesign::get();
+
+        return ['color' => $design['color_primary'], 'accent' => $design['color_accent']];
+    }
+
+    /** @return array<string, string> downloadknop, alleen als dat bij de klant aan staat */
+    private static function report(?Customer $customer, ?MaintenanceRun $last): array
+    {
+        $url = $customer ? \App\Http\Controllers\PublicReportController::url($customer) : null;
+        if ($url === null || $last === null) {
+            return [];
+        }
+
+        return ['report_url' => $url, 'report_label' => 'Rapport ' . $last->due_on->locale('nl')->translatedFormat('F Y') . ' downloaden'];
     }
 }

@@ -677,6 +677,30 @@ test('schakelaars: alleen bekende sleutels, waarden begrensd', function () {
     check(\NextBuzz\OcMonitor\Client\Tweaks::normalize(null)['revisions'] === -1);
 });
 
+// ---------------------------------------------------------------- PHP-fouten
+
+test('php-fouten: paden relatief, geen stack trace, getallen tellen niet mee in de sleutel', function () {
+    $e = \NextBuzz\OcMonitor\Client\ErrorCatcher::normalize(['type' => E_ERROR, 'message' => "Uncaught Error: Call to undefined function foo() in /var/www/html/wp-content/plugins/x/x.php:12\nStack trace:\n#0 {main} geheim=123", 'file' => '/var/www/html/wp-content/plugins/x/x.php', 'line' => 12], '/winkel/?id=5&token=abc', '/var/www/html/');
+    check($e['type'] === 'Fatal error');
+    check($e['file'] === 'wp-content/plugins/x/x.php');
+    check(strpos($e['message'], '/var/www') === false && strpos($e['message'], 'geheim') === false, $e['message']);
+    check($e['url'] === '/winkel/', 'zonder querystring');
+    $f = \NextBuzz\OcMonitor\Client\ErrorCatcher::normalize(['type' => E_ERROR, 'message' => 'Allowed memory size of 134217728 bytes exhausted', 'file' => '/var/www/html/a.php', 'line' => 3], '/', '/var/www/html/');
+    $g = \NextBuzz\OcMonitor\Client\ErrorCatcher::normalize(['type' => E_ERROR, 'message' => 'Allowed memory size of 268435456 bytes exhausted', 'file' => '/var/www/html/a.php', 'line' => 3], '/', '/var/www/html/');
+    check($f['hash'] === $g['hash'], 'zelfde fout met andere getallen = één regel');
+});
+
+test('widget: downloadlink alleen naar het eigen panel, kleuren en datums gecontroleerd', function () {
+    $W = '\\NextBuzz\\OcMonitor\\Client\\Admin\\DashboardWidget';
+    $ok = $W::normalize(['next' => '2026-11-16', 'report_url' => 'https://oc.nextbuzz.nl/api/rapport/1?signature=x', 'color' => '#00aa55'], 'oc.nextbuzz.nl');
+    check($ok['report_url'] === 'https://oc.nextbuzz.nl/api/rapport/1?signature=x' && $ok['color'] === '#00AA55' && $ok['next'] === '2026-11-16');
+    check($W::normalize(['report_url' => 'https://phish.example/rapport.pdf'], 'oc.nextbuzz.nl')['report_url'] === null, 'andere host');
+    check($W::normalize(['report_url' => 'http://oc.nextbuzz.nl/x'], 'oc.nextbuzz.nl')['report_url'] === null, 'geen https');
+    check($W::normalize(['report_url' => 'https://oc.nextbuzz.nl/x'], null)['report_url'] === null, 'niet gekoppeld');
+    $bad = $W::normalize(['next' => 'morgen', 'color' => 'red;}body{display:none', 'contact' => '<script>x</script>Bel ons'], 'oc.nextbuzz.nl');
+    check($bad['next'] === null && $bad['color'] === '#E22830' && $bad['contact'] === 'xBel ons');
+});
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL {$failure}\n");
 }

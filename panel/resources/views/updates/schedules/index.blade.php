@@ -31,7 +31,7 @@
               <span class="name">{{ $schedule->name }}</span>
               @unless ($schedule->enabled)<span class="badge">uit</span>@endunless
               @if ($schedule->rollback_on_visual)<span class="badge">terugzetten bij visuele wijziging</span>@endif
-              <div class="sub">{{ $schedule->describe() }} · {{ \App\Models\UpdateSchedule::SCOPES[$schedule->scope] }} ({{ $count }} {{ $count === 1 ? 'site' : 'sites' }})@if ($schedule->exclude) · nooit: {{ implode(', ', $schedule->exclude) }}@endif</div>
+              <div class="sub">{{ $schedule->describe() }} · {{ \App\Models\UpdateSchedule::SCOPES[$schedule->scope] }} ({{ $count }} {{ $count === 1 ? 'site' : 'sites' }})@if ($schedule->include) · alleen: {{ implode(', ', $schedule->include) }}@endif @if ($schedule->exclude) · nooit: {{ implode(', ', $schedule->exclude) }}@endif</div>
             </div>
             <div class="schedule-actions">
               @can('manage-sites')
