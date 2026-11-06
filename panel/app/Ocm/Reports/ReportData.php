@@ -51,7 +51,7 @@ final class ReportData
             ->map(fn (MaintenanceRun $r) => ['date' => $r->due_on, 'done_at' => $r->done_at, 'by' => $r->doneBy?->name, 'notes' => $r->notes])->all();
 
         return [
-            'customer' => ['name' => $customer->name, 'contact' => $customer->contact_name, 'contract' => $customer->contractLabel()],
+            'customer' => ['name' => $customer->reportName(), 'company_name' => $customer->name, 'domains' => $customer->domainLabel(), 'contact' => $customer->contact_name, 'contract' => $customer->contractLabel()],
             'from' => $from,
             'to' => $to,
             'sections' => $customer->sections(),

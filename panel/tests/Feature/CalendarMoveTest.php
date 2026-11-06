@@ -34,7 +34,7 @@ class CalendarMoveTest extends TestCase
         $this->assertSame(['2026-11-12', '2026-12-07', '2027-01-05'], $dates, 'alleen november is verschoven');
         $this->assertSame('2026-11-12', $customer->plannedOn(CarbonImmutable::parse('2026-11-05'))->toDateString(), 'de beurt houdt zijn contractdatum als sleutel');
 
-        $page = $this->get('/klanten')->assertOk();
+        $page = $this->get('/onderhoud')->assertOk();
         $page->assertSeeInOrder(['data-cal-drop="2026-11-12"', 'data-due="2026-11-05"'], false);
         $page->assertSee('cal-item planned moved', false)->assertSee('verplaatst van 05-11');
         // 5 okt is nog open (achterstallig) en blijft de eerstvolgende beurt; in de planning staat november verplaatst.
@@ -64,7 +64,7 @@ class CalendarMoveTest extends TestCase
         $this->travelTo(CarbonImmutable::parse('2026-11-01 09:00'));
         $customer = $this->customer();
         $this->actingAs($this->makeUser('viewer'));
-        $this->get('/klanten')->assertOk()->assertDontSee('draggable="true"', false)->assertDontSee('calMoveForm', false);
+        $this->get('/onderhoud')->assertOk()->assertDontSee('draggable="true"', false)->assertDontSee('calMoveForm', false);
         $this->post("/klanten/{$customer->id}/onderhoud/verplaatsen", ['due_on' => '2026-11-05', 'planned_on' => '2026-11-12'])->assertForbidden();
     }
 

@@ -16,6 +16,7 @@ final class Menu
     public const ITEMS = [
         'dashboard' => ['Overzicht', 'dashboard', ['dashboard'], true],
         'sites' => ['Sites', 'sites.index', ['sites.*'], true],
+        'maintenance' => ['Onderhoud', 'maintenance.index', ['maintenance.*'], false],
         'customers' => ['Klanten', 'customers.index', ['customers.*', 'tags.*'], false],
         'updates' => ['Updates', 'updates.index', ['updates.*', 'sites.updates'], false],
         'pagespeed' => ['PageSpeed', 'pagespeed.index', ['pagespeed.*', 'sites.pagespeed'], false],
@@ -32,14 +33,14 @@ final class Menu
     /** Indeling van de zijbalk: groep => onderdelen, in deze volgorde. */
     public const GROUPS = [
         'Monitoring' => ['dashboard', 'sites', 'pagespeed', 'vulnerabilities'],
-        'Onderhoud' => ['updates', 'customers', 'reports', 'versions', 'links'],
+        'Onderhoud' => ['maintenance', 'updates', 'customers', 'reports', 'versions', 'links'],
         'Beheer' => ['licenses', 'wp-users', 'bulk', 'activity'],
     ];
 
     /** Icoon per onderdeel (namen uit partials/icon). */
     public const ICONS = [
         'dashboard' => 'grid', 'sites' => 'server', 'pagespeed' => 'gauge', 'vulnerabilities' => 'bug',
-        'updates' => 'refresh', 'customers' => 'calendar', 'reports' => 'filetext', 'versions' => 'layers',
+        'updates' => 'refresh', 'maintenance' => 'calendar', 'customers' => 'briefcase', 'reports' => 'filetext', 'versions' => 'layers',
         'licenses' => 'key', 'wp-users' => 'users', 'bulk' => 'check', 'activity' => 'activity', 'links' => 'filetext',
     ];
 

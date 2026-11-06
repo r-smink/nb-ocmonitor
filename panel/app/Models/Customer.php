@@ -180,6 +180,38 @@ class Customer extends Model
         return array_values(array_unique(array_filter(array_merge([$this->email], $cc), fn ($e) => filter_var($e, FILTER_VALIDATE_EMAIL))));
     }
 
+    /**
+     * Domeinnamen van de sites zonder www, op alfabet.
+     *
+     * @return list<string>
+     */
+    public function domains(): array
+    {
+        return $this->sites()->get(['host'])->pluck('host')
+            ->map(fn ($h) => preg_replace('/^www\./i', '', mb_strtolower((string) $h)))
+            ->filter()->unique()->sort()->values()->all();
+    }
+
+    /** "bakkerij.nl", "a.nl en b.nl", "a.nl, b.nl en c.nl"; zonder sites de klantnaam. */
+    public function domainLabel(): string
+    {
+        $domains = $this->domains();
+        if ($domains === []) {
+            return (string) $this->name;
+        }
+        $last = array_pop($domains);
+
+        return $domains === [] ? $last : implode(', ', $domains) . ' en ' . $last;
+    }
+
+    /** Naam in het rapport (voorpagina, voettekst, bestandsnaam): klantnaam of domeinnaam(en). */
+    public function reportName(?array $design = null): string
+    {
+        $design ??= \App\Ocm\Reports\ReportDesign::get();
+
+        return ($design['report_name'] ?? 'customer') === 'domain' ? $this->domainLabel() : (string) $this->name;
+    }
+
     private static function shiftWeekend(CarbonImmutable $date): CarbonImmutable
     {
         return match ($date->dayOfWeekIso) {

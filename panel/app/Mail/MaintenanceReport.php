@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Customer;
+use App\Ocm\Reports\ReportDesign;
 use Carbon\CarbonImmutable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
@@ -26,12 +27,12 @@ class MaintenanceReport extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: $this->design['title'] . ' ' . $this->customer->name . ' – ' . $this->periodTo->locale('nl')->translatedFormat('F Y'));
+        return new Envelope(subject: ReportDesign::fill($this->design['mail_subject'], $this->customer, $this->periodFrom, $this->periodTo, $this->design));
     }
 
     public function content(): Content
     {
-        return new Content(text: 'mail.maintenance-report');
+        return new Content(text: 'mail.maintenance-report', with: ['body' => ReportDesign::fill($this->design['mail_body'], $this->customer, $this->periodFrom, $this->periodTo, $this->design)]);
     }
 
     /** @return list<Attachment> */
