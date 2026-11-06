@@ -61,6 +61,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     });
 
     Route::get('/klanten', [CustomerController::class, 'index'])->name('customers.index');
+    Route::get('/onderhoud', [CustomerController::class, 'maintenance'])->name('maintenance.index');
     Route::get('/klanten/nieuw', [CustomerController::class, 'create'])->name('customers.create')->can('manage-sites');
     Route::post('/klanten', [CustomerController::class, 'store'])->name('customers.store')->can('manage-sites');
     Route::get('/klanten/{customer}', [CustomerController::class, 'show'])->name('customers.show');

@@ -4,74 +4,18 @@
   <div class="page-head">
     <div>
       <h1>Klanten</h1>
-      <p>Klanten met een onderhoudscontract, de kalender met geplande beurten en de rapporten die ze krijgen.</p>
+      <p>Klanten met hun onderhoudscontract, sites en rapport. De planning staat onder <a href="{{ route('maintenance.index') }}">Onderhoud</a>.</p>
     </div>
     @can('manage-sites')
       <div class="right row-actions"><a class="btn ghost" href="{{ route('tags.index') }}">Tags</a><a class="btn" href="{{ route('customers.create') }}">Klant toevoegen</a></div>
     @endcan
   </div>
 
-  {{-- In de kalender en de lijst de websitenaam tonen (meerdere sites: "Site A +2"); zonder sites de klantnaam. --}}
-  @php($siteLabel = fn ($c) => $c->sites->isEmpty() ? $c->name : $c->sites->sortBy('name')->first()->name . ($c->sites->count() > 1 ? ' +' . ($c->sites->count() - 1) : ''))
-  <div class="cols cols-wide">
-    <section class="panel">
-      <div class="panel-head">
-        <h3>Onderhoudskalender</h3>
-        <div class="right cal-nav">
-          <a class="btn ghost small" href="{{ route('customers.index', ['maand' => $month->subMonth()->format('Y-m')]) }}" aria-label="Vorige maand">←</a>
-          <b>{{ $month->locale('nl')->translatedFormat('F Y') }}</b>
-          <a class="btn ghost small" href="{{ route('customers.index', ['maand' => $month->addMonth()->format('Y-m')]) }}" aria-label="Volgende maand">→</a>
-          @if (!$month->isSameMonth($today))<a class="btn ghost small" href="{{ route('customers.index') }}">Vandaag</a>@endif
-        </div>
-      </div>
-      <div class="cal">
-        @foreach (['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'] as $dow)<div class="dow">{{ $dow }}</div>@endforeach
-        @for ($day = $gridStart; $day->lessThanOrEqualTo($gridEnd); $day = $day->addDay())
-          <div @class(['out' => !$day->isSameMonth($month), 'today' => $day->isSameDay($today)]) @can('manage-sites') data-cal-drop="{{ $day->toDateString() }}" @endcan>
-            <span class="day-no">{{ $day->day }}</span>
-            @foreach ($days[$day->toDateString()] ?? [] as $item)
-              @php($movable = $item['state'] !== 'done' && auth()->user()->can('manage-sites'))
-              <a @class(['cal-item', $item['state'], 'moved' => $item['moved']]) href="{{ route('customers.show', $item['customer']) }}"
-                 title="{{ $item['customer']->sites->sortBy('name')->pluck('name')->implode(', ') ?: $item['customer']->name }} ({{ $item['customer']->name }}) · {{ ['done' => 'afgerond', 'overdue' => 'achterstallig', 'planned' => 'gepland'][$item['state']] }}{{ $item['moved'] ? ' · verplaatst van ' . \Carbon\Carbon::parse($item['due'])->format('d-m') : '' }}{{ $movable ? ' · sleep naar een andere dag om te verplaatsen' : '' }}"
-                 @if ($movable) draggable="true" data-cal-move="{{ route('customers.move', $item['customer']) }}" data-due="{{ $item['due'] }}" @endif>{{ $siteLabel($item['customer']) }}</a>
-            @endforeach
-          </div>
-        @endfor
-      </div>
-      <p class="note mt">Blauw = gepland, groen = afgerond, rood = achterstallig, gestippeld = verplaatst. Valt een beurt in het weekend, dan staat hij op maandag. Sleep een beurt naar een andere dag om alleen die beurt te verplaatsen; de volgende datums blijven hetzelfde.</p>
-      @can('manage-sites')
-        <form method="POST" id="calMoveForm" class="hidden">
-          @csrf
-          <input type="hidden" name="due_on">
-          <input type="hidden" name="planned_on">
-        </form>
-      @endcan
-    </section>
-
-    <section class="panel">
-      <div class="panel-head"><h3>Eerstvolgend onderhoud</h3></div>
-      <div class="mini-list scroll-sm">
-        @forelse ($upcoming->take(15) as $row)
-          @php($overdue = $row['date']->lessThan($today))
-          <div class="mini-row">
-            <div class="grow">
-              <a class="name" href="{{ route('customers.show', $row['customer']) }}" title="{{ $row['customer']->sites->sortBy('name')->pluck('name')->implode(', ') }}">{{ $siteLabel($row['customer']) }}</a>
-              <div @class(['sub', 'issue-text', 'crit' => $overdue])>@if ($row['customer']->sites->isNotEmpty()){{ $row['customer']->name }} · @endif{{ $row['date']->format('d-m-Y') }}{{ $overdue ? ' · achterstallig' : ($row['date']->isSameDay($today) ? ' · vandaag' : '') }}</div>
-            </div>
-            <span class="sub">{{ $row['customer']->sites->count() }} {{ $row['customer']->sites->count() === 1 ? 'site' : 'sites' }} · {{ $row['customer']->sites->sum(fn ($s) => count($s->availableUpdates())) }} upd.</span>
-          </div>
-        @empty
-          <p class="muted">Nog geen klanten met een contract.</p>
-        @endforelse
-      </div>
-    </section>
-  </div>
-
   <section class="panel">
     <div class="panel-head"><h3>Alle klanten</h3><span class="badge">{{ $customers->count() }}</span></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Klant</th><th>Contract</th><th>Sites</th><th>Rapport</th>@can('manage-sites')<th></th>@endcan</tr></thead>
+        <thead><tr><th>Klant</th><th>Contract</th><th>Volgend onderhoud</th><th>Sites</th><th>Rapport</th>@can('manage-sites')<th></th>@endcan</tr></thead>
         <tbody>
           @forelse ($customers as $customer)
             @php($pending = $customer->sites->filter(fn ($s) => $s->isPaired() && $s->updatesBlockedReason() === null)->sum(fn ($s) => collect($s->availableUpdates())->whereIn('type', ['plugin', 'theme'])->count()))
@@ -81,6 +25,14 @@
                 <div class="note">{{ collect([$customer->contact_name, $customer->email])->filter()->implode(' · ') ?: '–' }}</div>
               </td>
               <td>{{ $customer->contractLabel() }}<div class="note">{{ $customer->contract_start ? 'sinds ' . $customer->contract_start->format('d-m-Y') : '' }}</div></td>
+              <td>
+                @if ($date = $next[$customer->id])
+                  <span @class(['issue-text', 'crit' => $date->lessThan($today)])>{{ $date->format('d-m-Y') }}</span>
+                  @if ($date->lessThan($today))<div class="note">achterstallig</div>@elseif ($date->isSameDay($today))<div class="note">vandaag</div>@endif
+                @else
+                  <span class="muted">–</span>
+                @endif
+              </td>
               <td class="wrap">{{ $customer->sites->pluck('name')->implode(', ') ?: '–' }}</td>
               <td>@if ($customer->report_enabled)<span class="state">rapport aan</span>@else<span class="state idle">geen rapport</span>@endif</td>
               @can('manage-sites')
@@ -95,7 +47,7 @@
               @endcan
             </tr>
           @empty
-            <tr><td colspan="5" class="muted">Nog geen klanten.</td></tr>
+            <tr><td colspan="6" class="muted">Nog geen klanten.</td></tr>
           @endforelse
         </tbody>
       </table>

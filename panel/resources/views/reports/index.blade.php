@@ -32,6 +32,20 @@
         </div>
         <label>Inleiding (bij de samenvatting)<textarea name="intro" rows="3" maxlength="2000">{{ $design['intro'] }}</textarea></label>
         <label>Voettekst<input name="footer" value="{{ $design['footer'] }}" maxlength="200"></label>
+        <label>Naam op de voorpagina, in de voettekst en de bestandsnaam
+          <select name="report_name">
+            @foreach (\App\Ocm\Reports\ReportDesign::REPORT_NAMES as $value => $label)
+              <option value="{{ $value }}" @selected($design['report_name'] === $value)>{{ $label }}</option>
+            @endforeach
+          </select>
+        </label>
+
+        <h4 class="mt">E-mail bij het rapport</h4>
+        <label>Onderwerp<input name="mail_subject" value="{{ $design['mail_subject'] }}" maxlength="200"></label>
+        <label>Tekst<textarea name="mail_body" rows="9" maxlength="5000">{{ $design['mail_body'] }}</textarea></label>
+        <p class="note">Invulvelden:
+          @foreach (\App\Ocm\Reports\ReportDesign::PLACEHOLDERS as $tag => $help)<code>{{ $tag }}</code> {{ $help }}{{ $loop->last ? '.' : ' · ' }}@endforeach
+          Leeg laten = de standaardtekst.</p>
 
         <h4 class="mt">Kleuren</h4>
         <div class="form-row">

@@ -22,7 +22,21 @@ use Illuminate\View\View;
 
 class CustomerController extends Controller
 {
-    public function index(Request $request): View
+    /** Klanten: de lijst met contract, sites, rapport en het volgende onderhoud. */
+    public function index(): View
+    {
+        $today = CarbonImmutable::today();
+        $customers = Customer::query()->with(['runs', 'sites', 'tags'])->orderBy('name')->get();
+
+        return view('customers.index', [
+            'customers' => $customers,
+            'next' => $customers->mapWithKeys(fn (Customer $c) => [$c->id => ($due = $c->nextDue($today)) ? $c->plannedOn($due) : null]),
+            'today' => $today,
+        ]);
+    }
+
+    /** Onderhoud: de kalender met geplande beurten en wat er als eerste aan de beurt is. */
+    public function maintenance(Request $request): View
     {
         $month = CarbonImmutable::createFromFormat('Y-m-d', ($request->query('maand') ?: now()->format('Y-m')) . '-01');
         $month = $month instanceof CarbonImmutable ? $month->startOfMonth() : CarbonImmutable::now()->startOfMonth();
@@ -46,8 +60,7 @@ class CustomerController extends Controller
         $upcoming = $customers->map(fn (Customer $c) => ['customer' => $c, 'date' => ($due = $c->nextDue($today)) ? $c->plannedOn($due) : null])
             ->filter(fn ($row) => $row['date'] !== null)->sortBy(fn ($row) => $row['date']->timestamp)->values();
 
-        return view('customers.index', [
-            'customers' => $customers,
+        return view('maintenance.index', [
             'month' => $month,
             'gridStart' => $gridStart,
             'gridEnd' => $gridEnd,
@@ -292,7 +305,7 @@ class CustomerController extends Controller
 
     private static function filename(Customer $customer, CarbonImmutable $to): string
     {
-        return 'onderhoudsrapport-' . (\Illuminate\Support\Str::slug($customer->name) ?: 'klant') . '-' . $to->format('Y-m-d') . '.pdf';
+        return 'onderhoudsrapport-' . (\Illuminate\Support\Str::slug(str_replace('.', '-', $customer->reportName())) ?: 'klant') . '-' . $to->format('Y-m-d') . '.pdf';
     }
 
     /** @return array<string, mixed> */

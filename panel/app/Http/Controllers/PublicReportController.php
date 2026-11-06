@@ -50,7 +50,7 @@ class PublicReportController extends Controller
         abort_unless($customer->widget_report && $period !== null, 404);
         [$from, $to] = $period;
         $pdf = ReportPdf::render(ReportData::build($customer, CarbonImmutable::parse($from), CarbonImmutable::parse($to)));
-        $name = 'onderhoudsrapport-' . (Str::slug($customer->name) ?: 'klant') . '-' . CarbonImmutable::parse($to)->format('Y-m-d') . '.pdf';
+        $name = 'onderhoudsrapport-' . (Str::slug(str_replace('.', '-', $customer->reportName())) ?: 'klant') . '-' . CarbonImmutable::parse($to)->format('Y-m-d') . '.pdf';
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
