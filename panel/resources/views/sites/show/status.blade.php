@@ -73,7 +73,7 @@
           <a class="btn ghost small" href="{{ route('sites.show', $site) }}">Status verversen</a>
         </div>
       @else
-        <p class="note mt">De koppelcode is verlopen of al gebruikt.</p>
+        <p class="note mt">{{ $site->pairing_expires_at ? 'De koppelcode is verlopen of al gebruikt.' : 'Er is nog geen koppelcode gemaakt. Maak er een zodra je de plugin gaat installeren; hij is 15 minuten geldig.' }}</p>
       @endif
       @can('manage-sites')
         <form method="POST" action="{{ route('sites.pairing', $site) }}" class="mt">

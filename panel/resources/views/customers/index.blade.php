@@ -7,7 +7,7 @@
       <p>Klanten met hun onderhoudscontract, sites en rapport. De planning staat onder <a href="{{ route('maintenance.index') }}">Onderhoud</a>.</p>
     </div>
     @can('manage-sites')
-      <div class="right row-actions"><a class="btn ghost" href="{{ route('tags.index') }}">Tags</a><a class="btn" href="{{ route('customers.create') }}">Klant toevoegen</a></div>
+      <div class="right row-actions"><a class="btn ghost" href="{{ route('tags.index') }}">Tags</a><a class="btn ghost" href="{{ route('customers.import') }}">Importeren</a><a class="btn" href="{{ route('customers.create') }}">Klant toevoegen</a></div>
     @endcan
   </div>
 

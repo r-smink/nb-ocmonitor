@@ -110,11 +110,8 @@ Met vriendelijke groet,
                 $key === 'font_size' => is_numeric($value) ? max(8, min(14, (int) $value)) : $default,
                 str_starts_with($key, 'margin_') => is_numeric($value) ? max(5, min(80, (int) $value)) : $default,
                 $key === 'report_name' => is_string($value) && isset(self::REPORT_NAMES[$value]) ? $value : $default,
-                $key === 'mail_body' => is_string($value) && trim($value) !== '' ? mb_substr(str_replace("
-", "
-", trim($value)), 0, 5000) : $default,
-                $key === 'mail_subject' => is_string($value) && trim($value) !== '' ? mb_substr(preg_replace('/[
-]+/', ' ', trim($value)), 0, 200) : $default,
+                $key === 'mail_body' => is_string($value) && trim($value) !== '' ? mb_substr(str_replace(["\r\n", "\r"], "\n", trim($value)), 0, 5000) : $default,
+                $key === 'mail_subject' => is_string($value) && trim($value) !== '' ? mb_substr(preg_replace('/[\r\n]+/', ' ', trim($value)), 0, 200) : $default,
                 default => is_string($value) ? mb_substr(trim($value), 0, $key === 'intro' ? 2000 : 200) : $default,
             };
         }

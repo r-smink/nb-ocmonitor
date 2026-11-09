@@ -64,6 +64,12 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/onderhoud', [CustomerController::class, 'maintenance'])->name('maintenance.index');
     Route::get('/klanten/nieuw', [CustomerController::class, 'create'])->name('customers.create')->can('manage-sites');
     Route::post('/klanten', [CustomerController::class, 'store'])->name('customers.store')->can('manage-sites');
+    Route::middleware('can:manage-sites')->group(function () {
+        Route::get('/klanten/importeren', [\App\Http\Controllers\CustomerImportController::class, 'form'])->name('customers.import');
+        Route::post('/klanten/importeren', [\App\Http\Controllers\CustomerImportController::class, 'preview'])->name('customers.import.preview')->middleware('throttle:30,1');
+        Route::post('/klanten/importeren/opslaan', [\App\Http\Controllers\CustomerImportController::class, 'store'])->name('customers.import.store')->middleware('throttle:10,1');
+        Route::get('/klanten/importeren/voorbeeld.csv', [\App\Http\Controllers\CustomerImportController::class, 'template'])->name('customers.import.template');
+    });
     Route::get('/klanten/{customer}', [CustomerController::class, 'show'])->name('customers.show');
     Route::get('/klanten/{customer}/bewerken', [CustomerController::class, 'edit'])->name('customers.edit')->can('manage-sites');
     Route::put('/klanten/{customer}', [CustomerController::class, 'update'])->name('customers.update')->can('manage-sites');
