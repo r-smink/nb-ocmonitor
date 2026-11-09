@@ -153,6 +153,8 @@ class SiteController extends Controller
             'inventory' => $site->inventory ?? [],
             'commands' => self::MANUAL_COMMANDS,
             'updates' => collect($site->availableUpdates())->keyBy(fn ($u) => $u['type'] . ':' . $u['id']),
+            'risks' => $site->isPaired() ? \App\Ocm\UpdateRisk::forSite($site) : [],
+            'trends' => $site->isPaired() ? \App\Ocm\SiteMetrics::series($site) : [],
             'queued' => Updates::queuedIds($site),
             'updatesBlocked' => $site->updatesBlockedReason(),
             'pagespeed' => PagespeedResult::latestPerSite()->get($site->id, collect()),

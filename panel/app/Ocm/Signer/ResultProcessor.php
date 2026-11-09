@@ -214,6 +214,7 @@ final class ResultProcessor
         $site->wp_version = self::str($result['core']['version'] ?? $site->wp_version);
         $site->php_version = self::str($result['php_version'] ?? $site->php_version);
         $site->save();
+        \App\Ocm\SiteMetrics::record($site);
     }
 
     /**

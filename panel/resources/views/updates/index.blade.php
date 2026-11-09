@@ -43,6 +43,12 @@
           <option value="{{ $site->site_id }}" @selected($filters['site'] === $site->site_id)>{{ $site->name }}</option>
         @endforeach
       </select>
+      <select name="risk" data-autosubmit aria-label="Risico">
+        <option value="">Elk risico</option>
+        @foreach (\App\Ocm\UpdateRisk::LABELS as $level => $label)
+          <option value="{{ $level }}" @selected($filters['risk'] === $level)>{{ ucfirst($label) }}</option>
+        @endforeach
+      </select>
       <input type="search" name="q" value="{{ $filters['q'] }}" placeholder="Zoek plugin, thema of site…" aria-label="Zoeken">
       @if (array_filter($filters))<a class="btn ghost small" href="{{ route('updates.index') }}">Wis filters</a>@endif
     </form>
@@ -57,6 +63,7 @@
             <div class="comp-card-head">
               <a class="name" href="{{ route('updates.index', $query(['component' => $component['key']])) }}">{{ $component['name'] }}</a>
               @if (isset($security[$component['type'] . ':' . strtolower($component['slug'])]))<span class="badge sec">beveiliging</span>@endif
+              @include('partials.risk-badge', ['risk' => $component['risk']])
             </div>
             <div class="sub">{{ $types[$component['type']] }} · {{ $component['sites'] }} {{ $component['sites'] === 1 ? 'site' : 'sites' }} · naar <span class="ver-to">{{ $component['to'] }}</span></div>
             <div class="sub ver" title="Huidige versies">{{ implode(', ', array_slice($component['from'], 0, 4)) }}{{ count($component['from']) > 4 ? ' …' : '' }}</div>
@@ -110,7 +117,7 @@
                 <td><a href="{{ route('sites.show', $row['site']) }}"><b>{{ $row['site']->name }}</b></a>@foreach ($row['site']->pinnedNotes as $note)<div class="site-note" title="Vastgezette notitie">@include('partials.icon', ['name' => 'pin', 'size' => 12]) {{ \Illuminate\Support\Str::limit($note->body, 70) }}</div>@endforeach</td>
                 <td>{{ $row['name'] }} @if ($row['type'] !== 'core')<span class="muted mono">{{ $row['slug'] }}</span>@endif</td>
                 <td class="muted">{{ $types[$row['type']] }}</td>
-                <td><span class="ver">{{ $row['from'] }}</span> → <span class="ver-to">{{ $row['to'] }}</span></td>
+                <td><span class="ver">{{ $row['from'] }}</span> → <span class="ver-to">{{ $row['to'] }}</span> @include('partials.risk-badge', ['risk' => $row['risk']])</td>
                 <td>{{ $row['active'] ? 'ja' : 'nee' }}</td>
                 <td class="wrap">
                   @if ($row['queued'])

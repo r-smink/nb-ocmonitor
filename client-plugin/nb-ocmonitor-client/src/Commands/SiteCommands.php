@@ -136,6 +136,7 @@ final class SiteCommands
             }, array_keys(get_mu_plugins()), get_mu_plugins()),
             'themes' => $themes,
             'cleanup' => CleanupCommands::stats(),
+            'storage' => \NextBuzz\OcMonitor\Client\Storage::summary(),
             'licenses' => LicenseCommands::status(),
             'tweaks' => \NextBuzz\OcMonitor\Client\Tweaks::current(),
             'translations_pending' => count(wp_get_translation_updates()),

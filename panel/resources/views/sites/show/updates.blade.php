@@ -35,6 +35,8 @@
             <span class="sd-row-name">{{ $u['name'] }}</span>
             <span class="hint">{{ $typeLabels[$u['type']] ?? $u['type'] }}</span>
             @if (isset($security[$u['type'] . ':' . strtolower((string) $u['slug'])]))<span class="badge sec">beveiliging</span>@endif
+            @include('partials.risk-badge', ['risk' => $risks[$u['type'] . ':' . $u['id']] ?? null])
+            @if (!empty($risks[$u['type'] . ':' . $u['id']]['summary']))<div class="risk-summary">{{ $risks[$u['type'] . ':' . $u['id']]['summary'] }}</div>@endif
           </div>
           <div class="sd-ver"><span class="mono">{{ $u['from'] }}</span> <span class="muted">→</span> <span class="ver-to">{{ $u['to'] }}</span></div>
           <div class="sd-row-action">

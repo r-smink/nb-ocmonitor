@@ -75,17 +75,37 @@ final class PluginDirectory
                 'closed_reason' => isset($json['reason_text']) ? mb_substr((string) $json['reason_text'], 0, 120) : (isset($json['reason']) ? mb_substr((string) $json['reason'], 0, 120) : null),
                 'closed_date' => self::date($json['closed_date'] ?? null)?->toDateString(),
                 'last_updated' => null,
-            ];
+            ] + self::NO_REQUIREMENTS;
         }
         if ($status === 404 || isset($json['error'])) {
             // Niet op wordpress.org (premium of eigen plugin): niets te zeggen.
-            return ['listed' => false, 'closed' => false, 'closed_reason' => null, 'closed_date' => null, 'last_updated' => null];
+            return ['listed' => false, 'closed' => false, 'closed_reason' => null, 'closed_date' => null, 'last_updated' => null] + self::NO_REQUIREMENTS;
         }
         if ($status !== 200 || ($json['slug'] ?? null) !== $slug) {
             return null;
         }
 
-        return ['listed' => true, 'closed' => false, 'closed_reason' => null, 'closed_date' => null, 'last_updated' => self::date($json['last_updated'] ?? null)];
+        return ['listed' => true, 'closed' => false, 'closed_reason' => null, 'closed_date' => null, 'last_updated' => self::date($json['last_updated'] ?? null)] + self::requirements($json);
+    }
+
+    private const NO_REQUIREMENTS = ['version' => null, 'requires_php' => null, 'requires_wp' => null, 'tested' => null];
+
+    /**
+     * Eisen van de nieuwste versie. wordpress.org geeft false of "" als de auteur niets opgeeft.
+     *
+     * @param array<string, mixed> $json
+     * @return array{version: ?string, requires_php: ?string, requires_wp: ?string, tested: ?string}
+     */
+    public static function requirements(array $json): array
+    {
+        $v = fn (mixed $value, int $max) => is_string($value) && preg_match('/^\d+(\.\d+){0,3}$/', trim($value)) ? mb_substr(trim($value), 0, $max) : null;
+
+        return [
+            'version' => is_string($json['version'] ?? null) && $json['version'] !== '' ? mb_substr($json['version'], 0, 40) : null,
+            'requires_php' => $v($json['requires_php'] ?? null, 20),
+            'requires_wp' => $v($json['requires'] ?? null, 20),
+            'tested' => $v($json['tested'] ?? null, 20),
+        ];
     }
 
     /** @return array<string, PluginDirectoryEntry> */

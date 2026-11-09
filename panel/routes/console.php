@@ -24,3 +24,4 @@ Schedule::call(function () {
 })->name('ocm:schedule-widget')->dailyAt('06:00')->withoutOverlapping();
 Schedule::command('ocm:links')->everyTenMinutes()->withoutOverlapping(30);
 Schedule::command('ocm:plugin-directory')->dailyAt('05:10')->withoutOverlapping(60);
+Schedule::command('ocm:changelogs')->hourlyAt(20)->withoutOverlapping(60);

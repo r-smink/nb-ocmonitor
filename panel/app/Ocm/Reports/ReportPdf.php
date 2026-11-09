@@ -167,15 +167,19 @@ final class ReportPdf
             'changes' => [['date' => $now->subDays(12), 'what' => 'Plugin geïnstalleerd', 'object' => 'Complianz GDPR']],
         ];
 
-        return [
+        $data = [
             'customer' => ['name' => 'Voorbeeldklant B.V.', 'contact' => 'Jan Jansen', 'contract' => '4x per jaar'],
             'from' => $now->subMonths(3), 'to' => $now,
             'sections' => array_keys(\App\Models\Customer::REPORT_SECTIONS),
             'sites' => [$site('Voorbeeldklant', 'https://www.voorbeeldklant.nl'), $site('Voorbeeldklant Shop', 'https://shop.voorbeeldklant.nl')],
             'runs' => [['date' => $now->subDays(20), 'done_at' => $now->subDays(20), 'by' => 'Next Buzz', 'notes' => 'Alle plugins en het thema bijgewerkt, back-up gecontroleerd.']],
-            'totals' => ['sites' => 2, 'updates' => 8, 'pending' => 2, 'failed_logins' => 624, 'blocked_ips' => 18],
+            'totals' => ['sites' => 2, 'updates' => 8, 'pending' => 2, 'failed_logins' => 624, 'blocked_ips' => 18, 'vulns_fixed' => 1],
             'cover_shot' => ($demo = self::demoShot()) ? ['url' => 'https://www.voorbeeldklant.nl', 'image' => $demo, 'at' => $now->subDays(3)] : null,
         ];
+        // Voorbeeld: altijd de vaste tekst, zodat een voorbeeld bekijken Claude niet aanroept.
+        $data['narrative'] = ReportSummary::text(ReportSummary::facts($data));
+
+        return $data;
     }
 
     /** Breedte/hoogte van de uitsnede op de voorpagina: het bovenste deel van de homepage (zoals het kader in de mockup). */

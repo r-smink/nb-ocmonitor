@@ -50,7 +50,7 @@ final class ReportData
         $runs = $customer->runs()->with('doneBy')->whereBetween('due_on', [$start->toDateString(), $end->toDateString()])->orderBy('due_on')->get()
             ->map(fn (MaintenanceRun $r) => ['date' => $r->due_on, 'done_at' => $r->done_at, 'by' => $r->doneBy?->name, 'notes' => $r->notes])->all();
 
-        return [
+        $data = [
             'customer' => ['name' => $customer->reportName(), 'company_name' => $customer->name, 'domains' => $customer->domainLabel(), 'contact' => $customer->contact_name, 'contract' => $customer->contractLabel()],
             'from' => $from,
             'to' => $to,
@@ -64,8 +64,48 @@ final class ReportData
                 'pending' => array_sum(array_map(fn ($s) => count($s['pending']), $siteData)),
                 'failed_logins' => array_sum(array_column(array_column($siteData, 'security'), 'failed_logins')),
                 'blocked_ips' => array_sum(array_column(array_column($siteData, 'security'), 'locked')),
+                'vulns_fixed' => array_sum(array_column($siteData, 'vulns_fixed')),
             ],
         ];
+        $data['narrative'] = ReportSummary::paragraph($data);
+
+        return $data;
+    }
+
+    /**
+     * Bekende kwetsbaarheden die de updates in deze periode hebben opgelost: de oude versie viel
+     * eronder, de nieuwe niet meer.
+     *
+     * @param Collection<int, SiteEvent> $updates
+     */
+    private static function vulnerabilitiesFixed(Collection $updates): int
+    {
+        $items = $updates->map(function (SiteEvent $e) {
+            $kind = strtok($e->type, '.');
+            $object = (string) $e->object;
+            $slug = match ($kind) {
+                'core' => 'wordpress',
+                'plugin' => strtolower(dirname($object) !== '.' ? dirname($object) : basename($object, '.php')),
+                'theme' => strtolower($object),
+                default => null,
+            };
+
+            return $slug !== null && $e->from_version && $e->to_version ? ['key' => $kind . ':' . $slug, 'from' => (string) $e->from_version, 'to' => (string) $e->to_version] : null;
+        })->filter()->values();
+        if ($items->isEmpty()) {
+            return 0;
+        }
+        $index = \App\Ocm\Vulnerabilities::index($items->pluck('key')->unique()->all());
+        $fixed = [];
+        foreach ($items as $item) {
+            foreach ($index->get($item['key'], collect()) as $v) {
+                if ($v->affects($item['from']) && !$v->affects($item['to'])) {
+                    $fixed[$v->uuid . '|' . $item['key']] = true;
+                }
+            }
+        }
+
+        return count($fixed);
     }
 
     /**
@@ -170,6 +210,7 @@ final class ReportData
             'ssl_expires_at' => $site->ssl_expires_at,
             'domain_expires_at' => $site->domain_expires_at,
             'updates' => $updates,
+            'vulns_fixed' => self::vulnerabilitiesFixed($events->whereIn('type', self::UPDATE_TYPES)->where('result', '!=', 'failed')),
             'pending' => array_map(fn ($u) => ['kind' => ['core' => 'WordPress', 'plugin' => 'Plugin', 'theme' => 'Thema'][$u['type']], 'name' => $u['name'], 'from' => $u['from'], 'to' => $u['to']], $site->availableUpdates()),
             'security' => [
                 'failed_logins' => (int) $failed->sum(fn (SiteEvent $e) => (int) ($e->data['count'] ?? 0)),

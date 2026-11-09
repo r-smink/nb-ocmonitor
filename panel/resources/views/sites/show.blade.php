@@ -23,6 +23,7 @@
       'fouten' => $paired ? ['PHP-fouten', 'bug', \App\Models\PhpError::query()->where('site_id', $site->id)->where('last_seen_at', '>=', now()->subDays(7))->get()->filter->isOpen()->count(), 'warn'] : null,
       'schakelaars' => $paired ? ['Schakelaars', 'check', 0, null] : null,
       'pagespeed' => $showPsi ? ['PageSpeed', 'gauge', 0, null] : null,
+      'trends' => $paired ? ['Trends', 'database', 0, null] : null,
       'links' => $paired && \App\Ocm\Menu::enabled('links') ? ['Kapotte links', 'filetext', \App\Models\BrokenLink::query()->where('site_id', $site->id)->whereNull('ignored_at')->count(), 'warn'] : null,
       'bezoekers' => $paired ? ['Bezoekers', 'activity', 0, null] : null,
       'gebruikers' => $showUsers ? ['Gebruikers', 'users', 0, null] : null,
@@ -55,6 +56,9 @@
       @endif
       @if ($showPsi)
         @include('sites.show.pagespeed')
+      @endif
+      @if ($paired)
+        @include('sites.show.trends')
       @endif
       @if ($paired && \App\Ocm\Menu::enabled('links'))
         @include('sites.show.links')

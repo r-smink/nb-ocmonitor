@@ -16,7 +16,7 @@ class PluginDirectoryEntry extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['slug', 'listed', 'closed', 'closed_reason', 'closed_date', 'last_updated', 'checked_at'];
+    protected $fillable = ['slug', 'listed', 'closed', 'closed_reason', 'closed_date', 'last_updated', 'checked_at', 'version', 'requires_php', 'requires_wp', 'tested'];
 
     protected function casts(): array
     {

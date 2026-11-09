@@ -89,6 +89,16 @@ return [
         'client_secret' => env('OCM_GOOGLE_CLIENT_SECRET'),
     ],
 
+    // Claude (Anthropic API): samenvattingen van changelogs en van het rapport. Standaard uit.
+    // Naar Claude gaan alleen openbare changelogs en de cijfers van het rapport, geen namen of domeinen.
+    'ai' => [
+        'api_key' => env('OCM_ANTHROPIC_API_KEY'),
+        'model' => 'claude-opus-5-5',
+        'changelog' => (bool) env('OCM_AI_CHANGELOG', false),
+        'report' => (bool) env('OCM_AI_REPORT', false),
+        'insights_per_run' => 30,
+    ],
+
     // Eerste beheerder (alleen gebruikt door ocm:bootstrap-admin).
     'admin' => [
         'email' => env('OCM_ADMIN_EMAIL'),

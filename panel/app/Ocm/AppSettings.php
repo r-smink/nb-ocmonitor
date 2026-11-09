@@ -40,6 +40,9 @@ final class AppSettings
         'links_interval_days' => ['Kapotte links: elke zoveel dagen controleren', 'int', 'ocm.links.interval_days', 1, 60],
         'google_client_id' => ['Google OAuth-client-ID', 'text', 'ocm.google.client_id', null, 200],
         'google_client_secret' => ['Google OAuth-clientgeheim', 'secret', 'ocm.google.client_secret', null, null],
+        'anthropic_api_key' => ['Claude API-sleutel (Anthropic)', 'secret', 'ocm.ai.api_key', null, null],
+        'ai_changelog' => ['Claude: changelogs van plugin-updates samenvatten en het risico inschatten', 'bool', 'ocm.ai.changelog', null, null],
+        'ai_report' => ['Claude: samenvatting in gewone taal bovenaan het rapport', 'bool', 'ocm.ai.report', null, null],
     ];
 
     /** @var array<string, mixed>|null */

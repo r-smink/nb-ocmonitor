@@ -701,6 +701,23 @@ test('widget: downloadlink alleen naar het eigen panel, kleuren en datums gecont
     check($bad['next'] === null && $bad['color'] === '#E22830' && $bad['contact'] === 'xBel ons');
 });
 
+// ---------------------------------------------------------------- Opslag
+
+test('opslag: mapgrootte telt bestanden in submappen en slaat ontbrekende mappen over', function () {
+    $dir = sys_get_temp_dir() . '/nbocm-storage-' . bin2hex(random_bytes(4));
+    mkdir($dir . '/a/b', 0777, true);
+    file_put_contents($dir . '/x.txt', str_repeat('x', 100));
+    file_put_contents($dir . '/a/b/y.txt', str_repeat('y', 50));
+    $files = 0;
+    check(\NextBuzz\OcMonitor\Client\Storage::directorySize($dir, microtime(true) + 10, $files) === 150 && $files === 2);
+    check(\NextBuzz\OcMonitor\Client\Storage::directorySize($dir . '/bestaat-niet', microtime(true) + 10, $files) === null);
+    unlink($dir . '/a/b/y.txt');
+    unlink($dir . '/x.txt');
+    rmdir($dir . '/a/b');
+    rmdir($dir . '/a');
+    rmdir($dir);
+});
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL {$failure}\n");
 }

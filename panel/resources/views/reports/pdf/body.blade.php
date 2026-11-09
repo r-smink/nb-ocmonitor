@@ -8,6 +8,7 @@
 @if ($on('summary'))
   <h2>Samenvatting</h2>
   <p>{{ $design['intro'] }}</p>
+  @if (!empty($d['narrative']))<p>{{ $d['narrative'] }}</p>@endif
   @php $kpiV = 'font-family: ' . $design['font_heading'] . '; font-size: 22pt; font-weight: bold; color: ' . $design['color_primary'] . ';'; @endphp
   @php $kpiL = 'font-size: ' . max(7, $design['font_size'] - 2) . 'pt; color: ' . $design['color_muted'] . ';'; @endphp
   <table class="kpis">

@@ -21,6 +21,7 @@ class UpdateController extends Controller
     {
         $sites = \App\Models\Tag::filter(Site::query()->with(['tags', 'customer.tags', 'pinnedNotes'])->whereNotNull('public_key')->orderBy('name')->get(), $request->integer('tag') ?: null);
         $open = Updates::openJobs($sites);
+        $risks = \App\Ocm\UpdateRisk::forSites($sites);
 
         $rows = collect();
         foreach ($sites as $site) {
@@ -30,6 +31,7 @@ class UpdateController extends Controller
                     'key' => $site->site_id . '|' . $item['type'] . '|' . $item['id'],
                     'queued' => in_array($item['id'], $open[$site->id][$item['type']] ?? [], true),
                     'blocked' => $site->updatesBlockedReason(),
+                    'risk' => $risks[$site->id][$item['type'] . ':' . $item['id']] ?? null,
                 ]);
             }
         }
@@ -40,9 +42,11 @@ class UpdateController extends Controller
             'site' => (string) $request->query('site', ''),
             'q' => trim((string) $request->query('q', '')),
             'tag' => $request->integer('tag') ?: null,
+            'risk' => array_key_exists((string) $request->query('risk'), \App\Ocm\UpdateRisk::RANK) ? (string) $request->query('risk') : null,
         ];
         $base = $rows->filter(fn ($r) => ($filters['type'] === null || $r['type'] === $filters['type'])
             && ($filters['site'] === '' || $r['site']->site_id === $filters['site'])
+            && ($filters['risk'] === null || ($r['risk']['level'] ?? 'low') === $filters['risk'])
             && ($filters['q'] === '' || Str::contains(Str::lower($r['name'] . ' ' . $r['slug'] . ' ' . $r['site']->name . ' ' . $r['site']->host), Str::lower($filters['q']))));
         $filtered = $base->filter(fn ($r) => $filters['component'] === '' || $r['type'] . ':' . $r['slug'] === $filters['component'])
             ->sortBy(fn ($r) => ['core' => 0, 'client' => 1, 'plugin' => 2, 'theme' => 3][$r['type']] . Str::lower($r['name'] . ' ' . $r['site']->name))
@@ -170,6 +174,8 @@ class UpdateController extends Controller
                 'from' => $group->pluck('from')->unique()->sort(fn ($a, $b) => version_compare($a, $b))->values()->all(),
                 'to' => $group->pluck('to')->sort(fn ($a, $b) => version_compare($b, $a))->first(),
                 'items' => $group->filter(fn ($r) => !$r['queued'] && $r['blocked'] === null)->pluck('key')->values()->all(),
+                // Hoogste risico over de sites, met de redenen van die site.
+                'risk' => $group->pluck('risk')->filter()->sortByDesc(fn ($risk) => \App\Ocm\UpdateRisk::RANK[$risk['level']])->first(),
             ])
             ->sortBy(fn ($c) => sprintf('%05d%s', 99999 - $c['sites'], Str::lower($c['name'])))
             ->values();

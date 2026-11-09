@@ -100,6 +100,16 @@
       </div>
     </section>
 
+    <section class="panel">
+      <h3>Claude (AI-samenvattingen)</h3>
+      <p class="note">Naar Claude gaan alleen openbare changelogs van wordpress.org en de cijfers van een rapport; geen namen, domeinen of gegevens van de sites zelf. Het risicolabel per update werkt ook zonder Claude, op basis van versies, eisen en de changelog.</p>
+      <div class="form-row mt">
+        @foreach (['anthropic_api_key', 'ai_changelog', 'ai_report'] as $key)
+          @include('settings.field', ['key' => $key])
+        @endforeach
+      </div>
+    </section>
+
     <div class="actions"><button class="btn" type="submit">Instellingen opslaan</button></div>
   </form>
 
