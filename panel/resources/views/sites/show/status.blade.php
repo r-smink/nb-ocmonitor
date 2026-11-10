@@ -13,7 +13,7 @@
   <div class="sd-head lvl-{{ $level }}">
     <span class="sd-dot" aria-hidden="true"></span>
     <div class="sd-title-wrap">
-      <h1 class="sd-title">{{ $site->name }}</h1>
+      <h1 class="sd-title">{{ $site->name }}@if ($site->server) <span class="badge server" title="Server">{{ $site->server }}</span>@endif</h1>
       <div class="sd-sub">
         @if ($site->customer)<a href="{{ route('customers.show', $site->customer) }}">{{ $site->customer->name }}</a> · @elseif ($site->client_name){{ $site->client_name }} · @endif
         WordPress {{ $site->wp_version ?? '–' }} · PHP {{ $site->php_version ?? '–' }}
@@ -140,6 +140,7 @@
       @endif
     @endcan
     <dl class="kv">
+      <dt>Server</dt><dd>{{ $site->server ?? '–' }}</dd>
       <dt>Adres</dt><dd><a href="{{ $site->url }}" target="_blank" rel="noopener noreferrer">{{ $site->url }}</a> <span class="muted mono">{{ $site->site_id }}</span></dd>
       <dt>WordPress</dt><dd>{{ $site->wp_version ?? '–' }}</dd>
       <dt>PHP</dt><dd>{{ $site->php_version ?? '–' }}</dd>
@@ -178,6 +179,16 @@
         @foreach ($tips as $issue)<li class="info">{{ $issue['text'] }}</li>@endforeach
       </ul>
     @endif
+    @can('manage-sites')
+      <h4 class="mt">Server</h4>
+      <form method="POST" action="{{ route('sites.server', $site) }}" class="row-actions">
+        @csrf
+        <input name="server" value="{{ old('server', $site->server) }}" list="known-servers" maxlength="20" placeholder="bijv. DO1" aria-label="Server" class="input-short">
+        <datalist id="known-servers">@foreach (\App\Models\Site::knownServers() as $srv)<option value="{{ $srv }}">@endforeach</datalist>
+        <button class="btn ghost small" type="submit">Opslaan</button>
+      </form>
+      @error('server')<p class="issue-text crit">{{ $message }}</p>@enderror
+    @endcan
     @can('manage-sites')
       @php($allTags = \App\Models\Tag::query()->orderBy('name')->get())
       @if ($allTags->isNotEmpty())

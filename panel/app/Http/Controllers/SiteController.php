@@ -34,7 +34,7 @@ class SiteController extends Controller
         $sites = $all;
         $q = trim((string) $request->query('q', ''));
         if ($q !== '') {
-            $sites = $sites->filter(fn (Site $s) => Str::contains(Str::lower($s->name . ' ' . $s->url . ' ' . $s->client_name), Str::lower($q)));
+            $sites = $sites->filter(fn (Site $s) => Str::contains(Str::lower($s->name . ' ' . $s->url . ' ' . $s->client_name . ' ' . $s->server), Str::lower($q)));
         }
         $order = ['crit' => 0, 'warn' => 1, 'pending' => 2, 'ok' => 3];
         $sites = $sites->sortBy(fn (Site $s) => $order[$s->level()] . Str::lower($s->name))->values();
@@ -44,9 +44,11 @@ class SiteController extends Controller
             $counts[$site->level()]++;
         }
 
-        // Indeling: één lijst, per klant of per tag.
-        $layout = in_array($request->query('indeling'), ['klant', 'tag'], true) ? (string) $request->query('indeling') : 'lijst';
+        // Indeling: één lijst, per klant, per server of per tag.
+        $layout = in_array($request->query('indeling'), ['klant', 'server', 'tag'], true) ? (string) $request->query('indeling') : 'lijst';
         $groups = match ($layout) {
+            'server' => $sites->groupBy(fn (Site $s) => $s->server ?: 'Geen server ingevuld')->sortKeys(SORT_NATURAL)
+                ->sortBy(fn ($g, $name) => $name === 'Geen server ingevuld' ? 1 : 0),
             'klant' => $sites->groupBy(fn (Site $s) => $s->customer?->name ?? ($s->client_name ?: 'Zonder klant'))->sortKeys()
                 ->sortBy(fn ($g, $name) => $name === 'Zonder klant' ? 1 : 0),
             'tag' => (function () use ($sites) {
@@ -69,7 +71,7 @@ class SiteController extends Controller
 
     public function create(): View
     {
-        return view('sites.create', ['pluginVersion' => PluginPackage::version(), 'customers' => \App\Models\Customer::query()->orderBy('name')->get(['id', 'name'])]);
+        return view('sites.create', ['pluginVersion' => PluginPackage::version(), 'customers' => \App\Models\Customer::query()->orderBy('name')->get(['id', 'name']), 'servers' => Site::knownServers()]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -77,6 +79,7 @@ class SiteController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'server' => Site::SERVER_RULE,
             'url' => ['required', 'string', 'max:255', 'url:' . (config('ocm.allow_http_sites') ? 'http,https' : 'https')],
         ], [
             'url.url' => 'Vul een volledige URL in die met https:// begint.',
@@ -100,6 +103,7 @@ class SiteController extends Controller
             'client_name' => isset($data['customer_id']) ? \App\Models\Customer::query()->whereKey($data['customer_id'])->value('name') : null,
             'url' => $url,
             'host' => $host,
+            'server' => Site::normalizeServer($data['server'] ?? null),
         ]);
         $site->scopes = Site::DEFAULT_SCOPES;
         $this->openPairing($site);
@@ -283,6 +287,19 @@ class SiteController extends Controller
         $n = \App\Ocm\Backups::deleteChecked($site, $request->user());
 
         return back()->with('status', $n > 0 ? "{$n} back-up(s) verwijderd." : 'Geen back-ups om op te ruimen.');
+    }
+
+    public function server(Request $request, Site $site): RedirectResponse
+    {
+        $data = $request->validate(['server' => Site::SERVER_RULE], ['server.regex' => 'Gebruik alleen letters, cijfers, spaties, punten, - en _.']);
+        $old = $site->server;
+        $site->server = Site::normalizeServer($data['server'] ?? null);
+        if ($site->server !== $old) {
+            $site->save();
+            Activity::log('site_server_changed', ['from' => $old, 'to' => $site->server], $site);
+        }
+
+        return back()->with('status', $site->server ? "Server ingesteld op {$site->server}." : 'Server leeggemaakt.');
     }
 
     public function regeneratePairing(Site $site): RedirectResponse

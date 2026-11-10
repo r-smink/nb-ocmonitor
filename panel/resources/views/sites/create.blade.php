@@ -15,6 +15,8 @@
           </select>
         </label>
         @can('manage-sites')<p class="note">Nieuwe klant? <a href="{{ route('customers.create') }}">Voeg eerst de klant toe</a>.</p>@endcan
+        <label>Server (optioneel)<input name="server" value="{{ old('server') }}" list="known-servers" maxlength="20" placeholder="bijv. DO1"></label>
+        <datalist id="known-servers">@foreach ($servers as $srv)<option value="{{ $srv }}">@endforeach</datalist>
         <label>URL van de site<input name="url" type="url" value="{{ old('url') }}" placeholder="https://www.klant.nl" required maxlength="255"></label>
         <p class="note">Gebruik exact de URL uit Instellingen → Algemeen → Siteadres (home_url). Alleen die host kan de koppelcode gebruiken.</p>
         <div class="actions"><button class="btn" type="submit">Aanmaken en koppelcode tonen <span class="arrow" aria-hidden="true">→</span></button></div>

@@ -13,7 +13,7 @@ class Site extends Model
     /** Gelijk aan Scopes::DEFAULT in de plugin; site.info geeft de werkelijke scopes terug. */
     public const DEFAULT_SCOPES = ['read', 'events', 'updates', 'users', 'maintenance', 'licenses'];
 
-    protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host'];
+    protected $fillable = ['site_id', 'name', 'client_name', 'customer_id', 'url', 'host', 'server'];
 
     protected $hidden = ['pairing_secret', 'inventory', 'wp_users', 'integrity'];
 
@@ -133,6 +133,23 @@ class Site extends Model
     public function pagespeedResults(): HasMany
     {
         return $this->hasMany(PagespeedResult::class);
+    }
+
+    /** Validatieregel voor de servernaam: kort, alleen letters, cijfers, spatie, punt, - en _. */
+    public const SERVER_RULE = ['nullable', 'string', 'max:20', 'regex:/^[A-Za-z0-9 ._-]+$/'];
+
+    /** Servernamen altijd in hoofdletters, zodat "do1" en "DO1" dezelfde server zijn. */
+    public static function normalizeServer(?string $server): ?string
+    {
+        $server = strtoupper(trim(preg_replace('/\s+/', ' ', (string) $server)));
+
+        return $server === '' ? null : $server;
+    }
+
+    /** @return list<string> servernamen die al in gebruik zijn, voor de keuzelijst */
+    public static function knownServers(): array
+    {
+        return self::query()->whereNotNull('server')->distinct()->orderBy('server')->pluck('server')->all();
     }
 
     public function isPaired(): bool

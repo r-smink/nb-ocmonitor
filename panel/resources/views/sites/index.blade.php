@@ -22,9 +22,10 @@
       <select name="indeling" data-autosubmit aria-label="Indeling">
         <option value="lijst" @selected($layout === 'lijst')>Eén lijst</option>
         <option value="klant" @selected($layout === 'klant')>Per klant</option>
+        <option value="server" @selected($layout === 'server')>Per server</option>
         <option value="tag" @selected($layout === 'tag')>Per tag</option>
       </select>
-      <input type="search" name="q" value="{{ $q }}" placeholder="Zoek site of klant…" aria-label="Zoeken">
+      <input type="search" name="q" value="{{ $q }}" placeholder="Zoek site, klant of server…" aria-label="Zoeken">
     </form>
   </div>
 
@@ -38,11 +39,9 @@
         <div class="site-card-head">
           <span class="sdot"></span>
           <span class="site-card-name">{{ $site->name }}</span>
-          @if ($site->customer?->name ?? $site->client_name)
-            <span class="badge">{{ $site->customer?->name ?? $site->client_name }}</span>
-          @endif
+          @if ($site->server)<span class="badge server" title="Server">{{ $site->server }}</span>@endif
         </div>
-        <div class="tile-host">{{ $site->host }}</div>
+        <div class="tile-host">{{ $site->host }}@if ($site->customer?->name ?? $site->client_name) · {{ $site->customer?->name ?? $site->client_name }}@endif</div>
         @include('partials.tags', ['tags' => $site->allTags()])
         @if ($issues->isNotEmpty())
           <div class="site-problem {{ $issues->first()['level'] }}">{{ $issues->first()['text'] }}@if ($issues->count() > 1) <span class="more-n">+{{ $issues->count() - 1 }} meer</span>@endif</div>

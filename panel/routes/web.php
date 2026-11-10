@@ -122,6 +122,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::put('/tags/{tag}', [TagController::class, 'update'])->name('tags.update')->can('manage-sites');
     Route::delete('/tags/{tag}', [TagController::class, 'destroy'])->name('tags.destroy')->can('manage-sites');
     Route::post('/sites/{site}/tags', [TagController::class, 'site'])->name('sites.tags')->can('manage-sites');
+    Route::post('/sites/{site}/server', [SiteController::class, 'server'])->name('sites.server')->can('manage-sites');
     Route::post('/sites/{site}/opschonen', [SiteController::class, 'cleanup'])->name('sites.cleanup')->can('manage-sites')->middleware('throttle:10,1');
 
     Route::get('/rapporten', [ReportController::class, 'index'])->name('reports.index');

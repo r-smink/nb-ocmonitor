@@ -676,3 +676,8 @@ html { scroll-behavior: smooth; }
 .trend-table { margin-top: 6px; font-size: 12px; }
 .trend-table summary { cursor: pointer; color: var(--text-muted); }
 .trend-table .table-wrap { max-height: 200px; overflow: auto; margin-top: 6px; }
+
+/* Server waarop een site draait (DO1, DO3 ...): klein, mono, rechts in de kop van de sitekaart en naast de sitetitel. */
+.badge.server { flex: none; font-family: var(--font-mono); letter-spacing: .04em; background: var(--surface-sunken); color: var(--text-strong); border: 1px solid var(--border-default); }
+.sd-title .badge.server { vertical-align: middle; margin-left: 6px; font-size: 12px; }
+.input-short { width: 12ch; }
