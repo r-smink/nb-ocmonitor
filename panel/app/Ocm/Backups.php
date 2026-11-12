@@ -46,6 +46,26 @@ final class Backups
         return $site->plugin_version !== null && version_compare($site->plugin_version, '0.14.0', '>=');
     }
 
+    /**
+     * Draaien er op dezelfde server al genoeg back-ups op de achtergrond? Dan wacht de volgende even.
+     * Telt back-ups waarvan de opdracht al geaccepteerd is maar het resultaat nog niet binnen is.
+     */
+    public static function serverBusy(Site $site): bool
+    {
+        $limit = $site->server
+            ? (int) config('ocm.backups.parallel_per_server', 1)
+            : (int) config('ocm.backups.parallel_without_server', 2);
+        if ($limit <= 0) {
+            return false;
+        }
+        $siteIds = Site::query()->where('server', $site->server)->pluck('id');
+        $running = Backup::query()->with('job:id,status,result')->whereIn('site_id', $siteIds)->where('status', 'pending')->get()
+            ->filter(fn (Backup $b) => $b->job !== null && $b->job->status === 'done' && ($b->job->result['accepted'] ?? false) === true)
+            ->count();
+
+        return $running >= $limit;
+    }
+
     public static function supportsFull(Site $site): bool
     {
         return $site->plugin_version !== null && version_compare($site->plugin_version, '0.8.0', '>=');
@@ -297,7 +317,15 @@ final class Backups
                     continue;
                 }
             }
-            $stuck = $backup->created_at->lt(now()->subMinutes((int) config('ocm.backups.max_minutes', 90)));
+            // Te lang bezig: gemeten vanaf het moment dat de site eraan begon. Een opdracht die nog in de
+            // wachtrij staat (bijv. wachtend op een vrije plek op de server) krijgt ruim de tijd.
+            $max = (int) config('ocm.backups.max_minutes', 90);
+            $since = match (true) {
+                $job !== null && $job->status === 'done' && $job->finished_at !== null => $job->finished_at,
+                $job !== null && $job->status === 'pending' => $backup->created_at->copy()->subMinutes(12 * 60 - $max),
+                default => $backup->created_at,
+            };
+            $stuck = $since->lt(now()->subMinutes($max));
             if ($job === null || in_array($job->status, ['failed', 'rejected'], true) || $stuck || $backgroundError !== null) {
                 $error = $backgroundError ?? $job?->error ?? ($stuck ? 'Backup duurde te lang' : 'Backup-opdracht ontbreekt');
                 $backup->update(['status' => 'failed', 'error' => mb_substr((string) $error, 0, 500)]);

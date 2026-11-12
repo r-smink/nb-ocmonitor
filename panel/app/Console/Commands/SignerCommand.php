@@ -77,6 +77,13 @@ class SignerCommand extends Command
             return;
         }
 
+        // Back-up op de achtergrond: niet te veel tegelijk op dezelfde server, anders raakt die overbelast.
+        if ($job->command === 'backup.create' && ($job->args['async'] ?? false) === true && \App\Ocm\Backups::serverBusy($site)) {
+            $job->update(['status' => 'pending', 'started_at' => null, 'available_at' => now()->addMinute()]);
+            $this->line("{$job->job_id} backup.create → wacht op een vrije plek op server " . ($site->server ?: '(onbekend)'));
+            return;
+        }
+
         $result = $sender->send($job, $site);
 
         if ($result->ok) {

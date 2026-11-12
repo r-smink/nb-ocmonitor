@@ -59,6 +59,10 @@ return [
         'full_reuse_hours' => (int) env('OCM_BACKUP_FULL_REUSE_HOURS', 3),
         'link_minutes' => 180,
         'max_minutes' => 90,
+        // Back-ups op de achtergrond (plugin 0.14.0+) tegelijk per server (het serverveld van de site), zodat
+        // een gedeelde server niet tien back-ups tegelijk draait. Sites zonder server delen samen één limiet.
+        'parallel_per_server' => (int) env('OCM_BACKUP_PARALLEL_PER_SERVER', 1),
+        'parallel_without_server' => (int) env('OCM_BACKUP_PARALLEL_WITHOUT_SERVER', 2),
     ],
 
     // Wordfence Intelligence Vulnerability Data Feed (v3): gratis API-sleutel via wordfence.com → Account → Integrations.

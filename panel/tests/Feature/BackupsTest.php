@@ -245,4 +245,40 @@ class BackupsTest extends TestCase
         $this->post("/sites/{$site->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
         $this->assertArrayNotHasKey('async', SiteJob::query()->where('command', 'backup.create')->sole()->args);
     }
+
+    public function test_only_one_background_backup_per_server_at_a_time(): void
+    {
+        $a = $this->site('0.14.0', false);
+        $a->forceFill(['server' => 'DO16'])->save();
+        $b = $this->makePairedSite('tweede.example.nl');
+        $b->forceFill(['site_id' => 'site_tweede', 'server' => 'DO16', 'plugin_version' => '0.14.0', 'last_seen_at' => now(),
+            'inventory' => $a->inventory])->save();
+        $other = $this->makePairedSite('derde.example.nl');
+        $other->forceFill(['site_id' => 'site_derde', 'server' => 'DO3', 'plugin_version' => '0.14.0'])->save();
+
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$a->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $this->post("/sites/{$b->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $first = SiteJob::query()->where('command', 'backup.create')->where('site_id', $a->id)->sole();
+        $second = SiteJob::query()->where('command', 'backup.create')->where('site_id', $b->id)->sole();
+
+        $this->assertFalse(\App\Ocm\Backups::serverBusy($b));
+        $first->update(['status' => 'done', 'finished_at' => now(), 'result' => ['backup_id' => $first->args['backup_id'], 'accepted' => true]]);
+        $this->assertTrue(\App\Ocm\Backups::serverBusy($b), 'DO16 is bezig met een back-up');
+        $this->assertFalse(\App\Ocm\Backups::serverBusy($other), 'andere server niet');
+
+        // De signer stuurt de tweede back-up nog niet, maar zet hem een minuut later terug in de wachtrij.
+        \Illuminate\Support\Facades\Http::fake();
+        $second->update(['available_at' => now()->subSecond()]);
+        $this->artisan('ocm:signer --once')->assertSuccessful();
+        \Illuminate\Support\Facades\Http::assertNothingSent();
+        $second->refresh();
+        $this->assertSame('pending', $second->status);
+        $this->assertTrue($second->available_at->isFuture());
+
+        // Een wachtende back-up geldt niet als vastgelopen.
+        $this->travel(2)->hours();
+        \App\Ocm\Backups::tick();
+        $this->assertSame('pending', Backup::query()->where('site_id', $b->id)->sole()->status);
+    }
 }
