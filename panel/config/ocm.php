@@ -116,6 +116,9 @@ return [
             'plugin.install', 'plugin.activate', 'plugin.deactivate', 'plugin.delete', 'site.maintenance', 'security.integrity',
         ],
         'max_jobs_per_site_per_minute' => 30,
+        // Kwam de verbinding met de site niet tot stand (de opdracht is dus nooit aangekomen), dan na
+        // zoveel minuten opnieuw proberen. Eén getal per extra poging.
+        'connect_retry_minutes' => [1, 3, 10, 30],
         'job_lifetime_seconds' => 300,
         'http_timeout_seconds' => 90,
         // Updates (download, kopie voor rollback, health checks) duren langer.

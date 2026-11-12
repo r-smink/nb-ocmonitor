@@ -96,15 +96,43 @@ class SignerCommand extends Command
             return;
         }
 
+        // Geen verbinding gekregen: de site heeft niets ontvangen, dus opnieuw proberen is veilig.
+        $retries = (array) config('ocm.signer.connect_retry_minutes', []);
+        if ($result->unreachable && self::neverConnected((string) $result->error) && $job->attempts < count($retries)) {
+            $minutes = (int) $retries[$job->attempts];
+            $job->update([
+                'status' => 'pending', 'attempts' => $job->attempts + 1, 'started_at' => null,
+                'available_at' => now()->addMinutes($minutes),
+                'error' => mb_substr('Poging ' . ($job->attempts + 1) . ' mislukt, opnieuw over ' . $minutes . ' min: ' . $result->error, 0, 1000),
+            ]);
+            $site->forceFill(['last_error' => mb_substr((string) $result->error, 0, 500)])->save();
+            $this->warn("{$job->job_id} {$job->command} → geen verbinding, opnieuw over {$minutes} min");
+            return;
+        }
+
         $site->forceFill([
             'status' => $result->unreachable ? 'unreachable' : 'error',
             'last_error' => mb_substr((string) $result->error, 0, 500),
         ])->save();
         $job->update(['status' => 'failed', 'http_status' => $result->httpStatus, 'error' => mb_substr((string) $result->error, 0, 1000), 'finished_at' => now()]);
+        // Oudere plugins vervangen hun eigen bestanden midden in het verzoek en sturen dan soms geen
+        // geldig antwoord meer, terwijl de update wel gelukt is. De heartbeat laat zien welke versie er nu staat.
+        if ($job->command === 'plugin.self_update' && !$result->unreachable) {
+            \App\Ocm\JobQueue::enqueue($site, 'site.info', [], null, true, now()->addMinute());
+        }
         if ($job->requested_by !== null) {
             Activity::log('job_failed', ['job_id' => $job->job_id, 'command' => $job->command, 'error' => $result->error], $site);
         }
         $this->warn("{$job->job_id} {$job->command} → {$result->error}");
+    }
+
+    /**
+     * Fouten van vóór de verbinding (DNS, verbinding geweigerd, connect-timeout). Een timeout tijdens
+     * het wachten op antwoord ("Operation timed out") telt niet: dan kan de site de opdracht al uitvoeren.
+     */
+    public static function neverConnected(string $error): bool
+    {
+        return preg_match('/cURL error (6|7):|cURL error 28: (Connection timed out after|Resolving timed out after)/', $error) === 1;
     }
 
     private function policyRejection(SiteJob $job, ?Site $site): ?string

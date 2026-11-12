@@ -95,7 +95,8 @@ final class Updates
     private static function enqueue(Site $site, string $command, array $args, ?User $user, bool $deduplicate = true, ?int $scheduleId = null): SiteJob
     {
         $visual = Visual::enabled();
-        $backup = Backups::enabled() && Backups::supported($site);
+        // Geen backup voor de OC-plugin zelf: die maakt vóór de update al een kopie en zet die bij problemen terug.
+        $backup = Backups::enabled() && Backups::supported($site) && $command !== 'plugin.self_update';
         $visual = $visual && $command !== 'db.cleanup';
         $visualHold = $visual && !\App\Models\VisualCheck::query()->where('site_id', $site->id)->where('status', 'updating')->exists();
         // Met backup: vasthouden tot de backup er is (releaseReady). De dag is alleen een vangnet;
@@ -116,7 +117,6 @@ final class Updates
                 'update.plugin' => ['plugins' => $args['plugins'] ?? []],
                 'update.theme' => ['themes' => $args['themes'] ?? []],
                 'update.core' => ['core' => true],
-                'plugin.self_update' => ['plugins' => ['nb-ocmonitor-client/nb-ocmonitor-client.php']],
                 default => [],
             });
             // Hoort de update bij een backup die al klaar is (volledige backup), dan meteen vrijgeven.

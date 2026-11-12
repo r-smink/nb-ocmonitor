@@ -179,6 +179,7 @@ final class ResultProcessor
             $site->scopes = array_values(array_filter($result['scopes'], fn ($s) => is_string($s) && preg_match('/^[a-z_]{1,32}$/', $s)));
         }
         $site->save();
+        self::confirmSelfUpdates($site);
 
         $remoteSeq = (int) ($result['last_event_seq'] ?? 0);
         if ($remoteSeq > $site->last_event_seq) {
@@ -188,6 +189,28 @@ final class ResultProcessor
             $site->event_gap_at = now();
             $site->save();
             Activity::log('event_seq_reset', ['panel_seq' => $site->last_event_seq, 'site_seq' => $remoteSeq], $site);
+        }
+    }
+
+    /**
+     * Een self-update zonder geldig antwoord, terwijl de site nu wel de nieuwe versie draait: alsnog gelukt.
+     */
+    private static function confirmSelfUpdates(Site $site): void
+    {
+        if ($site->plugin_version === null) {
+            return;
+        }
+        $jobs = SiteJob::query()->where('site_id', $site->id)->where('command', 'plugin.self_update')->where('status', 'failed')
+            ->where('finished_at', '>=', now()->subDay())->get();
+        foreach ($jobs as $job) {
+            $target = (string) ($job->args['version'] ?? '');
+            if ($target !== '' && version_compare($site->plugin_version, $target, '>=')) {
+                $job->update(['status' => 'done', 'error' => null, 'result' => ['confirmed_by_heartbeat' => true, 'items' => [
+                    ['type' => 'plugin', 'id' => 'nb-ocmonitor-client/nb-ocmonitor-client.php', 'to' => $site->plugin_version, 'status' => 'updated',
+                        'message' => 'Antwoord van de site ging verloren tijdens de update; de heartbeat bevestigt versie ' . $site->plugin_version . '.'],
+                ]]]);
+                Activity::log('self_update_confirmed', ['job_id' => $job->job_id, 'version' => $site->plugin_version], $site);
+            }
         }
     }
 
