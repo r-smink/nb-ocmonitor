@@ -187,7 +187,8 @@ final class UpdateQueue
         }
         $backup = $backups->first(fn (Backup $b) => $b->site_id === $job->site_id && in_array($job->id, $b->update_job_ids ?? [], true));
         if ($backup !== null) {
-            return $backup->job?->status === 'running' ? 'backup' : 'backup_wait';
+            // Een backup op de achtergrond: de opdracht is al klaar ("geaccepteerd"), de site werkt nog.
+            return in_array($backup->job?->status, ['running', 'done'], true) ? 'backup' : 'backup_wait';
         }
         if ($visualBefore->contains(fn (VisualCheck $c) => $c->site_id === $job->site_id && in_array($job->id, $c->job_ids ?? [], true))) {
             return 'screenshot';

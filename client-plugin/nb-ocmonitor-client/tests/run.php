@@ -539,6 +539,7 @@ test('backup-argumenten: alleen https, geen sleutel van het panel, geen padmanip
     $ok = BackupArgs::create(['backup_id' => 'bk_' . str_repeat('a', 20), 'plugins' => ['akismet/akismet.php'], 'core' => true, 'uploads' => $links]);
     check($ok['plugins'] === ['akismet/akismet.php'] && $ok['themes'] === [] && $ok['core'] === true && $ok['full'] === false);
     check(BackupArgs::create(['backup_id' => 'bk_' . str_repeat('a', 20), 'full' => true, 'uploads' => $links])['full'] === true);
+    check($ok['async'] === false && BackupArgs::create(['backup_id' => 'bk_' . str_repeat('a', 20), 'async' => true, 'uploads' => $links])['async'] === true);
     $bad = [
         ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => $links, 'key' => 'panelsleutel'],
         ['backup_id' => '../x', 'uploads' => $links],
@@ -546,6 +547,7 @@ test('backup-argumenten: alleen https, geen sleutel van het panel, geen padmanip
         ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => ['db' => $links['db']]],
         ['backup_id' => 'bk_' . str_repeat('a', 20), 'uploads' => ['db' => ['url' => 'https://x.example/a', 'headers' => ["X\r\nEvil" => 'a']], 'files' => $links['files']]],
         ['backup_id' => 'bk_' . str_repeat('a', 20), 'plugins' => ['../../wp-config.php'], 'uploads' => $links],
+        ['backup_id' => 'bk_' . str_repeat('a', 20), 'async' => 'ja', 'uploads' => $links],
     ];
     foreach ($bad as $i => $args) {
         $threw = false;
@@ -716,6 +718,22 @@ test('opslag: mapgrootte telt bestanden in submappen en slaat ontbrekende mappen
     rmdir($dir . '/a/b');
     rmdir($dir . '/a');
     rmdir($dir);
+});
+
+// ---------------------------------------------------------------- Self-update
+
+test('self-update: laadt vooraf alle classes van de plugin, zodat het verzoek niet halverwege nieuwe bestanden leest', function () {
+    if (!class_exists('WP_REST_Response')) {
+        eval('class WP_REST_Response {}');
+    }
+    if (!defined('NB_OCM_FILE')) {
+        define('NB_OCM_FILE', dirname(__DIR__) . '/nb-ocmonitor-client.php');
+    }
+    \NextBuzz\OcMonitor\Client\Commands\UpdateCommands::preloadOwnClasses();
+    $loaded = array_merge(get_declared_classes(), get_declared_interfaces());
+    foreach (['NextBuzz\OcMonitor\Client\Storage', 'NextBuzz\OcMonitor\Client\RawResponse', 'NextBuzz\OcMonitor\Protocol\Signer', 'NextBuzz\OcMonitor\Protocol\NonceStore'] as $class) {
+        check(in_array($class, $loaded, true), $class);
+    }
 });
 
 foreach ($failures as $failure) {

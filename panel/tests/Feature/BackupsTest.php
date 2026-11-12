@@ -183,4 +183,66 @@ class BackupsTest extends TestCase
         $this->assertFalse(SiteJob::query()->where('command', 'update.plugin')->sole()->available_at->isFuture());
         $this->get('/sites/' . $site->site_id)->assertSee('Vanaf client-plugin 0.5.0');
     }
+
+    public function test_background_backup_from_0_14_completes_via_the_backup_created_event(): void
+    {
+        $site = $this->site('0.14.0', false);
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$site->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $backup = Backup::query()->sole();
+        $create = SiteJob::query()->where('command', 'backup.create')->sole();
+        $this->assertTrue($create->args['async']);
+
+        // De site accepteert en sluit de verbinding; de backup loopt nog.
+        $this->finish($create, $site, ['backup_id' => $backup->backup_id, 'accepted' => true]);
+        $create->update(['result' => ['backup_id' => $backup->backup_id, 'accepted' => true]]);
+        $this->assertSame('pending', $backup->fresh()->status);
+        $this->assertSame(['backup_id' => $backup->backup_id], $create->fresh()->args);
+        $update = SiteJob::query()->where('command', 'update.plugin')->sole();
+        $this->assertTrue($update->available_at->isFuture());
+
+        \App\Ocm\Backups::tick();
+        $this->assertSame('pending', $backup->fresh()->status);
+        $this->assertSame(1, SiteJob::query()->where('command', 'site.info')->where('status', 'pending')->count(), 'heartbeat om events op te halen');
+        $this->assertSame('pending', $update->fresh()->status);
+
+        (new \App\Ocm\EventIngestor())->ingest($site, [[
+            'seq' => 1, 'time' => time(), 'type' => 'backup.created', 'object' => $backup->backup_id, 'from' => null, 'to' => null, 'result' => 'success', 'source' => 'nb-ocm', 'user_login' => '',
+            'data' => ['tables' => 40, 'db_size' => 2_000_000, 'files_size' => 500_000, 'db_sha256' => str_repeat('a', 64), 'files_sha256' => str_repeat('b', 64), 'seconds' => 312.5],
+        ]]);
+        \App\Ocm\Backups::tick();
+        $backup->refresh();
+        $this->assertSame('ready', $backup->status);
+        $this->assertSame(40, $backup->tables);
+        $this->assertSame(str_repeat('b', 64), $backup->files_sha256);
+        $this->assertFalse($update->fresh()->available_at->isFuture(), 'update vrijgegeven');
+    }
+
+    public function test_failed_background_backup_rejects_the_updates(): void
+    {
+        $site = $this->site('0.14.0', false);
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$site->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $backup = Backup::query()->sole();
+        $create = SiteJob::query()->where('command', 'backup.create')->sole();
+        $create->update(['status' => 'done', 'finished_at' => now(), 'result' => ['backup_id' => $backup->backup_id, 'accepted' => true]]);
+
+        (new \App\Ocm\EventIngestor())->ingest($site, [[
+            'seq' => 1, 'time' => time(), 'type' => 'backup.created', 'object' => $backup->backup_id, 'from' => null, 'to' => null, 'result' => 'failed', 'source' => 'nb-ocm', 'user_login' => '',
+            'data' => ['message' => 'Upload naar de opslag mislukt (HTTP 403)'],
+        ]]);
+        \App\Ocm\Backups::tick();
+        $this->assertSame('failed', $backup->fresh()->status);
+        $update = SiteJob::query()->where('command', 'update.plugin')->sole();
+        $this->assertSame('rejected', $update->status);
+        $this->assertStringContainsString('HTTP 403', $update->error);
+    }
+
+    public function test_older_plugins_get_no_async_flag(): void
+    {
+        $site = $this->site('0.13.0', false);
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$site->site_id}/updates", ['type' => 'plugin', 'ids' => ['a/a.php']]);
+        $this->assertArrayNotHasKey('async', SiteJob::query()->where('command', 'backup.create')->sole()->args);
+    }
 }

@@ -40,6 +40,12 @@ final class Backups
      *
      * @param array{plugins?: string[], themes?: string[], core?: bool} $components
      */
+    /** Vanaf 0.14.0 maakt de plugin de backup op de achtergrond, na het antwoord (geen proxy-timeouts meer). */
+    public static function supportsAsync(Site $site): bool
+    {
+        return $site->plugin_version !== null && version_compare($site->plugin_version, '0.14.0', '>=');
+    }
+
     public static function supportsFull(Site $site): bool
     {
         return $site->plugin_version !== null && version_compare($site->plugin_version, '0.8.0', '>=');
@@ -131,6 +137,7 @@ final class Backups
             'themes' => $c['themes'] ?? [],
             'core' => !empty($c['core']),
             'full' => !empty($c['full']),
+            'async' => $backup->site !== null && self::supportsAsync($backup->site),
             'uploads' => $links,
         ], fn ($v) => $v !== [] && $v !== false);
     }
@@ -142,6 +149,18 @@ final class Backups
         if ($backup === null || ($result['backup_id'] ?? null) !== $backup->backup_id) {
             return;
         }
+        // Tijdelijke links horen niet in het jobarchief.
+        $job->update(['args' => ['backup_id' => $backup->backup_id]]);
+        // Op de achtergrond: de site meldt het resultaat later als event backup.created (zie tick).
+        if (($result['accepted'] ?? false) === true) {
+            return;
+        }
+        self::complete($backup, $site, $result + ['tables' => $result['db']['tables'] ?? 0]);
+    }
+
+    /** @param array<string, mixed> $result groottes, sha256 en aantal tabellen */
+    private static function complete(Backup $backup, Site $site, array $result): void
+    {
         $sha = fn ($v) => is_string($v) && preg_match('/^[a-f0-9]{64}$/', $v) ? $v : null;
         $backup->update([
             'status' => 'ready',
@@ -149,12 +168,37 @@ final class Backups
             'files_size' => (int) ($result['files_size'] ?? 0),
             'db_sha256' => $sha($result['db_sha256'] ?? null),
             'files_sha256' => $sha($result['files_sha256'] ?? null),
-            'tables' => (int) ($result['db']['tables'] ?? 0),
+            'tables' => (int) ($result['tables'] ?? 0),
             'expires_at' => now()->addDays((int) config('ocm.backups.keep_days', 7)),
         ]);
-        // Tijdelijke links horen niet in het jobarchief.
-        $job->update(['args' => ['backup_id' => $backup->backup_id]]);
         Updates::releaseReady($site);
+    }
+
+    /**
+     * Backup op de achtergrond: klaar of mislukt volgens het event backup.created van de site.
+     * Nog geen event, dan af en toe een heartbeat zodat ontbrekende events worden opgehaald.
+     *
+     * @return string|null foutmelding als de backup mislukt is
+     */
+    private static function checkBackground(Backup $backup): ?string
+    {
+        $event = \App\Models\SiteEvent::query()->where('site_id', $backup->site_id)->where('type', 'backup.created')
+            ->where('object', $backup->backup_id)->latest('seq')->first();
+        if ($event === null) {
+            JobQueue::enqueue($backup->site, 'site.info', [], null, true, now()->addMinutes(2));
+
+            return null;
+        }
+        $data = (array) ($event->data ?? []);
+        if ($event->result === 'failed') {
+            return 'Backup mislukt: ' . mb_substr((string) ($data['message'] ?? 'onbekende fout'), 0, 300);
+        }
+        if (!isset($data['db_sha256'], $data['files_sha256'])) {
+            return 'Backup-melding van de site is onvolledig';
+        }
+        self::complete($backup, $backup->site, $data);
+
+        return null;
     }
 
     /** @param array<string, mixed> $result */
@@ -246,9 +290,16 @@ final class Backups
     {
         foreach (Backup::query()->with(['job', 'site'])->where('status', 'pending')->get() as $backup) {
             $job = $backup->job;
+            $backgroundError = null;
+            if ($job !== null && $backup->site !== null && $job->status === 'done' && ($job->result['accepted'] ?? false) === true) {
+                $backgroundError = self::checkBackground($backup);
+                if ($backup->status === 'ready') {
+                    continue;
+                }
+            }
             $stuck = $backup->created_at->lt(now()->subMinutes((int) config('ocm.backups.max_minutes', 90)));
-            if ($job === null || in_array($job->status, ['failed', 'rejected'], true) || $stuck) {
-                $error = $job?->error ?? ($stuck ? 'Backup duurde te lang' : 'Backup-opdracht ontbreekt');
+            if ($job === null || in_array($job->status, ['failed', 'rejected'], true) || $stuck || $backgroundError !== null) {
+                $error = $backgroundError ?? $job?->error ?? ($stuck ? 'Backup duurde te lang' : 'Backup-opdracht ontbreekt');
                 $backup->update(['status' => 'failed', 'error' => mb_substr((string) $error, 0, 500)]);
                 $job?->update(['args' => ['backup_id' => $backup->backup_id]]);
                 SiteJob::query()->whereIn('id', $backup->update_job_ids ?? [])->where('status', 'pending')

@@ -171,6 +171,10 @@ final class UpdateCommands
             ];
             set_site_transient('update_plugins', $transient);
 
+            // Tijdens de update verdwijnen en verschijnen de bestanden van deze plugin. Alles nu laden,
+            // zodat dit verzoek tot en met het ondertekende antwoord op de oude, complete code draait.
+            self::preloadOwnClasses();
+
             $item = $this->updateOne('plugin', $file, NB_OCM_VERSION, WP_PLUGIN_DIR . '/' . dirname($file), $this->healthCheck(), static function () use ($file): array {
                 $skin = new \WP_Ajax_Upgrader_Skin();
                 $result = (new \Plugin_Upgrader($skin))->bulk_upgrade([$file]);
@@ -186,6 +190,25 @@ final class UpdateCommands
             return ['items' => [$item]];
         } finally {
             @unlink($tmp);
+        }
+    }
+
+    /** Laadt via de autoloader elke class van deze plugin (src/ en lib/protocol/). */
+    public static function preloadOwnClasses(): void
+    {
+        $base = dirname(NB_OCM_FILE);
+        foreach (['NextBuzz\\OcMonitor\\Client\\' => $base . '/src', 'NextBuzz\\OcMonitor\\Protocol\\' => $base . '/lib/protocol'] as $prefix => $dir) {
+            if (!is_dir($dir)) {
+                continue;
+            }
+            $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS));
+            foreach ($files as $file) {
+                if ($file->getExtension() !== 'php') {
+                    continue;
+                }
+                $class = $prefix . str_replace('/', '\\', substr(str_replace('\\', '/', $file->getPathname()), strlen($dir) + 1, -4));
+                class_exists($class) || interface_exists($class) || trait_exists($class);
+            }
         }
     }
 

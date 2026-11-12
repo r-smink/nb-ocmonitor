@@ -18,11 +18,14 @@ final class BackupArgs
 {
     /**
      * @param array<string, mixed> $args
-     * @return array{backup_id: string, plugins: string[], themes: string[], core: bool, full: bool, uploads: array<string, array{url: string, headers: array<string, string>}>}
+     * @return array{backup_id: string, plugins: string[], themes: string[], core: bool, full: bool, async: bool, uploads: array<string, array{url: string, headers: array<string, string>}>}
      */
     public static function create(array $args): array
     {
-        self::only($args, ['backup_id', 'plugins', 'themes', 'core', 'full', 'uploads']);
+        self::only($args, ['backup_id', 'plugins', 'themes', 'core', 'full', 'async', 'uploads']);
+        if (isset($args['async']) && !is_bool($args['async'])) {
+            throw new CommandError('bad_request', 'async moet true of false zijn');
+        }
         if (isset($args['full']) && !is_bool($args['full'])) {
             throw new CommandError('bad_request', 'full moet true of false zijn');
         }
@@ -38,6 +41,7 @@ final class BackupArgs
             'themes' => $themes,
             'core' => !empty($args['core']),
             'full' => !empty($args['full']),
+            'async' => !empty($args['async']),
             'uploads' => self::links($args['uploads'] ?? null, ['db', 'files']),
         ];
     }

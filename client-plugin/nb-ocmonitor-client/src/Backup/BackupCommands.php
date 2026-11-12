@@ -44,8 +44,54 @@ final class BackupCommands
     public function create(array $args, CommandContext $context): array
     {
         $a = BackupArgs::create($args);
-        $started = microtime(true);
         $work = $this->workDir($a['backup_id']);
+
+        // Op de achtergrond: eerst het ondertekende "geaccepteerd" naar het panel, dan de verbinding
+        // sluiten en pas daarna de backup maken. Zo kan een proxy-timeout (nginx 504) hem niet afbreken.
+        // Het resultaat gaat als event backup.created naar het panel.
+        if ($a['async'] && self::canFinishRequest()) {
+            register_shutdown_function(function () use ($a, $work): void {
+                self::finishRequest();
+                try {
+                    $this->run($a, $work);
+                } catch (\Throwable $e) {
+                    // Al vastgelegd als event backup.created met result failed.
+                }
+                $this->recorder->flush();
+            });
+
+            return ['backup_id' => $a['backup_id'], 'accepted' => true];
+        }
+
+        return $this->run($a, $work);
+    }
+
+    /** Antwoord afronden terwijl PHP doorwerkt: PHP-FPM en LiteSpeed. Bij mod_php kan dat niet. */
+    public static function canFinishRequest(): bool
+    {
+        return function_exists('fastcgi_finish_request') || function_exists('litespeed_finish_request');
+    }
+
+    private static function finishRequest(): void
+    {
+        while (ob_get_level() > 0) {
+            @ob_end_flush(); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+        }
+        flush();
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } elseif (function_exists('litespeed_finish_request')) {
+            litespeed_finish_request();
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $a gevalideerde argumenten (BackupArgs::create)
+     * @return array<string, mixed>
+     */
+    private function run(array $a, string $work): array
+    {
+        $started = microtime(true);
         try {
             $sql = $work . '/db.sql.gz';
             $db = DatabaseDump::export($sql);
@@ -64,12 +110,16 @@ final class BackupCommands
                 @unlink($encrypted);
             }
             $result['seconds'] = round(microtime(true) - $started, 1);
+            // Volledig resultaat in het event: daarmee rondt het panel een backup op de achtergrond af.
             $this->recorder->record('backup.created', $a['backup_id'], null, null, 'success', [
                 'tables' => $db['tables'], 'size' => $result['db_size'] + $result['files_size'],
+                'db_size' => $result['db_size'], 'files_size' => $result['files_size'],
+                'db_sha256' => $result['db_sha256'], 'files_sha256' => $result['files_sha256'], 'seconds' => $result['seconds'],
             ]);
 
             return $result;
         } catch (CommandError $e) {
+            $this->recorder->record('backup.created', $a['backup_id'], null, null, 'failed', ['message' => mb_substr($e->getMessage(), 0, 300)]);
             throw $e;
         } catch (\Throwable $e) {
             $this->recorder->record('backup.created', $a['backup_id'], null, null, 'failed', ['message' => mb_substr($e->getMessage(), 0, 300)]);
