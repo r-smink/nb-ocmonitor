@@ -95,6 +95,9 @@ class SiteController extends Controller
         if (isset($parts['query']) || isset($parts['fragment'])) {
             throw ValidationException::withMessages(['url' => 'Gebruik de basis-URL van de site, zonder ? of #.']);
         }
+        if ($existing = Site::findByBareHost($host)) {
+            throw ValidationException::withMessages(['url' => 'Deze site staat er al in als ' . $existing->host . ' (' . $existing->name . ').']);
+        }
 
         $site = new Site([
             'site_id' => 'site_' . Str::lower(Str::random(20)),

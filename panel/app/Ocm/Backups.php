@@ -320,12 +320,12 @@ final class Backups
             // Te lang bezig: gemeten vanaf het moment dat de site eraan begon. Een opdracht die nog in de
             // wachtrij staat (bijv. wachtend op een vrije plek op de server) krijgt ruim de tijd.
             $max = (int) config('ocm.backups.max_minutes', 90);
-            $since = match (true) {
-                $job !== null && $job->status === 'done' && $job->finished_at !== null => $job->finished_at,
-                $job !== null && $job->status === 'pending' => $backup->created_at->copy()->subMinutes(12 * 60 - $max),
-                default => $backup->created_at,
+            [$since, $minutes] = match (true) {
+                $job !== null && $job->status === 'done' && $job->finished_at !== null => [$job->finished_at, $max],
+                $job !== null && $job->status === 'pending' => [$backup->created_at, 12 * 60],
+                default => [$backup->created_at, $max],
             };
-            $stuck = $since->lt(now()->subMinutes($max));
+            $stuck = $since->lt(now()->subMinutes($minutes));
             if ($job === null || in_array($job->status, ['failed', 'rejected'], true) || $stuck || $backgroundError !== null) {
                 $error = $backgroundError ?? $job?->error ?? ($stuck ? 'Backup duurde te lang' : 'Backup-opdracht ontbreekt');
                 $backup->update(['status' => 'failed', 'error' => mb_substr((string) $error, 0, 500)]);

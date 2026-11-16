@@ -69,6 +69,32 @@ class PairingTest extends TestCase
         $this->assertNull($site->pairing_secret);
     }
 
+    public function test_www_and_bare_host_are_the_same_site_and_the_real_address_is_adopted(): void
+    {
+        // Toegevoegd zonder www, de site gebruikt www.
+        $site = $this->pendingSite('klant.example.nl');
+        $this->postJson('/api/pair', $this->proof($site, null, 'https://www.klant.example.nl'))->assertOk();
+        $site->refresh();
+        $this->assertTrue($site->isPaired());
+        $this->assertSame('www.klant.example.nl', $site->host);
+        $this->assertSame('https://www.klant.example.nl', $site->url);
+
+        // Andersom: toegevoegd met www, de site gebruikt geen www.
+        $site->delete();
+        $other = $this->pendingSite('www.winkel.example.nl');
+        $this->postJson('/api/pair', $this->proof($other, null, 'https://winkel.example.nl'))->assertOk();
+        $this->assertSame('winkel.example.nl', $other->fresh()->host);
+    }
+
+    public function test_www_variant_of_another_existing_site_is_refused(): void
+    {
+        $this->makePairedSite('www.klant.example.nl');
+        $this->actingAs($this->makeUser())
+            ->post('/sites', ['name' => 'Dubbel', 'url' => 'https://klant.example.nl'])
+            ->assertSessionHasErrors('url');
+        $this->assertSame(1, Site::query()->count());
+    }
+
     public function test_wrong_secret_is_rejected_without_revoking(): void
     {
         $site = $this->pendingSite();
