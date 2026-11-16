@@ -249,7 +249,7 @@ class BackupsTest extends TestCase
     public function test_only_one_background_backup_per_server_at_a_time(): void
     {
         $a = $this->site('0.14.0', false);
-        $a->forceFill(['server' => 'DO16'])->save();
+        $a->forceFill(['server' => 'DO16', 'site_id' => 'site_eerste'])->save();
         $b = $this->makePairedSite('tweede.example.nl');
         $b->forceFill(['site_id' => 'site_tweede', 'server' => 'DO16', 'plugin_version' => '0.14.0', 'last_seen_at' => now(),
             'inventory' => $a->inventory])->save();
@@ -279,6 +279,6 @@ class BackupsTest extends TestCase
         // Een wachtende back-up geldt niet als vastgelopen.
         $this->travel(2)->hours();
         \App\Ocm\Backups::tick();
-        $this->assertSame('pending', Backup::query()->where('site_id', $b->id)->sole()->status);
+        $bb = Backup::query()->where('site_id', $b->id)->sole(); $this->assertSame('pending', $bb->status, (string) $bb->error);
     }
 }

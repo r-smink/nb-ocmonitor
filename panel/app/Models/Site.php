@@ -152,6 +152,21 @@ class Site extends Model
         return self::query()->whereNotNull('server')->distinct()->orderBy('server')->pluck('server')->all();
     }
 
+    /** Host zonder "www.": klant.nl en www.klant.nl zijn voor het panel dezelfde site. */
+    public static function bareHost(string $host): string
+    {
+        return (string) preg_replace('/^www\./', '', strtolower($host));
+    }
+
+    /** Bestaande site met dezelfde host, met of zonder www. */
+    public static function findByBareHost(string $host, ?int $exceptId = null): ?self
+    {
+        $bare = self::bareHost($host);
+
+        return self::query()->whereIn('host', [$bare, 'www.' . $bare])
+            ->when($exceptId !== null, fn ($q) => $q->whereKeyNot($exceptId))->first();
+    }
+
     public function isPaired(): bool
     {
         return $this->public_key !== null;

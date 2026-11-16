@@ -47,19 +47,31 @@ class PairController extends Controller
                 return self::notFound();
             }
 
-            // De code mag alleen gebruikt worden door de site waarvoor hij is aangemaakt.
-            $proofHost = parse_url((string) $proof['site_url']);
-            $host = ($proofHost['host'] ?? '') . (isset($proofHost['port']) ? ':' . $proofHost['port'] : '');
+            // De code mag alleen gebruikt worden door de site waarvoor hij is aangemaakt. Met of zonder
+            // www telt als dezelfde site; dan neemt het panel het adres over dat de site zelf gebruikt.
+            $proofUrl = parse_url((string) $proof['site_url']);
+            $host = ($proofUrl['host'] ?? '') . (isset($proofUrl['port']) ? ':' . $proofUrl['port'] : '');
             try {
-                $hostMatches = Canonical::host($host) === $site->host;
+                $host = Canonical::host($host);
+                $hostMatches = Site::bareHost($host) === Site::bareHost($site->host);
             } catch (VerificationFailed $e) {
                 $hostMatches = false;
             }
-            if (!$hostMatches) {
+            $scheme = $proofUrl['scheme'] ?? '';
+            $schemeOk = $scheme === 'https' || ($scheme === 'http' && config('ocm.allow_http_sites'));
+            $reason = !$hostMatches || !$schemeOk ? 'host_mismatch'
+                : ($host !== $site->host && Site::findByBareHost($host, $site->id) !== null ? 'host_in_use' : null);
+            if ($reason !== null) {
                 $site->pairing_secret = null;
                 $site->save();
-                Activity::log('pairing_rejected', ['reason' => 'host_mismatch', 'site_url' => mb_substr((string) $proof['site_url'], 0, 255)], $site, null, $request->ip());
+                Activity::log('pairing_rejected', ['reason' => $reason, 'site_url' => mb_substr((string) $proof['site_url'], 0, 255)], $site, null, $request->ip());
                 return self::notFound();
+            }
+            if ($host !== $site->host) {
+                $url = $scheme . '://' . $host . rtrim((string) ($proofUrl['path'] ?? ''), '/');
+                Activity::log('site_host_adopted', ['from' => $site->url, 'to' => $url], $site, null, $request->ip());
+                $site->host = $host;
+                $site->url = $url;
             }
 
             $site->public_key = Base64Url::encode($sitePublicKey);

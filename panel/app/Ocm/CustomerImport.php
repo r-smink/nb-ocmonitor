@@ -144,7 +144,7 @@ class CustomerImport
                     $customer->save();
                 }
                 foreach ($row['sites'] as $s) {
-                    if ($s['action'] === 'create' && !Site::query()->where('host', $s['host'])->exists()) {
+                    if ($s['action'] === 'create' && Site::findByBareHost($s['host']) === null) {
                         $site = new Site([
                             'site_id' => 'site_' . Str::lower(Str::random(20)),
                             'name' => $s['name'],
