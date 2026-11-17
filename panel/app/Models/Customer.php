@@ -31,11 +31,32 @@ class Customer extends Model
         'links' => 'Kapotte links',
         'environment' => 'Technische gegevens',
         'changes' => 'Overige wijzigingen',
+        'mail' => 'E-mail: verzonden en mislukt (alleen sites met de SMTP-module)',
     ];
 
     public const DEFAULT_SECTIONS = ['summary', 'uptime', 'maintenance', 'updates', 'security', 'pagespeed'];
 
-    protected $fillable = ['name', 'contact_name', 'email', 'report_cc', 'phone', 'notes', 'visits_per_year', 'contract_start', 'report_enabled', 'widget_report', 'report_sections'];
+    /** Over welke periode het rapport de mailcijfers toont, terugrekenend vanaf de einddatum. */
+    public const MAIL_PERIODS = ['week' => 'Afgelopen week', 'month' => 'Afgelopen maand', 'quarter' => 'Afgelopen kwartaal'];
+
+    protected $fillable = ['name', 'contact_name', 'email', 'report_cc', 'phone', 'notes', 'visits_per_year', 'contract_start', 'report_enabled', 'widget_report', 'report_sections', 'report_mail_period'];
+
+    /**
+     * Periode voor de mailcijfers, eindigend op $to.
+     *
+     * @return array{0: \Carbon\CarbonImmutable, 1: \Carbon\CarbonImmutable, 2: string}
+     */
+    public function mailPeriod(\Carbon\CarbonImmutable $to): array
+    {
+        $period = isset(self::MAIL_PERIODS[$this->report_mail_period]) ? $this->report_mail_period : 'month';
+        $from = match ($period) {
+            'week' => $to->subDays(6),
+            'quarter' => $to->subMonthsNoOverflow(3)->addDay(),
+            default => $to->subMonthNoOverflow()->addDay(),
+        };
+
+        return [$from, $to, $period];
+    }
 
     protected function casts(): array
     {

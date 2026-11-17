@@ -44,8 +44,14 @@ final class ReportData
         $events = SiteEvent::query()->whereIn('site_id', $sites->pluck('id'))
             ->whereBetween('occurred_at', [$start, $end])->orderBy('occurred_at')->get()->groupBy('site_id');
         $pagespeed = PagespeedResult::latestPerSite();
+        [$mailFrom, $mailTo, $mailPeriod] = $customer->mailPeriod($to);
 
-        $siteData = $sites->map(fn (Site $site) => self::site($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $start, $end))->all();
+        $siteData = $sites->map(function (Site $site) use ($events, $pagespeed, $start, $end, $mailFrom, $mailTo) {
+            $data = self::site($site, $events->get($site->id, collect()), $pagespeed->get($site->id, collect()), $start, $end);
+            $data['mail'] = self::mail($site, $mailFrom, $mailTo);
+
+            return $data;
+        })->all();
 
         $runs = $customer->runs()->with('doneBy')->whereBetween('due_on', [$start->toDateString(), $end->toDateString()])->orderBy('due_on')->get()
             ->map(fn (MaintenanceRun $r) => ['date' => $r->due_on, 'done_at' => $r->done_at, 'by' => $r->doneBy?->name, 'notes' => $r->notes])->all();
@@ -55,6 +61,7 @@ final class ReportData
             'from' => $from,
             'to' => $to,
             'sections' => $customer->sections(),
+            'mail_period' => ['label' => \App\Models\Customer::MAIL_PERIODS[$mailPeriod], 'from' => $mailFrom, 'to' => $mailTo],
             'sites' => $siteData,
             'runs' => $runs,
             'cover_shot' => self::coverShot($sites),
@@ -70,6 +77,21 @@ final class ReportData
         $data['narrative'] = ReportSummary::paragraph($data);
 
         return $data;
+    }
+
+    /**
+     * Mailcijfers voor het rapport; alleen als de SMTP-module op de site aan staat en het panel
+     * cijfers heeft (client-plugin 0.17.0+). unknown = module aan, maar nog geen cijfers ontvangen.
+     *
+     * @return array{sent: int, failed: int, since: ?CarbonImmutable, unknown?: bool}|null
+     */
+    private static function mail(Site $site, CarbonImmutable $from, CarbonImmutable $to): ?array
+    {
+        if (empty(($site->inventory ?? [])['smtp']['enabled'])) {
+            return null;
+        }
+
+        return \App\Ocm\MailStats::summary($site, $from, $to) ?? ['sent' => 0, 'failed' => 0, 'since' => null, 'unknown' => true];
     }
 
     /**

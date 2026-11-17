@@ -28,6 +28,7 @@
       'bezoekers' => $paired ? ['Bezoekers', 'activity', 0, null] : null,
       'gebruikers' => $showUsers ? ['Gebruikers', 'users', 0, null] : null,
       'activiteit' => ['Activiteit', 'activity', 0, null],
+      'klant' => ['Klant', 'briefcase', 0, null],
   ]))
 
   <div class="sd-layout">
@@ -70,6 +71,7 @@
         @include('sites.show.users')
       @endif
       @include('sites.show.activity')
+      @include('sites.show.customer')
     </div>
   </div>
 @endsection

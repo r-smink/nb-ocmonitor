@@ -42,6 +42,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/sites/{site}', [SiteController::class, 'show'])->name('sites.show');
     Route::post('/sites/{site}/koppelcode', [SiteController::class, 'regeneratePairing'])->name('sites.pairing')->can('manage-sites');
     Route::post('/sites/{site}/ontkoppelen', [SiteController::class, 'unpair'])->name('sites.unpair')->can('manage-sites');
+    Route::put('/sites/{site}/klant', [SiteController::class, 'updateCustomer'])->name('sites.customer.update')->can('manage-sites');
+    Route::post('/sites/{site}/klant', [SiteController::class, 'assignCustomer'])->name('sites.customer.assign')->can('manage-sites');
     Route::post('/sites/{site}/opdracht', [SiteController::class, 'queueCommand'])->name('sites.command')->can('manage-sites');
     Route::delete('/sites/{site}', [SiteController::class, 'destroy'])->name('sites.destroy')->can('manage-sites');
     Route::post('/sites/{site}/updates', [UpdateController::class, 'site'])->name('sites.updates')->can('manage-sites')->middleware('throttle:60,1');

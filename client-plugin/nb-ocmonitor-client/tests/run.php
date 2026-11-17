@@ -1248,6 +1248,13 @@ test('maillog-grafiek: dagen in de tijdzone van de site, ook rond zomertijd', fu
     check($C::niceMax(0) === 4 && $C::niceMax(4) === 4 && $C::niceMax(5) === 8 && $C::niceMax(37) === 40 && $C::niceMax(101) === 200 && $C::niceMax(1999) === 2000, 'nette y-as');
 });
 
+test('mailcijfers voor het panel: alleen dagen die de log nog compleet heeft', function () {
+    $M = \NextBuzz\OcMonitor\Client\Smtp\Module::class;
+    check($M::dailyWindow(false, 30) === 0, 'log uit: niets');
+    check($M::dailyWindow(true, 7) === 6 && $M::dailyWindow(true, 30) === 29, 'oudste (deels opgeruimde) dag niet mee');
+    check($M::dailyWindow(true, 365) === 92 && $M::dailyWindow(true, 0) === 92, 'hoogstens een kwartaal');
+});
+
 test('maillog-grafiek: SVG', function () {
     $C = \NextBuzz\OcMonitor\Client\Smtp\Log\Chart::class;
     $days = [];

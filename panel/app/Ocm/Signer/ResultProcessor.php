@@ -265,6 +265,10 @@ final class ResultProcessor
             $updates++;
         }
 
+        if (is_array($result['smtp'] ?? null) && array_key_exists('mail_daily', $result['smtp'])) {
+            \App\Ocm\MailStats::store($site, $result['smtp']['mail_daily']);
+            unset($result['smtp']['mail_daily']);
+        }
         $site->inventory = $result;
         $site->inventory_at = now();
         $site->updates_count = $updates;
