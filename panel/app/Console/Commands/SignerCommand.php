@@ -127,6 +127,18 @@ class SignerCommand extends Command
         if ($job->command === 'plugin.self_update' && !$result->unreachable) {
             \App\Ocm\JobQueue::enqueue($site, 'site.info', [], null, true, now()->addMinute());
         }
+        // Hetzelfde bij plugins en thema's: sommige (bijv. Rank Math) laten PHP crashen nadat de nieuwe
+        // bestanden er al staan. De verwachte versies bewaren; de volgende inventaris bevestigt ze.
+        if (in_array($job->command, ['update.plugin', 'update.theme'], true) && !$result->unreachable) {
+            $type = $job->command === 'update.plugin' ? 'plugin' : 'theme';
+            $ids = (array) (($job->args ?? [])[$type . 's'] ?? []);
+            $expected = collect($site->availableUpdates())->where('type', $type)->whereIn('id', $ids)
+                ->mapWithKeys(fn ($u) => [$u['id'] => ['from' => $u['from'], 'to' => $u['to'], 'name' => $u['name']]])->all();
+            if ($expected !== []) {
+                $job->update(['result' => ['expected' => $expected]]);
+                \App\Ocm\JobQueue::enqueue($site, 'site.inventory', ['refresh' => true], null, true, now()->addMinute());
+            }
+        }
         if ($job->requested_by !== null) {
             Activity::log('job_failed', ['job_id' => $job->job_id, 'command' => $job->command, 'error' => $result->error], $site);
         }

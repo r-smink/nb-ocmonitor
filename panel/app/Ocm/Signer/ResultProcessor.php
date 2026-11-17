@@ -215,6 +215,40 @@ final class ResultProcessor
     }
 
     /**
+     * Plugin-/thema-updates zonder geldig antwoord (bijv. HTTP 500 na de update): staat de nieuwe
+     * versie er volgens de inventaris, dan is de update alsnog gelukt.
+     *
+     * @param array<string, mixed> $inventory
+     */
+    private static function confirmUpdates(Site $site, array $inventory): void
+    {
+        $jobs = SiteJob::query()->where('site_id', $site->id)->whereIn('command', ['update.plugin', 'update.theme'])
+            ->where('status', 'failed')->where('finished_at', '>=', now()->subDay())->get();
+        foreach ($jobs as $job) {
+            $expected = (array) (($job->result ?? [])['expected'] ?? []);
+            if ($expected === []) {
+                continue;
+            }
+            [$list, $key] = $job->command === 'update.plugin' ? ['plugins', 'file'] : ['themes', 'stylesheet'];
+            $versions = collect((array) ($inventory[$list] ?? []))->filter(fn ($i) => is_array($i) && isset($i[$key]))
+                ->mapWithKeys(fn ($i) => [(string) $i[$key] => (string) ($i['version'] ?? '')]);
+
+            $items = [];
+            foreach ($expected as $id => $e) {
+                $now = $versions[$id] ?? null;
+                if ($now === null || version_compare($now, (string) ($e['to'] ?? ''), '<')) {
+                    continue 2; // nog niet (allemaal) bijgewerkt: job blijft mislukt
+                }
+                $items[] = ['id' => $id, 'from' => $e['from'] ?? null, 'to' => $now, 'status' => 'updated',
+                    'message' => 'Antwoord van de site ging verloren (' . ($job->http_status ? 'HTTP ' . $job->http_status : 'geen geldig antwoord')
+                        . '); de inventaris bevestigt versie ' . $now . '. Controleer de site even.'];
+            }
+            $job->update(['status' => 'done', 'error' => null, 'result' => ['confirmed_by_inventory' => true, 'items' => $items]]);
+            Activity::log('update_confirmed', ['job_id' => $job->job_id, 'items' => array_column($items, 'to', 'id')], $site);
+        }
+    }
+
+    /**
      * @param array<string, mixed> $result
      */
     private function inventory(Site $site, array $result): void
@@ -237,6 +271,7 @@ final class ResultProcessor
         $site->wp_version = self::str($result['core']['version'] ?? $site->wp_version);
         $site->php_version = self::str($result['php_version'] ?? $site->php_version);
         $site->save();
+        self::confirmUpdates($site, $result);
         \App\Ocm\SiteMetrics::record($site);
     }
 

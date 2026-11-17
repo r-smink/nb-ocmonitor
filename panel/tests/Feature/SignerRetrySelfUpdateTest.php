@@ -86,4 +86,32 @@ class SignerRetrySelfUpdateTest extends TestCase
         $this->assertSame('done', $job->status);
         $this->assertNull($job->error);
     }
+
+    public function test_plugin_update_with_500_is_confirmed_by_the_next_inventory(): void
+    {
+        $site = $this->makePairedSite();
+        $site->forceFill(['inventory' => ['plugins' => [
+            ['file' => 'seo-by-rank-math/rank-math.php', 'name' => 'Rank Math SEO', 'version' => '1.0.250', 'active' => true, 'update' => ['version' => '1.0.251']],
+        ]]])->save();
+        $job = JobQueue::enqueue($site, 'update.plugin', ['plugins' => ['seo-by-rank-math/rank-math.php']]);
+
+        Http::fake(fn () => Http::response('<html>Er is een kritieke fout</html>', 500));
+        $this->artisan('ocm:signer --once')->assertSuccessful();
+        $job->refresh();
+        $this->assertSame('failed', $job->status);
+        $this->assertSame('1.0.251', $job->result['expected']['seo-by-rank-math/rank-math.php']['to']);
+        $inventory = SiteJob::query()->where('command', 'site.inventory')->where('status', 'pending')->firstOrFail();
+
+        // Nog de oude versie: blijft mislukt.
+        $processor = app(\App\Ocm\Signer\ResultProcessor::class);
+        $processor->process($inventory, $site->fresh(), ['plugins' => [['file' => 'seo-by-rank-math/rank-math.php', 'version' => '1.0.250']]]);
+        $this->assertSame('failed', $job->fresh()->status);
+
+        $processor->process($inventory, $site->fresh(), ['plugins' => [['file' => 'seo-by-rank-math/rank-math.php', 'version' => '1.0.251']]]);
+        $job->refresh();
+        $this->assertSame('done', $job->status);
+        $this->assertNull($job->error);
+        $this->assertTrue($job->result['confirmed_by_inventory']);
+        $this->assertSame('1.0.251', $job->result['items'][0]['to']);
+    }
 }
