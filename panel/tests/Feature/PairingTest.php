@@ -95,6 +95,46 @@ class PairingTest extends TestCase
         $this->assertSame(1, Site::query()->count());
     }
 
+    public function test_unpair_keeps_history_and_the_new_installation_starts_a_fresh_event_series(): void
+    {
+        $site = $this->makePairedSite('klant.example.nl');
+        $ev = fn (int $seq, string $type) => ['seq' => $seq, 'time' => time(), 'type' => $type, 'object' => 'a/a.php', 'from' => null, 'to' => null,
+            'result' => 'success', 'source' => 'nb-ocm', 'user_login' => '', 'data' => []];
+        (new \App\Ocm\EventIngestor())->ingest($site, [$ev(1, 'plugin.activated'), $ev(2, 'plugin.deactivated')]);
+        $this->assertSame(2, $site->fresh()->last_event_seq);
+        $job = \App\Ocm\JobQueue::enqueue($site, 'site.inventory');
+
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$site->site_id}/ontkoppelen", ['url' => 'https://nieuw.example.nl'])->assertRedirect()->assertSessionHasNoErrors();
+        $site->refresh();
+        $this->assertFalse($site->isPaired());
+        $this->assertTrue($site->pairingIsOpen());
+        $this->assertSame('nieuw.example.nl', $site->host);
+        $this->assertSame(0, $site->last_event_seq);
+        $this->assertSame(1, $site->event_epoch);
+        $this->assertSame('rejected', $job->fresh()->status);
+        $this->assertSame(2, \App\Models\SiteEvent::query()->count(), 'oude events blijven bewaard');
+        $this->get("/sites/{$site->site_id}")->assertOk()->assertSee('nbocm1.', false);
+
+        // De nieuwe installatie koppelt en begint weer bij seq 1.
+        $site->pairing_secret = \NextBuzz\OcMonitor\Protocol\Base64Url::encode(str_repeat("\x03", 32));
+        $site->save();
+        $this->postJson('/api/pair', $this->proof($site, null, 'https://nieuw.example.nl'))->assertOk();
+        $result = (new \App\Ocm\EventIngestor())->ingest($site->fresh(), [$ev(1, 'plugin.install')]);
+        $this->assertSame(1, $result['inserted']);
+        $this->assertSame(1, $site->fresh()->last_event_seq);
+        $this->assertSame(3, \App\Models\SiteEvent::query()->count());
+    }
+
+    public function test_unpair_refuses_an_address_of_another_site(): void
+    {
+        $site = $this->makePairedSite('klant.example.nl');
+        $other = $this->pendingSite('ander.example.nl');
+        $this->actingAs($this->makeUser());
+        $this->post("/sites/{$site->site_id}/ontkoppelen", ['url' => 'https://www.ander.example.nl'])->assertSessionHasErrors('url');
+        $this->assertTrue($site->fresh()->isPaired());
+    }
+
     public function test_wrong_secret_is_rejected_without_revoking(): void
     {
         $site = $this->pendingSite();

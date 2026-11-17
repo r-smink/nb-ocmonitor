@@ -80,24 +80,11 @@ class SiteController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'server' => Site::SERVER_RULE,
-            'url' => ['required', 'string', 'max:255', 'url:' . (config('ocm.allow_http_sites') ? 'http,https' : 'https')],
+            'url' => self::urlRule(true),
         ], [
             'url.url' => 'Vul een volledige URL in die met https:// begint.',
         ]);
-
-        $url = rtrim($data['url'], '/');
-        $parts = parse_url($url);
-        try {
-            $host = Canonical::host(($parts['host'] ?? '') . (isset($parts['port']) ? ':' . $parts['port'] : ''));
-        } catch (\Throwable $e) {
-            throw ValidationException::withMessages(['url' => 'Deze URL bevat geen geldige hostnaam.']);
-        }
-        if (isset($parts['query']) || isset($parts['fragment'])) {
-            throw ValidationException::withMessages(['url' => 'Gebruik de basis-URL van de site, zonder ? of #.']);
-        }
-        if ($existing = Site::findByBareHost($host)) {
-            throw ValidationException::withMessages(['url' => 'Deze site staat er al in als ' . $existing->host . ' (' . $existing->name . ').']);
-        }
+        [$url, $host] = self::parseSiteUrl($data['url']);
 
         $site = new Site([
             'site_id' => 'site_' . Str::lower(Str::random(20)),
@@ -155,7 +142,7 @@ class SiteController extends Controller
             'security' => $security,
             'pairingCode' => $pairingCode,
             'pluginVersion' => PluginPackage::version(),
-            'events' => $site->events()->orderByDesc('seq')->limit(100)->get(),
+            'events' => $site->events()->orderByDesc('epoch')->orderByDesc('seq')->limit(100)->get(),
             'jobs' => $site->jobs()->with('requester')->orderByDesc('id')->limit(15)->get(),
             'inventory' => $site->inventory ?? [],
             'commands' => self::MANUAL_COMMANDS,
@@ -305,10 +292,84 @@ class SiteController extends Controller
         return back()->with('status', $site->server ? "Server ingesteld op {$site->server}." : 'Server leeggemaakt.');
     }
 
+    /** @return list<string> */
+    private static function urlRule(bool $required): array
+    {
+        return [$required ? 'required' : 'nullable', 'string', 'max:255', 'url:' . (config('ocm.allow_http_sites') ? 'http,https' : 'https')];
+    }
+
+    /**
+     * Basis-URL van een site controleren. Weigert een host die al bij een andere site hoort (met of zonder www).
+     *
+     * @return array{0: string, 1: string} url zonder slash aan het eind, canonieke host
+     */
+    private static function parseSiteUrl(string $input, ?int $exceptSiteId = null): array
+    {
+        $url = rtrim($input, '/');
+        $parts = parse_url($url);
+        try {
+            $host = Canonical::host(($parts['host'] ?? '') . (isset($parts['port']) ? ':' . $parts['port'] : ''));
+        } catch (\Throwable $e) {
+            throw ValidationException::withMessages(['url' => 'Deze URL bevat geen geldige hostnaam.']);
+        }
+        if (isset($parts['query']) || isset($parts['fragment'])) {
+            throw ValidationException::withMessages(['url' => 'Gebruik de basis-URL van de site, zonder ? of #.']);
+        }
+        if ($existing = Site::findByBareHost($host, $exceptSiteId)) {
+            throw ValidationException::withMessages(['url' => 'Deze site staat er al in als ' . $existing->host . ' (' . $existing->name . ').']);
+        }
+
+        return [$url, $host];
+    }
+
+    /**
+     * Ontkoppelen, bijvoorbeeld na een verhuizing naar een nieuwe installatie: de site blijft met al haar
+     * historie (klant, notities, events, rapporten, trends) bestaan, alleen de koppeling met de oude
+     * installatie vervalt. Daarna volgt direct een nieuwe koppelcode, eventueel voor een nieuw adres.
+     */
+    public function unpair(Request $request, Site $site): RedirectResponse
+    {
+        if (!$site->isPaired()) {
+            return back()->withErrors(['pairing' => 'Deze site is niet gekoppeld.']);
+        }
+        $data = $request->validate(['url' => self::urlRule(false)], ['url.url' => 'Vul een volledige URL in die met https:// begint.']);
+        $oldUrl = $site->url;
+        if (!empty($data['url'])) {
+            [$site->url, $site->host] = self::parseSiteUrl($data['url'], $site->id);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($site): void {
+            // Opdrachten voor de oude installatie gaan niet meer door.
+            \App\Models\SiteJob::query()->where('site_id', $site->id)->whereIn('status', ['pending', 'running'])
+                ->update(['status' => 'rejected', 'error' => 'Site ontkoppeld', 'finished_at' => now()]);
+            \App\Models\Backup::query()->where('site_id', $site->id)->where('status', 'pending')
+                ->update(['status' => 'failed', 'error' => 'Site ontkoppeld']);
+
+            $site->forceFill([
+                'public_key' => null,
+                'key_id' => null,
+                'paired_at' => null,
+                'status' => 'pending',
+                'plugin_version' => null,
+                'last_error' => null,
+                'last_event_seq' => 0,
+                'event_gap_at' => null,
+                // Nieuwe reeks event-nummers: de nieuwe installatie begint weer bij 1.
+                'event_epoch' => (int) $site->event_epoch + 1,
+            ]);
+            $site->scopes = Site::DEFAULT_SCOPES;
+            $this->openPairing($site);
+            $site->save();
+        });
+        Activity::log('site_unpaired', ['url' => $oldUrl, 'new_url' => $site->url !== $oldUrl ? $site->url : null], $site, $request->user());
+
+        return redirect()->route('sites.show', $site)->with('status', 'Site ontkoppeld. Installeer de plugin op de nieuwe site en plak de nieuwe koppelcode (15 minuten geldig).');
+    }
+
     public function regeneratePairing(Site $site): RedirectResponse
     {
         if ($site->isPaired()) {
-            return back()->withErrors(['pairing' => 'Deze site is al gekoppeld. Verwijder de site en voeg hem opnieuw toe om opnieuw te koppelen.']);
+            return back()->withErrors(['pairing' => 'Deze site is al gekoppeld. Ontkoppel de site eerst (onder Details) om een nieuwe koppelcode te maken.']);
         }
         $this->openPairing($site);
         $site->save();

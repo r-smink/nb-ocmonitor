@@ -201,6 +201,18 @@
         @if ($site->customer && $site->customer->tags->isNotEmpty())<p class="note">Via de klant: {{ $site->customer->tags->pluck('name')->implode(', ') }}.</p>@endif
       @endif
     @endcan
+    @can('manage-sites')
+      @if ($paired)
+        <h4 class="mt">Opnieuw koppelen</h4>
+        <p class="note">Voor een verhuizing of een nieuwe installatie van deze site. De koppeling met de huidige installatie vervalt; klant, notities, historie, rapporten en trends blijven bewaard. Daarna krijg je direct een nieuwe koppelcode. Is de database van de oude site meeverhuisd? Ontkoppel dan eerst op de nieuwe site zelf (Extra → NB OC Monitor → Ontkoppelen) en plak daarna de nieuwe code.</p>
+        <form method="POST" action="{{ route('sites.unpair', $site) }}" class="row-actions" data-confirm="Koppeling met de huidige installatie verbreken? Openstaande opdrachten en back-ups voor deze site worden geannuleerd.">
+          @csrf
+          <input name="url" type="url" value="{{ old('url') }}" maxlength="255" placeholder="Nieuw adres (alleen als het verandert)" aria-label="Nieuw adres">
+          <button class="btn ghost small" type="submit">Ontkoppelen en nieuwe koppelcode maken</button>
+        </form>
+        @error('url')<p class="issue-text crit">{{ $message }}</p>@enderror
+      @endif
+    @endcan
   </details>
 
   @if ($site->uptime_since)

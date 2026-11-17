@@ -48,7 +48,7 @@ final class EventIngestor
                 }
             }
 
-            $following = SiteEvent::query()->where('site_id', $site->id)->where('seq', '>', $last)->orderBy('seq')->limit(5000)->pluck('seq');
+            $following = SiteEvent::query()->where('site_id', $site->id)->where('epoch', $site->event_epoch)->where('seq', '>', $last)->orderBy('seq')->limit(5000)->pluck('seq');
             foreach ($following as $seq) {
                 if ((int) $seq !== $last + 1) {
                     break;
@@ -61,7 +61,7 @@ final class EventIngestor
 
             return [
                 'inserted' => $inserted,
-                'needs_pull' => SiteEvent::query()->where('site_id', $site->id)->where('seq', '>', $last + 1)->exists(),
+                'needs_pull' => SiteEvent::query()->where('site_id', $site->id)->where('epoch', $site->event_epoch)->where('seq', '>', $last + 1)->exists(),
             ];
         });
     }
@@ -84,6 +84,7 @@ final class EventIngestor
 
         return [
             'site_id' => $site->id,
+            'epoch' => (int) $site->event_epoch,
             'seq' => $event['seq'],
             'occurred_at' => Carbon::createFromTimestamp($event['time'])->utc()->format('Y-m-d H:i:s'),
             'type' => substr($type, 0, 64),
