@@ -24,8 +24,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 
+  bind(document);
+  autoRefresh();
+});
+
+// Alles wat aan elementen in de pagina-inhoud hangt. Draait bij het laden en opnieuw na een zachte verversing
+// (dan op de nieuwe <main>), zodat knoppen en formulieren blijven werken.
+function bind(root) {
   // Kopieerknoppen: <button data-copy="#id">
-  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+  root.querySelectorAll('[data-copy]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       const el = document.querySelector(btn.dataset.copy);
       if (!el) return;
@@ -39,24 +46,24 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Bevestiging bij gevaarlijke formulieren: <form data-confirm="Weet je het zeker?">
-  document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+  root.querySelectorAll('form[data-confirm]').forEach(function (form) {
     form.addEventListener('submit', function (e) {
       if (!window.confirm(form.dataset.confirm)) e.preventDefault();
     });
   });
 
   // Bevestiging bij één knop in een formulier met meerdere knoppen: <button data-confirm-button="...">
-  document.querySelectorAll('[data-confirm-button]').forEach(function (btn) {
+  root.querySelectorAll('[data-confirm-button]').forEach(function (btn) {
     btn.addEventListener('click', function (e) {
       if (!window.confirm(btn.dataset.confirmButton)) e.preventDefault();
     });
   });
 
   // Onderhoudskalender: <a data-cal-move="url" data-due="Y-m-d" draggable> naar een dag <div data-cal-drop="Y-m-d"> slepen.
-  const calForm = document.getElementById('calMoveForm');
+  const calForm = root.querySelector('#calMoveForm');
   if (calForm) {
     let dragging = null;
-    document.querySelectorAll('[data-cal-move]').forEach(function (item) {
+    root.querySelectorAll('[data-cal-move]').forEach(function (item) {
       item.addEventListener('dragstart', function (e) {
         dragging = item;
         item.classList.add('dragging');
@@ -65,11 +72,11 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       item.addEventListener('dragend', function () {
         item.classList.remove('dragging');
-        document.querySelectorAll('.drop-target').forEach(function (d) { d.classList.remove('drop-target'); });
+        root.querySelectorAll('.drop-target').forEach(function (d) { d.classList.remove('drop-target'); });
         dragging = null;
       });
     });
-    document.querySelectorAll('[data-cal-drop]').forEach(function (day) {
+    root.querySelectorAll('[data-cal-drop]').forEach(function (day) {
       day.addEventListener('dragover', function (e) {
         if (!dragging) return;
         e.preventDefault();
@@ -90,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Tabellen met klikbare rijen: <tr data-href="...">
-  document.querySelectorAll('tr[data-href]').forEach(function (tr) {
+  root.querySelectorAll('tr[data-href]').forEach(function (tr) {
     tr.addEventListener('click', function (e) {
       if (e.target.closest('a, button, form')) return;
       window.location = tr.dataset.href;
@@ -98,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Filters die direct versturen: <select data-autosubmit>
-  document.querySelectorAll('select[data-autosubmit]').forEach(function (select) {
+  root.querySelectorAll('select[data-autosubmit]').forEach(function (select) {
     select.addEventListener('change', function () { select.form.submit(); });
   });
 
@@ -115,11 +122,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
   const groups = new Set();
-  document.querySelectorAll('input[data-check]').forEach(function (box) {
+  root.querySelectorAll('input[data-check]').forEach(function (box) {
     groups.add(box.dataset.check);
     box.addEventListener('change', function () { syncChecks(box.dataset.check); });
   });
-  document.querySelectorAll('input[data-check-all]').forEach(function (all) {
+  root.querySelectorAll('input[data-check-all]').forEach(function (all) {
     all.addEventListener('change', function () {
       document.querySelectorAll('input[data-check="' + all.dataset.checkAll + '"]').forEach(function (b) { b.checked = all.checked; });
       syncChecks(all.dataset.checkAll);
@@ -127,76 +134,123 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   groups.forEach(syncChecks);
 
-  // Pagina met lopende opdrachten automatisch verversen: <main data-refresh="5">.
-  // Niet zolang er een selectie of een ingevuld veld is (anders raakt de gebruiker die kwijt).
-  const main = document.querySelector('main[data-refresh]');
-  if (main) {
-    const delay = parseInt(main.dataset.refresh, 10) * 1000;
-    const tick = function () {
-      const busy = document.querySelector('input[data-check]:checked') || (document.activeElement && document.activeElement.matches('input, select, textarea'));
-      if (busy) setTimeout(tick, delay); else window.location.reload();
-    };
-    setTimeout(tick, delay);
-  }
+  scrollspy(root);
+}
 
-  // Sitedetail: icoonbalk met scrollspy. <nav data-scrollspy> met <a data-spy-link="key">, secties <section data-spy="key">.
-  // De sectie met het grootste zichtbare deel (onder de sticky kop) markeert zijn icoon; klikken zet hem meteen.
-  const rail = document.querySelector('[data-scrollspy]');
-  if (rail) {
-    const links = {};
-    rail.querySelectorAll('[data-spy-link]').forEach(function (a) { links[a.dataset.spyLink] = a; });
-    const order = Object.keys(links);
-    const visible = {};
-    let lockedUntil = 0;
-    const setActive = function (key) {
-      order.forEach(function (k) {
-        links[k].classList.toggle('on', k === key);
-        if (k === key) links[k].setAttribute('aria-current', 'true'); else links[k].removeAttribute('aria-current');
-      });
-    };
-    const fromHash = function () {
-      const key = (window.location.hash || '').replace('#sd-', '');
-      return links[key] ? key : null;
-    };
-    setActive(fromHash() || order[0]);
+// Sitedetail: icoonbalk met scrollspy. <nav data-scrollspy> met <a data-spy-link="key">, secties <section data-spy="key">.
+// De sectie met het grootste zichtbare deel (onder de sticky kop) markeert zijn icoon; klikken zet hem meteen.
+// Na een zachte verversing wordt de vorige observer opgeruimd, zodat er geen luisteraars blijven stapelen.
+let spyCleanup = null;
+function scrollspy(root) {
+  const rail = root.querySelector('[data-scrollspy]');
+  if (!rail) return;
+  if (spyCleanup) spyCleanup();
+  const links = {};
+  rail.querySelectorAll('[data-spy-link]').forEach(function (a) { links[a.dataset.spyLink] = a; });
+  const order = Object.keys(links);
+  const visible = {};
+  let lockedUntil = 0;
+  const setActive = function (key) {
     order.forEach(function (k) {
-      links[k].addEventListener('click', function () {
-        setActive(k);
-        // Tijdens het (smooth) scrollen niet laten terugspringen door de observer.
-        lockedUntil = Date.now() + 900;
-      });
+      links[k].classList.toggle('on', k === key);
+      if (k === key) links[k].setAttribute('aria-current', 'true'); else links[k].removeAttribute('aria-current');
     });
-    if ('IntersectionObserver' in window) {
-      const thresholds = [];
-      for (let i = 0; i <= 20; i++) thresholds.push(i / 20);
-      const observer = new IntersectionObserver(function (entries) {
-        // "Het meest in beeld": zichtbaar deel ten opzichte van wat er maximaal in de band past. Zo wint een
-        // korte sectie die helemaal in beeld is van een lange volgende sectie die er half in staat.
-        entries.forEach(function (e) {
-          const room = Math.min(e.boundingClientRect.height, e.rootBounds ? e.rootBounds.height : window.innerHeight) || 1;
-          visible[e.target.dataset.spy] = e.isIntersecting ? e.intersectionRect.height / room : 0;
-        });
-        if (Date.now() < lockedUntil) return;
-        let best = null;
-        let bestHeight = 0;
-        order.forEach(function (k) {
-          if ((visible[k] || 0) > bestHeight) { best = k; bestHeight = visible[k]; }
-        });
-        if (best) setActive(best);
-      }, { rootMargin: '-88px 0px -55% 0px', threshold: thresholds });
-      document.querySelectorAll('section[data-spy]').forEach(function (s) { observer.observe(s); });
-      // Helemaal onderaan krijgt een korte laatste sectie nooit het grootste stuk van de band: dan die markeren.
-      let ticking = false;
-      window.addEventListener('scroll', function () {
-        if (ticking) return;
-        ticking = true;
-        window.requestAnimationFrame(function () {
-          ticking = false;
-          if (Date.now() >= lockedUntil && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
-            setActive(order[order.length - 1]);
-          }
-        });
-      }, { passive: true });
-    }
-  }
-});
+  };
+  const fromHash = function () {
+    const key = (window.location.hash || '').replace('#sd-', '');
+    return links[key] ? key : null;
+  };
+  setActive(fromHash() || order[0]);
+  order.forEach(function (k) {
+    links[k].addEventListener('click', function () {
+      setActive(k);
+      // Tijdens het (smooth) scrollen niet laten terugspringen door de observer.
+      lockedUntil = Date.now() + 900;
+    });
+  });
+  if (!('IntersectionObserver' in window)) return;
+  const thresholds = [];
+  for (let i = 0; i <= 20; i++) thresholds.push(i / 20);
+  const observer = new IntersectionObserver(function (entries) {
+    // "Het meest in beeld": zichtbaar deel ten opzichte van wat er maximaal in de band past. Zo wint een
+    // korte sectie die helemaal in beeld is van een lange volgende sectie die er half in staat.
+    entries.forEach(function (e) {
+      const room = Math.min(e.boundingClientRect.height, e.rootBounds ? e.rootBounds.height : window.innerHeight) || 1;
+      visible[e.target.dataset.spy] = e.isIntersecting ? e.intersectionRect.height / room : 0;
+    });
+    if (Date.now() < lockedUntil) return;
+    let best = null;
+    let bestHeight = 0;
+    order.forEach(function (k) {
+      if ((visible[k] || 0) > bestHeight) { best = k; bestHeight = visible[k]; }
+    });
+    if (best) setActive(best);
+  }, { rootMargin: '-88px 0px -55% 0px', threshold: thresholds });
+  root.querySelectorAll('section[data-spy]').forEach(function (s) { observer.observe(s); });
+  // Helemaal onderaan krijgt een korte laatste sectie nooit het grootste stuk van de band: dan die markeren.
+  let ticking = false;
+  const onScroll = function () {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(function () {
+      ticking = false;
+      if (Date.now() >= lockedUntil && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        setActive(order[order.length - 1]);
+      }
+    });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  spyCleanup = function () {
+    observer.disconnect();
+    window.removeEventListener('scroll', onScroll);
+    spyCleanup = null;
+  };
+}
+
+// Pagina met lopende opdrachten automatisch verversen: <main data-refresh="5">.
+// Zacht: de nieuwe pagina wordt op de achtergrond opgehaald en alleen de inhoud van <main> wordt vervangen,
+// met dezelfde scrollpositie en zonder witte flits. Niets veranderd: niets doen. Niet zolang er een selectie,
+// een ingevuld veld of geselecteerde tekst is (anders raakt de gebruiker die kwijt), en niet in een verborgen tabblad.
+function autoRefresh() {
+  const main = document.querySelector('main[data-refresh]');
+  if (!main) return;
+  let delay = parseInt(main.dataset.refresh, 10) * 1000;
+  const busy = function () {
+    const active = document.activeElement;
+    const selection = window.getSelection ? String(window.getSelection()) : '';
+    return document.hidden || selection.trim() !== '' || document.querySelector('input[data-check]:checked')
+      || (active && active.matches('input, select, textarea'));
+  };
+  const tick = function () {
+    if (busy()) { setTimeout(tick, delay); return; }
+    fetch(window.location.href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (response) {
+        // Uitgelogd, doorgestuurd of een fout: dan gewoon de hele pagina laden.
+        if (!response.ok || response.redirected) throw new Error('herladen');
+        return response.text();
+      })
+      .then(function (html) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const next = doc.querySelector('main');
+        if (!next) throw new Error('herladen');
+        const current = document.querySelector('main');
+        if (next.innerHTML !== current.innerHTML && !busy()) {
+          const scrollY = window.scrollY;
+          // Opengeklapte onderdelen (<details>) blijven open als de pagina dezelfde opbouw heeft.
+          const opened = Array.prototype.map.call(current.querySelectorAll('details'), function (d) { return d.open; });
+          current.innerHTML = next.innerHTML;
+          const details = current.querySelectorAll('details');
+          if (details.length === opened.length) details.forEach(function (d, i) { d.open = opened[i]; });
+          bind(current);
+          window.scrollTo(0, scrollY);
+          if (doc.title) document.title = doc.title;
+        }
+        // Alles klaar: de nieuwe pagina vraagt niet meer om verversen.
+        if (!next.hasAttribute('data-refresh')) { current.removeAttribute('data-refresh'); return; }
+        delay = parseInt(next.dataset.refresh, 10) * 1000 || delay;
+        setTimeout(tick, delay);
+      })
+      .catch(function () { window.location.reload(); });
+  };
+  setTimeout(tick, delay);
+}

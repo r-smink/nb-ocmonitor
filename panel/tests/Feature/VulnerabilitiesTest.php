@@ -66,6 +66,25 @@ class VulnerabilitiesTest extends TestCase
         $this->assertFalse(collect($site->fresh()->issues())->contains(fn ($i) => str_contains($i['text'], 'Elementor')));
     }
 
+    public function test_several_leaks_in_one_plugin_are_one_row(): void
+    {
+        $site = $this->makePairedSite();
+        $site->forceFill(['last_seen_at' => now(), 'inventory' => ['core' => ['version' => '6.9'], 'themes' => [], 'plugins' => [
+            ['file' => 'elementor/elementor.php', 'slug' => 'elementor', 'name' => 'Elementor', 'version' => '3.19.2', 'active' => true],
+        ]]])->save();
+        $range = ['from_version' => '*', 'from_inclusive' => true, 'to_version' => '3.20.0', 'to_inclusive' => true];
+        Vulnerability::query()->create(['uuid' => 'a', 'type' => 'plugin', 'slug' => 'elementor', 'affected' => [$range], 'patched_versions' => ['3.20.1'],
+            'title' => 'Elementor - Stored XSS via widget', 'cve' => 'CVE-2026-1111', 'cvss_score' => 6.4]);
+        Vulnerability::query()->create(['uuid' => 'b', 'type' => 'plugin', 'slug' => 'elementor', 'affected' => [$range], 'patched_versions' => ['3.20.2'],
+            'title' => 'Elementor - Stored XSS via shortcode', 'cve' => 'CVE-2026-2222', 'cvss_score' => 5.4]);
+
+        $response = $this->actingAs($this->makeUser())->get('/kwetsbaarheden')->assertOk()
+            ->assertSee('CVE-2026-1111')->assertSee('CVE-2026-2222')->assertSee('2 lekken')
+            ->assertSee('alles opgelost in')->assertSee('3.20.2');
+        $this->assertSame(1, substr_count($response->getContent(), 'class="vuln '), 'één regel voor site + plugin');
+        $this->assertSame(2, $response->viewData('rows')->count(), 'de tellingen blijven per lek');
+    }
+
     public function test_version_ranges(): void
     {
         $this->assertTrue(Vulnerability::inRange('1.0', ['from_version' => '*', 'to_version' => '1.0', 'to_inclusive' => true]));

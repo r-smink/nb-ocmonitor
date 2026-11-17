@@ -92,6 +92,17 @@ class UpdateController extends Controller
         ]);
     }
 
+    /** Update-opdracht (of één plugin/thema daaruit) annuleren zolang hij nog niet naar de site is gestuurd. */
+    public function cancel(Request $request, \App\Models\SiteJob $job): RedirectResponse
+    {
+        $item = $request->validate(['item' => ['nullable', 'string', 'max:300']])['item'] ?? null;
+        if (!Updates::cancel($job, $request->user(), $item)) {
+            return back()->withErrors(['cancel' => 'Annuleren lukt niet meer: de update is al gestart of afgerond.']);
+        }
+
+        return back()->with('status', $item !== null ? 'Uit de wachtrij gehaald.' : 'Update geannuleerd.');
+    }
+
     /** Bulk: items[] = "site_id|type|id", gecontroleerd tegen de inventaris van elke site. */
     public function store(Request $request): RedirectResponse
     {

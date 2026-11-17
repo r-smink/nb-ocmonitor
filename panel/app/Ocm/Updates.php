@@ -159,6 +159,61 @@ final class Updates
         }
     }
 
+    /** Fouttekst van een geannuleerde job (status rejected); UpdateQueue herkent hem hieraan. */
+    public const CANCELLED = 'Geannuleerd';
+
+    public static function isCancelled(SiteJob $job): bool
+    {
+        return $job->status === 'rejected' && str_starts_with((string) $job->error, self::CANCELLED);
+    }
+
+    /**
+     * Update-opdracht annuleren zolang hij nog niet naar de site is gestuurd (status pending). Met
+     * $itemId alleen die plugin of dat thema uit de opdracht halen; is dat de laatste, dan vervalt
+     * de hele opdracht. Voorwaardelijk bijgewerkt (status = pending), net als het claimen door de
+     * signer, dus een update die op hetzelfde moment start wordt nooit half geannuleerd.
+     *
+     * @return bool false als de opdracht al gestart, klaar of niet (meer) te annuleren is
+     */
+    public static function cancel(SiteJob $job, ?User $user, ?string $itemId = null): bool
+    {
+        if ($job->status !== 'pending' || !in_array($job->command, self::COMMANDS, true)) {
+            return false;
+        }
+        $key = ['update.plugin' => 'plugins', 'update.theme' => 'themes'][$job->command] ?? null;
+        $ids = $key !== null ? array_values((array) (($job->args ?? [])[$key] ?? [])) : [];
+
+        if ($itemId !== null) {
+            if ($key === null || !in_array($itemId, $ids, true)) {
+                return false;
+            }
+            $rest = array_values(array_filter($ids, fn ($id) => $id !== $itemId));
+            if ($rest !== []) {
+                $args = array_merge($job->args ?? [], [$key => $rest]);
+                $done = SiteJob::query()->whereKey($job->id)->where('status', 'pending')->update(['args' => json_encode($args), 'updated_at' => now()]) === 1;
+                if ($done) {
+                    Activity::log('update_cancelled', ['job_id' => $job->job_id, 'items' => [$itemId]], $job->site, $user);
+                }
+
+                return $done;
+            }
+        }
+
+        $done = SiteJob::query()->whereKey($job->id)->where('status', 'pending')->update([
+            'status' => 'rejected',
+            'error' => self::CANCELLED . ($user ? ' door ' . $user->name : ''),
+            'finished_at' => now(),
+            'updated_at' => now(),
+        ]) === 1;
+        if ($done) {
+            Activity::log('update_cancelled', ['job_id' => $job->job_id, 'command' => $job->command, 'items' => $ids], $job->site, $user);
+            // Andere vastgehouden updates hoeven niet op deze te wachten.
+            self::releaseReady($job->site);
+        }
+
+        return $done;
+    }
+
     /**
      * Componenten die al in een openstaande update-job zitten, per type.
      *

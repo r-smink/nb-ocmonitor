@@ -100,4 +100,52 @@ class UpdateQueueTest extends TestCase
         $this->actingAs($this->makeUser('viewer'))->post("/sites/{$site->site_id}/backups/opruimen")->assertForbidden();
         $this->get('/updates/wachtrij')->assertOk();
     }
+
+    public function test_queued_updates_can_be_cancelled_per_plugin_or_whole(): void
+    {
+        $site = $this->site('een.example.nl', null);
+        $job = $this->job($site, 'update.plugin', ['plugins' => ['a/a.php', 'b/b.php']], 'pending', ['available_at' => now()->addDay()]);
+        $this->actingAs($this->makeUser());
+        $this->get('/updates/wachtrij')->assertOk()->assertSee('Annuleren')->assertSee('Plugin A niet bijwerken');
+
+        // Eén plugin eruit: de opdracht blijft staan met de rest.
+        $this->post("/updates/wachtrij/{$job->id}/annuleren", ['item' => 'a/a.php'])->assertRedirect()->assertSessionHas('status', 'Uit de wachtrij gehaald.');
+        $job->refresh();
+        $this->assertSame('pending', $job->status);
+        $this->assertSame(['b/b.php'], $job->args['plugins']);
+
+        // De laatste eruit: hele opdracht geannuleerd, telt niet als mislukt.
+        $this->post("/updates/wachtrij/{$job->id}/annuleren", ['item' => 'b/b.php'])->assertRedirect();
+        $job->refresh();
+        $this->assertSame('rejected', $job->status);
+        $this->assertTrue(\App\Ocm\Updates::isCancelled($job));
+        $overview = UpdateQueue::overview();
+        $this->assertSame(1, $overview['totals']['phase_cancelled']);
+        $this->assertSame(0, $overview['totals']['bad']);
+        $this->assertSame(0, $overview['totals']['open']);
+        $this->get('/updates/wachtrij')->assertSee('geannuleerd')->assertDontSee('Plugin B niet bijwerken');
+        $this->assertDatabaseHas('activity_log', ['action' => 'update_cancelled']);
+
+        // Een hele opdracht in één keer; een die al loopt kan niet meer.
+        $core = $this->job($site, 'update.core', [], 'pending');
+        $this->post("/updates/wachtrij/{$core->id}/annuleren")->assertSessionHas('status', 'Update geannuleerd.');
+        $this->assertSame('rejected', $core->fresh()->status);
+        $running = $this->job($site, 'update.theme', ['themes' => ['astra']], 'running', ['started_at' => now()]);
+        $this->post("/updates/wachtrij/{$running->id}/annuleren")->assertSessionHasErrors('cancel');
+        $this->assertSame('running', $running->fresh()->status);
+
+        // Geen update-opdracht, en kijkers mogen niet.
+        $other = $this->job($site, 'site.inventory', [], 'pending');
+        $this->post("/updates/wachtrij/{$other->id}/annuleren")->assertSessionHasErrors('cancel');
+    }
+
+    public function test_viewers_cannot_cancel_updates(): void
+    {
+        $site = $this->site('een.example.nl', null);
+        $job = $this->job($site, 'update.plugin', ['plugins' => ['a/a.php']], 'pending');
+        $this->actingAs($this->makeUser('viewer'));
+        $this->get('/updates/wachtrij')->assertOk()->assertDontSee('Annuleren');
+        $this->post("/updates/wachtrij/{$job->id}/annuleren")->assertForbidden();
+        $this->assertSame('pending', $job->fresh()->status);
+    }
 }

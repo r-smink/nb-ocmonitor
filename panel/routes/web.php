@@ -51,6 +51,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::post('/updates', [UpdateController::class, 'store'])->name('updates.store')->can('manage-sites')->middleware('throttle:30,1');
     Route::get('/pagespeed', [PageSpeedController::class, 'index'])->name('pagespeed.index');
     Route::get('/updates/wachtrij', [UpdateController::class, 'queue'])->name('updates.queue');
+    Route::post('/updates/wachtrij/{job}/annuleren', [UpdateController::class, 'cancel'])->name('updates.cancel')->can('manage-sites')->middleware('throttle:60,1');
     Route::get('/updates/automatisch',[\App\Http\Controllers\UpdateScheduleController::class, 'index'])->name('updates.schedules.index');
     Route::middleware('can:manage-sites')->group(function () {
         Route::get('/updates/automatisch/nieuw', [\App\Http\Controllers\UpdateScheduleController::class, 'create'])->name('updates.schedules.create');

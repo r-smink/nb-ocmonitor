@@ -5,7 +5,7 @@
 @endif
 @section('content')
   @php
-    $phaseClass = ['backup_wait' => 'wait', 'backup' => 'busy', 'screenshot' => 'busy', 'held' => 'wait', 'queued' => 'wait', 'running' => 'busy', 'done' => 'ok', 'partial' => 'bad', 'failed' => 'bad'];
+    $phaseClass = ['backup_wait' => 'wait', 'backup' => 'busy', 'screenshot' => 'busy', 'held' => 'wait', 'queued' => 'wait', 'running' => 'busy', 'done' => 'ok', 'partial' => 'bad', 'failed' => 'bad', 'cancelled' => 'wait'];
     $statusLabels = ['updated' => 'bijgewerkt', 'up_to_date' => 'al actueel', 'failed' => 'mislukt', 'rolled_back' => 'teruggedraaid', 'health_failed' => 'site-fout na update', 'not_found' => 'niet gevonden'];
     $bar = function (array $c): string {
         if ($c['total'] === 0) {
@@ -133,6 +133,13 @@
                         @foreach ($row['items'] as $item)
                           <li class="{{ $item['state'] }}">
                             {{ $item['name'] }}
+                            @if ($row['job']->status === 'pending' && count($row['items']) > 1 && in_array($row['job']->command, ['update.plugin', 'update.theme'], true))
+                              @can('manage-sites')
+                                <form method="POST" action="{{ route('updates.cancel', $row['job']) }}" class="inline" data-confirm="{{ $item['name'] }} uit deze update halen?">
+                                  @csrf<input type="hidden" name="item" value="{{ $item['id'] }}"><button class="q-cancel-item" type="submit" title="{{ $item['name'] }} niet bijwerken" aria-label="{{ $item['name'] }} niet bijwerken">×</button>
+                                </form>
+                              @endcan
+                            @endif
                             @if ($item['status'] === 'updated' && $item['from'])<span class="muted">{{ $item['from'] }} → {{ $item['to'] }}</span>@elseif ($item['status'])<span class="muted">{{ $statusLabels[$item['status']] ?? $item['status'] }}</span>@elseif ($item['to'])<span class="muted">→ {{ $item['to'] }}</span>@endif
                             @if ($item['message'] && $item['state'] === 'bad')<div class="note">{{ $item['message'] }}</div>@endif
                           </li>
@@ -144,6 +151,13 @@
                       <span class="q-phase {{ $phaseClass[$row['phase']] }}">{{ \App\Ocm\UpdateQueue::PHASES[$row['phase']] }}</span>
                       @if ($row['phase'] === 'running' && $row['job']->started_at)<div class="hint">sinds {{ $row['job']->started_at->timezone('Europe/Amsterdam')->format('H:i') }}</div>
                       @elseif ($row['job']->finished_at)<div class="hint">{{ $row['job']->finished_at->timezone('Europe/Amsterdam')->format('H:i') }}</div>@endif
+                      @if ($row['job']->status === 'pending')
+                        @can('manage-sites')
+                          <form method="POST" action="{{ route('updates.cancel', $row['job']) }}" class="inline" data-confirm="Deze update annuleren? {{ count($row['items']) > 1 ? count($row['items']) . ' onderdelen worden dan niet bijgewerkt.' : '' }}">
+                            @csrf<button class="btn small ghost" type="submit">Annuleren</button>
+                          </form>
+                        @endcan
+                      @endif
                     </td>
                   </tr>
                 @endforeach

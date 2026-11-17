@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
  */
 final class UpdateQueue
 {
-    /** Fases in volgorde; 'done'/'partial'/'failed' tellen als afgerond. */
+    /** Fases in volgorde; 'done'/'partial'/'failed'/'cancelled' tellen als afgerond. */
     public const PHASES = [
         'backup_wait' => 'wacht op backup',
         'backup' => 'backup wordt gemaakt',
@@ -25,6 +25,7 @@ final class UpdateQueue
         'done' => 'klaar',
         'partial' => 'deels mislukt',
         'failed' => 'mislukt',
+        'cancelled' => 'geannuleerd',
     ];
 
     private const ITEM_OK = ['updated', 'up_to_date'];
@@ -58,7 +59,7 @@ final class UpdateQueue
                 'phase' => $phase,
                 'label' => self::label($job),
                 'items' => $items,
-                'total' => count($items),
+                'total' => count(array_filter($items, fn ($i) => $i['state'] !== 'cancelled')),
                 'ok' => count(array_filter($items, fn ($i) => $i['state'] === 'ok')),
                 'bad' => count(array_filter($items, fn ($i) => $i['state'] === 'bad')),
                 'schedule' => $job->update_schedule_id ? ($schedules[$job->update_schedule_id] ?? 'automatisch') : null,
@@ -104,7 +105,7 @@ final class UpdateQueue
         $ok = (int) $rows->sum('ok');
         $bad = (int) $rows->sum('bad');
         $running = (int) $rows->where('phase', 'running')->sum('total');
-        $open = $rows->filter(fn ($r) => !in_array($r['phase'], ['done', 'partial', 'failed'], true))->count();
+        $open = $rows->filter(fn ($r) => !in_array($r['phase'], ['done', 'partial', 'failed', 'cancelled'], true))->count();
 
         return [
             'total' => $total,
@@ -147,6 +148,7 @@ final class UpdateQueue
             $result = $results[$id] ?? null;
             $status = $result['status'] ?? null;
             $state = match (true) {
+                Updates::isCancelled($job) => 'cancelled',
                 in_array($job->status, ['failed', 'rejected'], true) => 'bad',
                 $job->status !== 'done' => $job->status === 'running' ? 'running' : 'waiting',
                 $status === null => 'ok', // core, vertalingen, OC-plugin: geen uitkomst per component
@@ -173,6 +175,9 @@ final class UpdateQueue
      */
     private static function phase(SiteJob $job, array $items, Collection $backups, Collection $visualBefore): string
     {
+        if (Updates::isCancelled($job)) {
+            return 'cancelled';
+        }
         if (in_array($job->status, ['failed', 'rejected'], true)) {
             return 'failed';
         }
