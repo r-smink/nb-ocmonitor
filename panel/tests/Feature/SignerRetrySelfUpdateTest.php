@@ -24,6 +24,23 @@ class SignerRetrySelfUpdateTest extends TestCase
         $this->assertFalse(SignerCommand::neverConnected('Verbinding mislukt: cURL error 28: Operation timed out after 600000 milliseconds with 0 bytes received'));
     }
 
+    public function test_heartbeat_and_inventory_go_before_older_jobs(): void
+    {
+        $site = $this->makePairedSite();
+        // Geen geldig antwoord: de volgorde van versturen is wat telt.
+        Http::fake(fn () => Http::response('niet geldig', 500));
+        JobQueue::enqueue($site, 'update.plugin', ['plugins' => ['a/a.php']]);
+        JobQueue::enqueue($site, 'events.pull');
+        JobQueue::enqueue($site, 'site.inventory', ['refresh' => true]);
+        JobQueue::enqueue($site, 'site.info');
+        JobQueue::enqueue($site, 'users.list');
+
+        $this->artisan('ocm:signer --once')->assertSuccessful();
+
+        $order = collect(Http::recorded())->map(fn ($pair) => json_decode($pair[0]->body(), true)['command'] ?? null)->all();
+        $this->assertSame(['site.inventory', 'site.info', 'update.plugin', 'events.pull', 'users.list'], $order);
+    }
+
     public function test_connect_timeout_is_retried_with_backoff_then_fails(): void
     {
         $site = $this->makePairedSite();

@@ -20,6 +20,12 @@ use Illuminate\Console\Command;
 #[Description('Ondertekent en verstuurt opdrachten naar gekoppelde sites')]
 class SignerCommand extends Command
 {
+    /**
+     * Heartbeat en inventaris gaan altijd voor: ze zijn snel en het panel wil de stand van de site
+     * direct zien, ook als er een rij updates of backups klaarstaat. Daarbinnen en daarna: oudste eerst.
+     */
+    public const PRIORITY_COMMANDS = ['site.info', 'site.inventory'];
+
     public function handle(ResultProcessor $processor): int
     {
         try {
@@ -56,7 +62,9 @@ class SignerCommand extends Command
 
     private function claimNextJob(): ?SiteJob
     {
-        $candidate = SiteJob::query()->where('status', 'pending')->where('available_at', '<=', now())->orderBy('id')->first();
+        $candidate = SiteJob::query()->where('status', 'pending')->where('available_at', '<=', now())
+            ->orderByRaw('CASE WHEN command IN (' . implode(',', array_fill(0, count(self::PRIORITY_COMMANDS), '?')) . ') THEN 0 ELSE 1 END', self::PRIORITY_COMMANDS)
+            ->orderBy('id')->first();
         if ($candidate === null) {
             return null;
         }
