@@ -171,6 +171,8 @@ Kapotte links: de scheduler controleert elke site eens per week (instelbaar) via
 
 Monitoring: de scheduler controleert elke 5 minuten de homepage van elke site, het SSL-certificaat twee keer per dag en de domeinregistratie (RDAP) wekelijks. Visuele controle bij updates werkt alleen met `OCM_PAGESPEED_API_KEY`; uitzetten met `OCM_VISUAL_CHECKS=false`, drempel met `OCM_VISUAL_THRESHOLD` (standaard 15%).
 
+ServerDash (optioneel): maak in ServerDash onder Beheer → E-mailmeldingen een URL aan en plak die in het panel onder Instellingen → Meldingen → ServerDash. Mislukte e-mail van de sites (SMTP-module) gaat dan direct door naar ServerDash; met **Testmelding versturen** controleer je de verbinding. De URL moet https zijn en naar een publiek adres wijzen.
+
 Nieuwe versie van de client-plugin: maak lokaal `php scripts/release-plugin.php` (de release-sleutel staat alleen op je eigen computer, in `~/.nb-ocm/`), commit `client-plugin/dist/` en deploy. Sites met 0.4.0 of nieuwer krijgen de update dan aangeboden onder Updates → OC-plugin. **Bewaar de release-sleutel ook in een wachtwoordkluis**: zonder die sleutel kunnen sites niet meer via het panel bijgewerkt worden.
 
 Voor klantrapporten per e-mail: zet de `MAIL_*`-regels in `.env` (SMTP van je mailprovider) en voer `docker compose up -d --force-recreate` uit. Zonder SMTP blijft `MAIL_MAILER=log` staan: rapporten bekijken en downloaden werkt dan wel, versturen schrijft de mail alleen naar het log. Logo's, achtergronden en fonts voor de rapporten staan in de database en zitten dus in de gewone backup.

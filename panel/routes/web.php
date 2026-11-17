@@ -156,6 +156,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         Route::get('/instellingen/meldingen', [\App\Http\Controllers\AlertController::class, 'channels'])->name('settings.alerts');
         Route::put('/instellingen/meldingen/smtp', [\App\Http\Controllers\AlertController::class, 'saveSmtp'])->name('settings.smtp');
         Route::post('/instellingen/meldingen/smtp/test', [\App\Http\Controllers\AlertController::class, 'testSmtp'])->name('settings.smtp.test')->middleware('throttle:5,1');
+        Route::put('/instellingen/meldingen/serverdash', [\App\Http\Controllers\AlertController::class, 'saveServerDash'])->name('settings.serverdash');
+        Route::post('/instellingen/meldingen/serverdash/test', [\App\Http\Controllers\AlertController::class, 'testServerDash'])->name('settings.serverdash.test')->middleware('throttle:10,1');
         Route::put('/instellingen/meldingen/{type}', [\App\Http\Controllers\AlertController::class, 'saveChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.channel');
         Route::post('/instellingen/meldingen/{type}/test', [\App\Http\Controllers\AlertController::class, 'testChannel'])->whereIn('type', ['slack', 'teams', 'webhook'])->name('settings.alerts.test')->middleware('throttle:10,1');
         Route::get('/instellingen/api', [\App\Http\Controllers\ApiTokenController::class, 'index'])->name('settings.api');

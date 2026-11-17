@@ -414,6 +414,12 @@ final class SiteIssues
     /** Fouten die bij één bericht horen, niet bij de verbinding: aandacht in plaats van kritiek. */
     private const SMTP_MESSAGE_ERRORS = ['recipient', 'invalid_address'];
 
+    /** Korte Nederlandse omschrijving van een diagnose_code van de SMTP-module ('' als onbekend). */
+    public static function smtpDiagnoseTitle(string $code): string
+    {
+        return self::SMTP_DIAGNOSE[$code] ?? '';
+    }
+
     /** Link naar het e-maillog van de SMTP-module in WP-admin. */
     public static function smtpLogUrl(Site $site): string
     {

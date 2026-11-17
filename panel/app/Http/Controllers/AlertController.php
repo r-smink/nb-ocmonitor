@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Ocm\Activity;
 use App\Ocm\Alerts\AlertFilter;
 use App\Ocm\Alerts\Channels;
+use App\Ocm\Alerts\ServerDash;
 use App\Ocm\MailSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -67,6 +68,47 @@ class AlertController extends Controller
         }
 
         return back()->with('status', 'Testbericht verstuurd naar ' . Channels::TYPES[$type] . '.');
+    }
+
+    /**
+     * ServerDash: mislukte e-mail van de sites direct doorsturen. Het veld toont de ingekorte URL;
+     * ongewijzigd laten = houden, leegmaken = verwijderen en doorsturen uitzetten.
+     */
+    public function saveServerDash(Request $request): RedirectResponse
+    {
+        $data = $request->validate(['url' => ['nullable', 'string', 'max:1000'], 'enabled' => ['nullable', 'boolean']]);
+        $url = trim((string) ($data['url'] ?? ''));
+        $back = route('settings.alerts') . '#serverdash';
+        $hadUrl = ServerDash::configuredUrl() !== null;
+        if ($url !== '' && $hadUrl && $url === ServerDash::masked()) {
+            $url = null; // ongewijzigd
+        } elseif ($url !== '' && ($problem = ServerDash::urlProblem($url))) {
+            return redirect()->to($back)->withErrors(['serverdash' => $problem]);
+        }
+        ServerDash::save($url, !empty($data['enabled']));
+        Activity::log('serverdash_updated', ['enabled' => ServerDash::enabled(), 'url_changed' => $url !== null && $url !== '', 'removed' => $url === '' && $hadUrl]);
+
+        return redirect()->to($back)->with('status', match (true) {
+            $url === '' => 'ServerDash-URL ' . ($hadUrl ? 'verwijderd' : 'niet ingevuld') . '; doorsturen staat uit.',
+            ServerDash::enabled() => 'ServerDash opgeslagen. Mislukte e-mail van de sites gaat nu door naar ServerDash.',
+            default => 'ServerDash opgeslagen; doorsturen staat uit.',
+        });
+    }
+
+    public function testServerDash(): RedirectResponse
+    {
+        $back = route('settings.alerts') . '#serverdash';
+        $url = ServerDash::configuredUrl();
+        if ($url === null) {
+            return redirect()->to($back)->withErrors(['serverdash' => 'Vul eerst de ServerDash-URL in.']);
+        }
+        $ok = ServerDash::deliver(ServerDash::testPayload(), $url);
+        Activity::log('serverdash_test', ['ok' => $ok]);
+        if (!$ok) {
+            return redirect()->to($back)->withErrors(['serverdash' => 'Testmelding mislukt: ' . ServerDash::status()['last_error']]);
+        }
+
+        return redirect()->to($back)->with('status', 'Testmelding verstuurd naar ServerDash (' . ServerDash::masked($url) . ').');
     }
 
     /** Eigen SMTP-server voor alle e-mail van de tool. */

@@ -4,12 +4,13 @@ namespace App\Ocm;
 
 use App\Models\Site;
 use App\Models\SiteEvent;
+use App\Ocm\Alerts\ServerDash;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Verwerkt events van een site (gepusht of opgehaald). Houdt per site het hoogste aaneengesloten
- * volgnummer bij en detecteert gaten (plan §2.7).
+ * volgnummer bij en detecteert gaten (plan §2.7). Nieuwe SMTP-events gaan door naar ServerDash.
  */
 final class EventIngestor
 {
@@ -31,9 +32,24 @@ final class EventIngestor
         }
         ksort($rows);
 
-        $inserted = $rows === [] ? 0 : DB::table('site_events')->insertOrIgnore(array_values($rows));
+        // SMTP-events voor ServerDash los invoegen: alleen wat echt nieuw is (niet bij een herhaalde
+        // pull) wordt doorgestuurd. De unieke sleutel (site, epoch, seq) beslist, ook bij gelijktijdige push en pull.
+        $forward = [];
+        $inserted = 0;
+        $bulk = [];
+        foreach ($rows as $row) {
+            if (ServerDash::wanted($row)) {
+                if (DB::table('site_events')->insertOrIgnore($row) === 1) {
+                    $inserted++;
+                    $forward[] = $row;
+                }
+            } else {
+                $bulk[] = $row;
+            }
+        }
+        $inserted += $bulk === [] ? 0 : DB::table('site_events')->insertOrIgnore($bulk);
 
-        return DB::transaction(function () use ($site, $rows, $pulledAfter, $inserted): array {
+        $outcome = DB::transaction(function () use ($site, $rows, $pulledAfter, $inserted): array {
             $site = Site::query()->lockForUpdate()->findOrFail($site->id);
             $last = (int) $site->last_event_seq;
 
@@ -64,6 +80,16 @@ final class EventIngestor
                 'needs_pull' => SiteEvent::query()->where('site_id', $site->id)->where('epoch', $site->event_epoch)->where('seq', '>', $last + 1)->exists(),
             ];
         });
+
+        if ($forward !== []) {
+            try {
+                ServerDash::forwardNew($site, $forward);
+            } catch (\Throwable $e) {
+                report($e); // doorsturen mag het verwerken van events nooit breken
+            }
+        }
+
+        return $outcome;
     }
 
     /**

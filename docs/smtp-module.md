@@ -66,6 +66,7 @@ do_action('nb_ocm_smtp_mail_result', [
 
 - `object` is de ontvanger (de eerste).
 - `data` bevat `{subject, error, diagnose_code, initiator, log_id, suppressed}`.
+- Het panel stuurt nieuwe `smtp.failed`/`smtp.backup_used`/`smtp.recovered`-events (niet ouder dan 2 uur) direct door naar ServerDash als dat is ingesteld onder Instellingen → Meldingen → ServerDash (`App\Ocm\Alerts\ServerDash`).
 - `ocm.smtp_changed` en `ocm.smtp_test` komen uit `Module`.
 
 ## Afmelden, opruimen

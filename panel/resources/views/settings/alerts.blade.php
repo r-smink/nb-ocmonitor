@@ -100,6 +100,47 @@
     </form>
   </section>
 
+  @php($sd = \App\Ocm\Alerts\ServerDash::config())
+  @php($sdStatus = \App\Ocm\Alerts\ServerDash::status())
+  @php($sdMasked = \App\Ocm\Alerts\ServerDash::masked())
+  <section class="panel" id="serverdash">
+    <div class="channel-head">
+      <h3>ServerDash</h3>
+      @if ($sdMasked === '')
+        <span class="state idle">niet ingesteld</span>
+      @elseif (\App\Ocm\Alerts\ServerDash::enabled())
+        <span class="state">doorsturen aan</span>
+      @else
+        <span class="state idle">doorsturen uit</span>
+      @endif
+      @if ($sdMasked !== '')
+        <div class="right">
+          <form method="POST" action="{{ route('settings.serverdash.test') }}" class="inline">
+            @csrf
+            <button class="btn ghost small" type="submit">Testmelding versturen</button>
+          </form>
+        </div>
+      @endif
+    </div>
+    @error('serverdash')<div class="alert mt">{{ $message }}</div>@enderror
+    <form method="POST" action="{{ route('settings.serverdash') }}" class="form mt" autocomplete="off">
+      @csrf
+      @method('PUT')
+      <label>ServerDash-URL
+        <input type="text" name="url" value="{{ $sdMasked }}" placeholder="https://…/hooks/mail/…" maxlength="1000" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="check"><input type="hidden" name="enabled" value="0"><input type="checkbox" name="enabled" value="1" @checked($sd['enabled'])> Mislukte e-mail van de sites doorsturen naar ServerDash</label>
+      <p class="note">Meldt de SMTP-module op een site dat een e-mail niet verstuurd kon worden (of via de backupverbinding ging, of weer werkt), dan stuurt het panel dat meteen door naar ServerDash. Zo stel je het één keer centraal in in plaats van op elke site. Maak de URL aan in ServerDash → Beheer → E-mailmeldingen en plak hem hier. De URL bevat een geheim token en staat versleuteld opgeslagen; hier zie je alleen het begin en de laatste tekens. Veld leegmaken en opslaan = verwijderen en doorsturen uit. Events ouder dan {{ intdiv(\App\Ocm\Alerts\ServerDash::MAX_AGE_MINUTES, 60) }} uur (achterstand na een storing) worden niet doorgestuurd.</p>
+      @if ($sdStatus['last_sent_at'] || $sdStatus['last_error_at'])
+        <p class="note">
+          @if ($sdStatus['last_sent_at'])Laatst verstuurd {{ \Illuminate\Support\Carbon::parse($sdStatus['last_sent_at'])->timezone('Europe/Amsterdam')->format('d-m H:i') }}.@endif
+          @if ($sdStatus['last_error_at'])<span class="delivery-error">Laatste fout {{ \Illuminate\Support\Carbon::parse($sdStatus['last_error_at'])->timezone('Europe/Amsterdam')->format('d-m H:i') }}: {{ $sdStatus['last_error'] }}</span>@endif
+        </p>
+      @endif
+      <div class="actions"><button class="btn" type="submit">Opslaan</button></div>
+    </form>
+  </section>
+
   @foreach ($channels as $type => $channel)
     <section class="panel" id="kanaal-{{ $type }}">
       <div class="channel-head">
