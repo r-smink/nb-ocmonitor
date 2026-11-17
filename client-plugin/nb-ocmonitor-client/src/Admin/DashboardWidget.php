@@ -215,10 +215,12 @@ final class DashboardWidget
     public static function register(): void
     {
         add_action('wp_dashboard_setup', static function (): void {
-            $data = self::data();
-            if (!current_user_can('edit_posts') || ($data['next'] === null && $data['last'] === null && $data['contract'] === null)) {
+            // Altijd tonen zodra de site gekoppeld is, ook zonder geplande beurt: status, contact en de
+            // knop naar de instellingen zijn dan nog steeds nuttig.
+            if (!current_user_can('edit_posts') || Settings::load() === null) {
                 return;
             }
+            $data = self::data();
             // Bovenaan de eerste kolom (prioriteit high), in plaats van onderaan na de standaardwidgets.
             wp_add_dashboard_widget('nb_ocm_maintenance', 'Onderhoud door ' . esc_html($data['company']), static function () use ($data): void {
                 self::render($data);
