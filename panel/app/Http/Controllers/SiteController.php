@@ -331,6 +331,34 @@ class SiteController extends Controller
         return [$url, $host];
     }
 
+    /** Contactgegevens van de klant aanpassen vanaf de sitepagina; geldt voor alle sites van die klant. */
+    public function updateCustomer(Request $request, Site $site): RedirectResponse
+    {
+        $customer = $site->customer;
+        abort_if($customer === null, 404);
+        $customer->update($request->validate(CustomerController::contactRules()));
+        // De klantnaam staat ook bij de sites zelf (pill op de tegels) en in de plugin (onderhoudsschema).
+        Site::query()->where('customer_id', $customer->id)->update(['client_name' => $customer->name]);
+        if ($customer->wasChanged('name')) {
+            \App\Ocm\SiteSchedule::pushCustomer($customer->fresh());
+        }
+        Activity::log('customer_updated', ['customer' => $customer->name, 'via_site' => $site->site_id]);
+
+        return redirect()->to(route('sites.show', $site) . '#sd-klant')->with('status', 'Klantgegevens opgeslagen.');
+    }
+
+    /** Site aan een bestaande klant hangen, of losmaken (customer_id leeg). */
+    public function assignCustomer(Request $request, Site $site): RedirectResponse
+    {
+        $data = $request->validate(['customer_id' => ['nullable', 'integer', 'exists:customers,id']]);
+        $customer = isset($data['customer_id']) ? \App\Models\Customer::query()->findOrFail($data['customer_id']) : null;
+        $site->forceFill(['customer_id' => $customer?->id, 'client_name' => $customer?->name ?? $site->client_name])->save();
+        \App\Ocm\SiteSchedule::push($site->fresh());
+        Activity::log('site_customer_changed', ['customer' => $customer?->name], $site);
+
+        return redirect()->to(route('sites.show', $site) . '#sd-klant')->with('status', $customer ? 'Site hoort nu bij ' . $customer->name . '.' : 'Site is losgemaakt van de klant.');
+    }
+
     /**
      * Ontkoppelen, bijvoorbeeld na een verhuizing naar een nieuwe installatie: de site blijft met al haar
      * historie (klant, notities, events, rapporten, trends) bestaan, alleen de koppeling met de oude

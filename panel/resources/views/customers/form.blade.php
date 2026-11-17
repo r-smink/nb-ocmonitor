@@ -80,6 +80,16 @@
           <label><input type="checkbox" name="report_sections[]" value="{{ $key }}" @checked(in_array($key, $sections, true))> {{ $label }}</label>
         @endforeach
       </div>
+      <div class="form-row mt">
+        <label>Periode voor de e-mailcijfers
+          <select name="report_mail_period">
+            @foreach (\App\Models\Customer::MAIL_PERIODS as $value => $label)
+              <option value="{{ $value }}" @selected(old('report_mail_period', $customer->report_mail_period ?? 'month') === $value)>{{ $label }}</option>
+            @endforeach
+          </select>
+        </label>
+      </div>
+      <p class="note">Aantal verzonden en mislukte e-mails per site, terugrekenend vanaf de einddatum van het rapport. Alleen voor sites waar de SMTP-module aan staat (client-plugin 0.17.0+).</p>
     </div>
 
     <div class="actions"><button class="btn" type="submit">{{ $customer->exists ? 'Opslaan' : 'Klant toevoegen' }}</button></div>

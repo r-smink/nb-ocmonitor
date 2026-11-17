@@ -181,6 +181,20 @@
     @endif
   @endif
 
+  @if ($on('mail') && !empty($site['mail']))
+    <h3>E-mail</h3>
+    @if (!empty($site['mail']['unknown']))
+      <p class="muted">Nog geen cijfers over verzonden e-mail voor deze periode.</p>
+    @else
+      <table class="data">
+        <tr><th>{{ $d['mail_period']['label'] }} ({{ $date($d['mail_period']['from']) }} t/m {{ $date($d['mail_period']['to']) }})</th><th class="num">Aantal</th></tr>
+        <tr><td>Verzonden</td><td class="num">{{ number_format($site['mail']['sent'], 0, ',', '.') }}</td></tr>
+        <tr><td>Mislukt</td><td class="num">{{ number_format($site['mail']['failed'], 0, ',', '.') }}</td></tr>
+      </table>
+      @if ($site['mail']['since'])<p class="small muted">Cijfers vanaf {{ $date($site['mail']['since']) }}.</p>@endif
+    @endif
+  @endif
+
   @if ($on('environment'))
     <h3>Technische gegevens</h3>
     <table class="data">

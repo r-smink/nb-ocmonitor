@@ -308,10 +308,14 @@ class CustomerController extends Controller
         return 'onderhoudsrapport-' . (\Illuminate\Support\Str::slug(str_replace('.', '-', $customer->reportName())) ?: 'klant') . '-' . $to->format('Y-m-d') . '.pdf';
     }
 
-    /** @return array<string, mixed> */
-    private function validated(Request $request): array
+    /**
+     * Regels voor de contactgegevens; ook gebruikt op de sitepagina.
+     *
+     * @return array<string, mixed>
+     */
+    public static function contactRules(): array
     {
-        $data = $request->validate([
+        return [
             'name' => ['required', 'string', 'max:120'],
             'contact_name' => ['nullable', 'string', 'max:120'],
             'email' => ['required', 'email:rfc', 'max:190'],
@@ -324,13 +328,22 @@ class CustomerController extends Controller
             }],
             'phone' => ['nullable', 'string', 'max:40'],
             'notes' => ['nullable', 'string', 'max:5000'],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function validated(Request $request): array
+    {
+        $data = $request->validate(self::contactRules() + [
             'visits_per_year' => ['required', 'integer', Rule::in(array_keys(Customer::VISITS))],
             'contract_start' => ['nullable', 'required_unless:visits_per_year,0', 'date_format:Y-m-d'],
             'report_enabled' => ['nullable', 'boolean'],
             'widget_report' => ['nullable', 'boolean'],
             'report_sections' => ['nullable', 'array'],
             'report_sections.*' => ['string', Rule::in(array_keys(Customer::REPORT_SECTIONS))],
+            'report_mail_period' => ['nullable', Rule::in(array_keys(Customer::MAIL_PERIODS))],
         ]);
+        $data['report_mail_period'] ??= 'month';
         $data['report_enabled'] = $request->boolean('report_enabled');
         $data['widget_report'] = $request->boolean('widget_report');
         $data['report_sections'] = array_values($data['report_sections'] ?? []);

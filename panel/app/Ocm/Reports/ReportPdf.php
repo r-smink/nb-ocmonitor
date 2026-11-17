@@ -165,12 +165,14 @@ final class ReportPdf
                 'desktop' => ['label' => 'Desktop', 'performance' => 96, 'accessibility' => 94, 'best_practices' => 100, 'seo' => 92, 'lcp_ms' => 900, 'cls' => 0.01, 'before' => 95, 'measured_at' => $now->subDays(2)],
             ],
             'changes' => [['date' => $now->subDays(12), 'what' => 'Plugin geïnstalleerd', 'object' => 'Complianz GDPR']],
+            'mail' => ['sent' => 1284, 'failed' => 3, 'since' => null],
         ];
 
         $data = [
             'customer' => ['name' => 'Voorbeeldklant B.V.', 'contact' => 'Jan Jansen', 'contract' => '4x per jaar'],
             'from' => $now->subMonths(3), 'to' => $now,
             'sections' => array_keys(\App\Models\Customer::REPORT_SECTIONS),
+            'mail_period' => ['label' => 'Afgelopen maand', 'from' => $now->subMonthNoOverflow()->addDay(), 'to' => $now],
             'sites' => [$site('Voorbeeldklant', 'https://www.voorbeeldklant.nl'), $site('Voorbeeldklant Shop', 'https://shop.voorbeeldklant.nl')],
             'runs' => [['date' => $now->subDays(20), 'done_at' => $now->subDays(20), 'by' => 'Next Buzz', 'notes' => 'Alle plugins en het thema bijgewerkt, back-up gecontroleerd.']],
             'totals' => ['sites' => 2, 'updates' => 8, 'pending' => 2, 'failed_logins' => 624, 'blocked_ips' => 18, 'vulns_fixed' => 1],

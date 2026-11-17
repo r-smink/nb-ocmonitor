@@ -70,7 +70,47 @@ final class Module
             'from_email' => $o['from_email'],
             'conflicts' => Conflicts::active(),
             'last_test' => self::lastTest(),
+            'mail_daily' => self::mailDaily(),
         ];
+    }
+
+    /** Hoogstens zoveel dagen gaan per inventaris mee; het panel bewaart ze zelf. */
+    public const DAILY_MAX_DAYS = 92;
+
+    /**
+     * Hoeveel hele dagen de e-maillog zeker nog compleet heeft: bij een bewaartermijn van N dagen
+     * is de oudste dag al deels opgeruimd. 0 = niets meesturen.
+     */
+    public static function dailyWindow(bool $logEnabled, int $retentionDays): int
+    {
+        if (!$logEnabled) {
+            return 0;
+        }
+
+        return $retentionDays > 0 ? max(0, min(self::DAILY_MAX_DAYS, $retentionDays - 1)) : self::DAILY_MAX_DAYS;
+    }
+
+    /**
+     * Verzonden en mislukte mails per dag (tijdzone van de site), voor de cijfers in het rapport.
+     * Compact: [datum, verzonden, mislukt]. null als de e-maillog uit staat.
+     *
+     * @return list<array{0: string, 1: int, 2: int}>|null
+     */
+    public static function mailDaily(): ?array
+    {
+        $log = Log\LogSettings::get();
+        $days = self::dailyWindow($log['enabled'], $log['retention_days']);
+        if ($days === 0) {
+            return null;
+        }
+        $tz = wp_timezone();
+        [$since, $until] = Log\Chart::range(time(), $tz, $days);
+        $out = [];
+        foreach ((new Log\LogRepository())->daily($since, $until, $tz) as $d) {
+            $out[] = [$d['date'], (int) $d['sent'], (int) $d['failed']];
+        }
+
+        return $out;
     }
 
     public function register(): void
