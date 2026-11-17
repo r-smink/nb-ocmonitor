@@ -10,6 +10,8 @@ Route::post('/pair', PairController::class)->middleware('throttle:10,1');
 
 // Laatste onderhoudsrapport voor de dashboardwidget op de site (tijdelijke, ondertekende link).
 Route::get('/rapport/{customer}', \App\Http\Controllers\PublicReportController::class)->name('report.public')->middleware(['signed:relative', 'throttle:20,1']);
+// Rapport van één afgeronde beurt (onderhoudshistorie op de site); zelfde beveiliging.
+Route::get('/rapport/{customer}/{run}', [\App\Http\Controllers\PublicReportController::class, 'run'])->whereNumber('run')->name('report.public.run')->middleware(['signed:relative', 'throttle:20,1']);
 
 // Ondertekende plugin-release voor zelf bijwerken. Openbaar: de code is niet geheim en de plugin
 // controleert de handtekening met de release-sleutel, die niet op deze server staat.

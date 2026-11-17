@@ -59,6 +59,8 @@ final class RestController
             // Identiek aan WordPress' eigen antwoord voor een onbekende route.
             return new \WP_Error('rest_no_route', __('No route was found matching the URL and request method.'), ['status' => 404]);
         }
+        // Alleen hier is de handtekening geldig gebleken; antwoorden zijn dan ondertekend.
+        self::markPanelRequest(time());
 
         $response = new RawResponse($result->body, $result->status);
         foreach ($result->headers as $name => $value) {
@@ -66,6 +68,15 @@ final class RestController
         }
 
         return $response;
+    }
+
+    /** Tijd van het laatste geverifieerde verzoek (tab Systeem). Hooguit één schrijfactie per minuut. */
+    private static function markPanelRequest(int $now): void
+    {
+        $option = Admin\SystemStatus::LAST_PANEL_REQUEST_OPTION;
+        if ($now - (int) get_option($option, 0) >= 60) {
+            update_option($option, $now, false);
+        }
     }
 
     /**

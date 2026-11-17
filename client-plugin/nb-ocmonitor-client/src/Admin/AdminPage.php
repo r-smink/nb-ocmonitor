@@ -39,7 +39,21 @@ final class AdminPage
             add_action('admin_print_styles-' . $hook, static function (): void {
                 wp_enqueue_style('nb-ocm-admin', plugins_url('assets/admin.css', NB_OCM_FILE), [], NB_OCM_VERSION);
             });
+            // Submenu in de linkerbalk; alles opent dezelfde pagina met een andere tab.
+            add_submenu_page(Ui::SLUG, 'NB OC Monitor', 'Overzicht', Ui::CAPABILITY, Ui::SLUG, [$this, 'render']);
+            foreach (self::menuItems() as $tab => $label) {
+                add_submenu_page(Ui::SLUG, 'NB OC Monitor', $label, Ui::CAPABILITY, 'admin.php?page=' . Ui::SLUG . '&tab=' . $tab);
+            }
         });
+        // Het juiste submenu-item markeren.
+        add_filter('submenu_file', static function ($file, $parent) {
+            if ($parent !== Ui::SLUG) {
+                return $file;
+            }
+            $tab = sanitize_key((string) ($_GET['tab'] ?? ''));
+
+            return isset(self::menuItems()[$tab]) ? 'admin.php?page=' . Ui::SLUG . '&tab=' . $tab : $file;
+        }, 10, 2);
         // Tot 0.15.0 stond de pagina onder Extra; oude links en bladwijzers doorsturen.
         add_action('admin_page_access_denied', static function (): void {
             global $pagenow;
@@ -52,20 +66,40 @@ final class AdminPage
         add_action('admin_post_nb_ocm_unpair', [$this, 'handleUnpair']);
         add_action('admin_post_nb_ocm_login_security', [$this, 'handleLoginSecurity']);
         add_action('admin_post_nb_ocm_unlock', [$this, 'handleUnlock']);
+        SystemTab::register();
     }
 
-    /** @return array<string, string> */
+    /** Subtab => hoofdtab. E-maillog en Meldingen vallen onder SMTP. */
+    private const GROUPS = ['maillog' => 'smtp', 'meldingen' => 'smtp'];
+
+    /** @return array<string, string> hoofdtabs */
     private static function tabs(): array
     {
         $tabs = ['overzicht' => 'Overzicht', 'beveiliging' => 'Beveiliging'];
         if (SmtpModule::enabled()) {
             $tabs['smtp'] = 'SMTP';
-            $tabs['maillog'] = 'E-maillog';
-            $tabs['meldingen'] = 'Meldingen';
         }
+        $tabs['systeem'] = 'Systeem';
         $tabs['logboek'] = 'Logboek';
 
         return $tabs;
+    }
+
+    /** @return array<string, string> subtabs van SMTP */
+    private static function smtpTabs(): array
+    {
+        return ['smtp' => 'Instellingen', 'maillog' => 'E-maillog', 'meldingen' => 'Meldingen'];
+    }
+
+    /** @return array<string, string> items in het submenu van de linkerbalk (naast Overzicht) */
+    private static function menuItems(): array
+    {
+        $items = ['beveiliging' => 'Beveiliging'];
+        if (SmtpModule::enabled()) {
+            $items += ['smtp' => 'SMTP', 'maillog' => '– E-maillog', 'meldingen' => '– Meldingen'];
+        }
+
+        return $items + ['systeem' => 'Systeem', 'logboek' => 'Logboek'];
     }
 
     /** Inlogbeveiliging kan alleen hier (of via WP-CLI) veranderen, niet via het panel. */
@@ -154,8 +188,9 @@ final class AdminPage
         }
         $tabs = self::tabs();
         $tab = sanitize_key((string) ($_GET['tab'] ?? 'overzicht'));
-        if (!isset($tabs[$tab])) {
-            $tab = 'overzicht';
+        $main = self::GROUPS[$tab] ?? $tab;
+        if (!isset($tabs[$main])) {
+            $tab = $main = 'overzicht';
         }
         $paired = Settings::isPaired();
         $chips = [[$paired ? 'Gekoppeld' : 'Niet gekoppeld', $paired ? 'ok' : 'warn']];
@@ -166,7 +201,10 @@ final class AdminPage
         $chips[] = ['v' . NB_OCM_VERSION, 'muted'];
 
         echo '<div class="wrap nbocm"><h1 class="screen-reader-text">NB OC Monitor</h1>';
-        Ui::header('OC Monitor', 'Beheer, beveiliging en monitoring van deze site door Next Buzz', $tabs, $tab, $chips);
+        Ui::header('OC Monitor', 'Beheer, beveiliging en monitoring van deze site door Next Buzz', $tabs, $main, $chips);
+        if ($main === 'smtp') {
+            Ui::subnav(self::smtpTabs(), $tab, ['maillog' => self::failedMails()]);
+        }
         Ui::notice(Ui::takeNotice());
         if (in_array($tab, ['smtp', 'maillog'], true)) {
             \NextBuzz\OcMonitor\Client\Smtp\Alerts\ProblemNotice::inline();
@@ -185,6 +223,9 @@ final class AdminPage
             case 'meldingen':
                 \NextBuzz\OcMonitor\Client\Smtp\Alerts\AlertsTab::render();
                 break;
+            case 'systeem':
+                SystemTab::render();
+                break;
             case 'logboek':
                 $this->renderLog();
                 break;
@@ -198,6 +239,53 @@ final class AdminPage
     {
         $summary = Settings::summary();
         echo '<div class="nbocm-grid">';
+
+        // Onderhoud: wat het panel stuurt (site.schedule): planning, status en de rapporten per beurt.
+        $m = DashboardWidget::data();
+        if ($m['next'] || $m['last'] || $m['contract'] || $m['report_url'] || $m['reports'] !== []) {
+            $lights = DashboardWidget::statusLights($m, DashboardWidget::mailStats());
+            $date = static function (?string $d): string {
+                return $d ? esc_html(wp_date('l j F Y', (int) strtotime($d . ' 12:00:00'))) : '<span class="nbocm-muted">–</span>';
+            };
+            Ui::cardOpen('Onderhoud', 'Gepland en uitgevoerd onderhoud door ' . $m['company'] . '.', 'nbocm-maint');
+            $rows = [['Volgend onderhoud', $m['next'] ? $date($m['next']) : '<span class="nbocm-muted">Nog niet gepland</span>'], ['Laatste onderhoud', $date($m['last'])]];
+            if ($m['contract']) {
+                $rows[] = ['Onderhoudscontract', esc_html($m['contract'])];
+            }
+            if ($lights !== []) {
+                $pills = '';
+                foreach ($lights as $light) {
+                    $pills .= sprintf('<span class="nbocm-pill is-%s">%s</span>', esc_attr($light['tone']), esc_html($light['label']));
+                }
+                $rows[] = ['Status', '<span class="nbocm-maint-lights">' . $pills . '</span>'];
+            }
+            Ui::definitions($rows);
+            if ($m['reports'] === [] && $m['report_url']) {
+                // Panel ouder dan de historie: alleen het laatste rapport.
+                printf(
+                    '<div class="nbocm-actions"><a class="nbocm-btn is-primary" href="%s" target="_blank" rel="noopener noreferrer">%s</a></div>',
+                    esc_url($m['report_url']),
+                    esc_html($m['report_label'] ?? 'Laatste onderhoudsrapport downloaden')
+                );
+            }
+            if ($m['contact']) {
+                printf('<p class="nbocm-note">%s</p>', esc_html($m['contact']));
+            }
+            if ($m['reports'] !== []) {
+                echo '<h3 class="nbocm-maint-hd">Onderhoudshistorie</h3>';
+                echo '<div class="nbocm-table-wrap"><table class="nbocm-table"><thead><tr><th>Datum</th><th>Onderhoud</th><th><span class="screen-reader-text">Rapport</span></th></tr></thead><tbody>';
+                foreach ($m['reports'] as $report) {
+                    printf(
+                        '<tr><td>%s</td><td>%s</td><td class="nbocm-maint-dl"><a href="%s" target="_blank" rel="noopener noreferrer"><span class="dashicons dashicons-download" aria-hidden="true"></span> Rapport (PDF)</a></td></tr>',
+                        esc_html(wp_date('j M Y', (int) strtotime($report['date'] . ' 12:00:00'))),
+                        esc_html($report['label']),
+                        esc_url($report['url'])
+                    );
+                }
+                echo '</tbody></table></div>';
+            }
+            Ui::cardClose();
+        }
 
         Ui::cardOpen('Koppeling', $paired ? 'Deze site is gekoppeld aan het panel van Next Buzz.' : 'Deze site is nog niet gekoppeld.');
         $rows = [['Status', $paired ? '<span class="nbocm-pill is-ok">Gekoppeld</span>' : '<span class="nbocm-pill is-warn">Niet gekoppeld</span>']];
@@ -360,6 +448,16 @@ final class AdminPage
         }
         echo '</tbody></table></div>';
         Ui::cardClose();
+    }
+
+    /** Mislukte mails van de laatste 7 dagen (voor het bolletje bij E-maillog); 0 als de log er (nog) niet is. */
+    private static function failedMails(): int
+    {
+        try {
+            return (new \NextBuzz\OcMonitor\Client\Smtp\Log\LogRepository())->stats(time() - 7 * DAY_IN_SECONDS)['failed'];
+        } catch (\Throwable $e) {
+            return 0;
+        }
     }
 
     /** Schild als menu-icoon (data-URI; WordPress kleurt het in). */

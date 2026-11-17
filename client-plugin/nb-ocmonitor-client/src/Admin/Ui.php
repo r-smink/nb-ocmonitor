@@ -79,6 +79,28 @@ final class Ui
         echo '</nav></div>';
     }
 
+    /**
+     * Subtabs onder een hoofdtab.
+     *
+     * @param array<string, string> $tabs slug => label
+     * @param array<string, int> $counts slug => aantal (rood bolletje, bijv. mislukte mails)
+     */
+    public static function subnav(array $tabs, string $active, array $counts = []): void
+    {
+        echo '<nav class="nbocm-subtabs" aria-label="Onderdelen van deze tab">';
+        foreach ($tabs as $slug => $label) {
+            printf(
+                '<a href="%s" class="%s"%s>%s%s</a>',
+                esc_url(self::url($slug)),
+                $slug === $active ? 'is-active' : '',
+                $slug === $active ? ' aria-current="page"' : '',
+                esc_html($label),
+                !empty($counts[$slug]) ? '<span class="count">' . (int) $counts[$slug] . '</span>' : ''
+            );
+        }
+        echo '</nav>';
+    }
+
     /** @param array{type: string, message: string}|null $notice */
     public static function notice(?array $notice): void
     {

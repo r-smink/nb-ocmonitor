@@ -14,6 +14,8 @@ delete_transient('nb_ocm_smtp_log_plugins');
 foreach (['nb_ocm_smtp_alerts', 'nb_ocm_smtp_alert_state', 'nb_ocm_smtp_alert_history', 'nb_ocm_smtp_problem'] as $option) {
     delete_option($option);
 }
+delete_option('nb_ocm_last_panel_request'); // tab Systeem: laatste geverifieerde verzoek van het panel
 delete_metadata('user', 0, 'nb_ocm_smtp_problem_dismissed', '', true);
+delete_metadata('user', 0, 'nb_ocm_widget_placed', '', true);
 NextBuzz\OcMonitor\Client\Cron::unschedule();
 NextBuzz\OcMonitor\Client\Schema::uninstall();

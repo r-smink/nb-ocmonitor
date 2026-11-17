@@ -62,6 +62,8 @@ final class SmtpTab
             self::renderResult($result);
         }
 
+        \NextBuzz\OcMonitor\Client\Smtp\DomainCheck::renderCard($o);
+
         // Instellingen
         Ui::cardOpen('SMTP-server', 'De gegevens van de mailbox of mailprovider waarmee deze site verstuurt.', 'is-wide');
         Ui::formOpen('nb_ocm_smtp_save');

@@ -33,6 +33,23 @@ class PublicReportController extends Controller
         return [$from, $to];
     }
 
+    /**
+     * Periode van één afgeronde beurt: vanaf de afgeronde beurt daarvoor tot en met deze.
+     *
+     * @return array{0: \Carbon\CarbonImmutable, 1: \Carbon\CarbonImmutable}|null
+     */
+    public static function runPeriod(Customer $customer, MaintenanceRun $run): ?array
+    {
+        if ((int) $run->customer_id !== (int) $customer->id || $run->done_at === null) {
+            return null;
+        }
+        $previous = $customer->runs()->whereNotNull('done_at')->where('due_on', '<', $run->due_on->toDateString())->orderByDesc('due_on')->first();
+        $to = $run->due_on;
+        $from = $previous instanceof MaintenanceRun ? $previous->due_on->addDay() : $to->subMonthsNoOverflow($customer->intervalMonths() ?: 1);
+
+        return [$from, $to];
+    }
+
     public static function url(Customer $customer): ?string
     {
         if (!$customer->widget_report || self::lastPeriod($customer) === null) {
@@ -44,10 +61,37 @@ class PublicReportController extends Controller
         return rtrim((string) config('app.url'), '/') . URL::temporarySignedRoute('report.public', now()->addDays(40), ['customer' => $customer->id], false);
     }
 
+    /** Ondertekende link naar het rapport van één afgeronde beurt (onderhoudshistorie op de site). */
+    public static function runUrl(Customer $customer, MaintenanceRun $run): ?string
+    {
+        if (!$customer->widget_report || self::runPeriod($customer, $run) === null) {
+            return null;
+        }
+
+        return rtrim((string) config('app.url'), '/') . URL::temporarySignedRoute('report.public.run', now()->addDays(40), ['customer' => $customer->id, 'run' => $run->id], false);
+    }
+
     public function __invoke(Customer $customer): Response
     {
         $period = self::lastPeriod($customer);
         abort_unless($customer->widget_report && $period !== null, 404);
+
+        return $this->pdf($customer, $period);
+    }
+
+    /** Rapport van één beurt; de beurt moet van deze klant zijn en afgerond. */
+    public function run(Customer $customer, int $run): Response
+    {
+        $model = MaintenanceRun::query()->whereKey($run)->where('customer_id', $customer->id)->first();
+        $period = $model instanceof MaintenanceRun ? self::runPeriod($customer, $model) : null;
+        abort_unless($customer->widget_report && $period !== null, 404);
+
+        return $this->pdf($customer, $period);
+    }
+
+    /** @param array{0: mixed, 1: mixed} $period */
+    private function pdf(Customer $customer, array $period): Response
+    {
         [$from, $to] = $period;
         $pdf = ReportPdf::render(ReportData::build($customer, CarbonImmutable::parse($from), CarbonImmutable::parse($to)));
         $name = 'onderhoudsrapport-' . (Str::slug(str_replace('.', '-', $customer->reportName())) ?: 'klant') . '-' . CarbonImmutable::parse($to)->format('Y-m-d') . '.pdf';

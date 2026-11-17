@@ -108,6 +108,29 @@ final class LogRepository
         ];
     }
 
+    /**
+     * Aantallen per dag in de tijdzone van de site. SQL telt per kwartier (UTC); PHP telt die op per
+     * lokale dag (Chart::groupByDay), zodat ook dagen van 23 of 25 uur rond de zomertijd kloppen.
+     * "sent" is inclusief backup, net als stats().
+     *
+     * @return list<array{date: string, sent: int, failed: int, backup: int}>
+     */
+    public function daily(int $since, int $until, \DateTimeZone $tz): array
+    {
+        global $wpdb;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            'SELECT FLOOR(created_at / 900) * 900 AS start, SUM(status = %s) AS sent, SUM(status = %s) AS failed, SUM(status = %s AND connection = %s) AS backup FROM ' . self::table() . ' WHERE created_at >= %d AND created_at < %d GROUP BY FLOOR(created_at / 900)', // phpcs:ignore WordPress.DB.PreparedSQL
+            'sent',
+            'failed',
+            'sent',
+            'backup',
+            $since,
+            $until
+        ), ARRAY_A);
+
+        return Chart::groupByDay(is_array($rows) ? $rows : [], $since, $until, $tz);
+    }
+
     /** @param list<int> $ids */
     public function delete(array $ids): int
     {

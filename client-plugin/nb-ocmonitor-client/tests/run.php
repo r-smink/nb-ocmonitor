@@ -808,6 +808,15 @@ test('smtp: andere mailplugins worden herkend', function () {
     check(\NextBuzz\OcMonitor\Client\Smtp\Conflicts::detect([]) === []);
 });
 
+test('dashboardwidget: eenmalig bovenaan de eerste kolom, uit de andere kolommen gehaald', function () {
+    $W = \NextBuzz\OcMonitor\Client\Admin\DashboardWidget::class;
+    $order = $W::moveToTop(['normal' => 'dashboard_activity,dashboard_right_now', 'side' => 'dashboard_quick_press,nb_ocm_maintenance', 'column3' => '', 'column4' => ''], 'nb_ocm_maintenance');
+    check($order['normal'] === 'nb_ocm_maintenance,dashboard_activity,dashboard_right_now', $order['normal']);
+    check($order['side'] === 'dashboard_quick_press', $order['side']);
+    check($W::moveToTop(['normal' => 'nb_ocm_maintenance'], 'nb_ocm_maintenance')['normal'] === 'nb_ocm_maintenance', 'niet dubbel');
+    check($W::moveToTop(['side' => 'a'], 'nb_ocm_maintenance')['normal'] === 'nb_ocm_maintenance', 'zonder normal-kolom');
+});
+
 test('smtp: standaardafzender van WordPress wordt herkend', function () {
     check(\NextBuzz\OcMonitor\Client\Smtp\Mailer::isDefaultWpFrom('wordpress@klant.nl'));
     check(\NextBuzz\OcMonitor\Client\Smtp\Mailer::isDefaultWpFrom(''));
@@ -1156,6 +1165,264 @@ test('maillog: filters, datumbereik en WHERE met placeholders', function () {
     check($Q::where(['status' => 'test', 's' => '', 'from' => '', 'to' => '', 'paged' => 1], null, null) === ['is_test = %d', [1]], 'test');
     check($Q::pages(0) === 1 && $Q::pages(50) === 1 && $Q::pages(51) === 2 && $Q::offset(3) === 100, 'paginering');
     check($Q::args(['status' => 'all', 's' => '', 'from' => '2026-01-01', 'to' => '', 'paged' => 3], true) === ['from' => '2026-01-01', 'paged' => 3], 'link-argumenten');
+});
+
+// ---- SMTP: domeincheck en grafiek
+
+test('domeincheck: afzenderdomein en records herkennen', function () {
+    $D = \NextBuzz\OcMonitor\Client\Smtp\DomainCheck::class;
+    check($D::senderDomain(['from_email' => 'Info@Klant.NL'], 'admin@x.nl') === 'klant.nl', 'domein van afzender');
+    check($D::senderDomain(['from_email' => ''], 'beheer@site.example.com') === 'site.example.com', 'terugval op beheerdersadres');
+    check($D::emailDomain('a@localhost') === '' && $D::emailDomain('geen-adres') === '' && $D::emailDomain('a@x"<y>.nl') === '', 'ongeldig domein');
+    check($D::spfRecords(['google-site-verification=abc', ' v=spf1 -all', 'v=spf10 x']) === ['v=spf1 -all'], 'spf-records');
+    check($D::dmarcRecords(['v=DMARC1; p=none', 'v=DMARC1x', 'x']) === ['v=DMARC1; p=none'], 'dmarc-records');
+    check($D::spfIncludes('v=spf1 a mx include:SPF.Protection.Outlook.com. ~include:_spf.google.com redirect=_spf.x.nl -all') === ['spf.protection.outlook.com', '_spf.google.com', '_spf.x.nl'], 'includes');
+    check($D::provider('smtp.office365.com')[1] === ['spf.protection.outlook.com'] && $D::provider('smtp-relay.gmail.com')[0] === 'Google Workspace', 'provider');
+    check($D::provider('email-smtp.eu-west-1.amazonaws.com')[1] === ['amazonses.com'] && $D::provider('smtp.transip.email') === null && $D::provider('') === null, 'provider onbekend');
+    check($D::looksLikeDkim('v=DKIM1; k=rsa; p=MIGf') && $D::looksLikeDkim('k=rsa; p=abc') && !$D::looksLikeDkim('v=spf1 -all'), 'dkim herkennen');
+    check($D::truncate(str_repeat('a', 100), 10) === str_repeat('a', 9) . '…' && $D::truncate('kort') === 'kort', 'afkappen');
+});
+
+test('domeincheck: SPF beoordelen', function () {
+    $D = \NextBuzz\OcMonitor\Client\Smtp\DomainCheck::class;
+    check($D::spf([], 'smtp.office365.com')['tone'] === 'crit', 'geen record = fout');
+    check($D::spf(['v=spf1 -all', 'v=spf1 ~all'], '')['verdict'] === 'Meerdere records', 'twee records = fout');
+    check($D::spf(null, '')['tone'] === 'muted', 'dns-fout');
+    check($D::spf(['v=spf1 include:spf.protection.outlook.com -all'], 'smtp.office365.com')['tone'] === 'ok', 'microsoft met -all');
+    check($D::spf(['v=spf1 include:_spf.google.com ~all'], 'smtp.gmail.com')['tone'] === 'ok', 'google met ~all');
+    check($D::spf(['v=spf1 include:_spf.google.com +all'], 'smtp.gmail.com')['tone'] === 'warn', '+all = let op');
+    check($D::spf(['v=spf1 include:_spf.google.com all'], 'smtp.gmail.com')['tone'] === 'warn', 'kale all = +all');
+    check($D::spf(['v=spf1 include:_spf.google.com ?all'], 'smtp.gmail.com')['tone'] === 'warn', '?all = let op');
+    check($D::spf(['v=spf1 mx'], '')['tone'] === 'warn', 'geen all');
+    check($D::spf(['v=spf1 redirect=_spf.host.nl'], '')['tone'] === 'ok', 'redirect is geldig');
+    $missing = $D::spf(['v=spf1 mx ~all'], 'smtp.office365.com');
+    check($missing['tone'] === 'warn' && strpos($missing['text'], 'include:spf.protection.outlook.com') !== false, 'provider ontbreekt');
+    check($D::spf(['v=spf1 include:u123.wl.sendgrid.net ~all'], 'smtp.sendgrid.net')['tone'] === 'ok', 'subdomein van verwachte include');
+    check($D::spf(['v=spf1 include:spf.host.nl ~all'], 'smtp.office365.com', ['spf.host.nl' => ['v=spf1 include:spf.protection.outlook.com ~all']])['tone'] === 'ok', 'één niveau diep');
+    check($D::spf(['v=spf1 include:spf.host.nl ~all'], 'smtp.office365.com', ['spf.host.nl' => ['v=spf1 include:other.nl ~all']])['tone'] === 'warn', 'niet dieper dan één niveau');
+    $unknown = $D::spf(['v=spf1 include:_spf.transip.email ~all'], 'smtp.transip.email');
+    check($unknown['tone'] === 'ok' && strpos($unknown['text'], 'controleer bij je provider') !== false, 'onbekende provider is neutraal');
+    check($D::spf(['v=spf1 +all'], 'smtp.office365.com')['tone'] === 'warn', 'warn blijft warn');
+});
+
+test('domeincheck: DMARC, DKIM en evaluate', function () {
+    $D = \NextBuzz\OcMonitor\Client\Smtp\DomainCheck::class;
+    check($D::dmarc([])['tone'] === 'crit' && $D::dmarc(null)['tone'] === 'muted', 'geen dmarc / dns-fout');
+    check($D::dmarc(['v=DMARC1; p=none; rua=mailto:d@x.nl'])['tone'] === 'warn', 'p=none = alleen monitoren');
+    check($D::dmarc(['v=DMARC1; p=Quarantine'])['verdict'] === 'p=quarantine' && $D::dmarc(['v=DMARC1;p=reject;pct=50'])['tone'] === 'ok', 'quarantine/reject');
+    check(strpos($D::dmarc(['v=DMARC1;p=reject;pct=50'])['text'], '50%') !== false, 'pct genoemd');
+    check($D::dmarc(['v=DMARC1; rua=mailto:x@y.nl'])['tone'] === 'crit' && $D::dmarc(['v=DMARC1; p=none', 'v=DMARC1; p=reject'])['tone'] === 'crit', 'ongeldig of dubbel');
+    check($D::dmarcTags('v=DMARC1; P = reject ; rua=mailto:a@b.nl') === ['v' => 'DMARC1', 'p' => 'reject', 'rua' => 'mailto:a@b.nl'], 'tags');
+    check($D::dkim([])['verdict'] === 'Niet gevonden' && strpos($D::dkim([])['text'], 'gangbare selectors') !== false, 'dkim niet gevonden');
+    $ok = $D::dkim(['selector1' => 'CNAME → selector1-klant-nl._domainkey.klant.onmicrosoft.com', 'google' => 'v=DKIM1; k=rsa; p=MIIB']);
+    check($ok['tone'] === 'ok' && count($ok['records']) === 2 && strpos($ok['text'], 'selector1, google') !== false, 'dkim gevonden');
+    check($D::dkim(['default' => 'v=DKIM1; p='])['verdict'] === 'Ingetrokken', 'lege sleutel');
+    check($D::dkim(['x' => 'v=DKIM1; p=a'], false)['tone'] === 'muted', 'zonder dns');
+    $all = $D::evaluate(['available' => false], 'smtp.gmail.com');
+    check(array_column($all, 'label') === ['SPF', 'DKIM', 'DMARC'] && array_unique(array_column($all, 'tone')) === ['muted'], 'zonder dns_get_record: alles onbekend');
+    $all = $D::evaluate(['available' => true, 'spf' => ['v=spf1 include:_spf.google.com -all'], 'includes' => [], 'dmarc' => ['v=DMARC1; p=reject'], 'dkim' => ['google' => 'v=DKIM1; p=abc']], 'smtp.gmail.com');
+    check(array_column($all, 'tone') === ['ok', 'ok', 'ok'], 'alles in orde');
+    check(count(array_unique($D::SELECTORS)) === count($D::SELECTORS) && in_array('selector1', $D::SELECTORS, true), 'selectors');
+});
+
+test('maillog-grafiek: dagen in de tijdzone van de site, ook rond zomertijd', function () {
+    $C = \NextBuzz\OcMonitor\Client\Smtp\Log\Chart::class;
+    $tz = new \DateTimeZone('Europe/Amsterdam');
+    // Zomertijd begint zondag 29 maart 2026 (die dag heeft 23 uur).
+    [$since, $until] = $C::range(gmmktime(11, 0, 0, 3, 30, 2026), $tz, 3);
+    check($since === gmmktime(23, 0, 0, 3, 27, 2026) && $until === gmmktime(22, 0, 0, 3, 30, 2026), 'bereik van lokale middernacht tot middernacht');
+    [$s14, $u14] = $C::range(NOW, $tz);
+    check(count($C::groupByDay([], $s14, $u14, $tz)) === 14, '14 dagen');
+    $days = $C::groupByDay([
+        ['start' => gmmktime(23, 0, 0, 3, 27, 2026), 'sent' => '2', 'failed' => '0', 'backup' => '0'],   // 28 mrt 00:00 CET
+        ['start' => gmmktime(21, 45, 0, 3, 29, 2026), 'sent' => '3', 'failed' => '1', 'backup' => '1'],  // 29 mrt 23:45 CEST
+        ['start' => gmmktime(22, 0, 0, 3, 29, 2026), 'sent' => '4', 'failed' => '0', 'backup' => '0'],   // 30 mrt 00:00 CEST
+        ['start' => gmmktime(22, 0, 0, 3, 30, 2026), 'sent' => '9', 'failed' => '9', 'backup' => '9'],   // buiten bereik
+    ], $since, $until, $tz);
+    check($days === [
+        ['date' => '2026-03-28', 'sent' => 2, 'failed' => 0, 'backup' => 0],
+        ['date' => '2026-03-29', 'sent' => 3, 'failed' => 1, 'backup' => 1],
+        ['date' => '2026-03-30', 'sent' => 4, 'failed' => 0, 'backup' => 0],
+    ], 'optellen per lokale dag');
+    check($C::shortLabel('2026-11-16') === 'ma 16' && $C::longLabel('2026-03-29') === 'zondag 29 maart', 'Nederlandse labels');
+    check($C::niceMax(0) === 4 && $C::niceMax(4) === 4 && $C::niceMax(5) === 8 && $C::niceMax(37) === 40 && $C::niceMax(101) === 200 && $C::niceMax(1999) === 2000, 'nette y-as');
+});
+
+test('maillog-grafiek: SVG', function () {
+    $C = \NextBuzz\OcMonitor\Client\Smtp\Log\Chart::class;
+    $days = [];
+    for ($i = 0; $i < 14; $i++) {
+        $days[] = ['date' => gmdate('Y-m-d', gmmktime(12, 0, 0, 11, 4 + $i, 2026)), 'sent' => $i, 'failed' => $i % 3 === 0 ? 1 : 0, 'backup' => $i === 5 ? 2 : 0];
+    }
+    $svg = $C::svg($days, 'Titel <x>');
+    check(strpos($svg, '<svg') === 0 && substr($svg, -6) === '</svg>' && strpos($svg, 'viewBox="0 0 960 200"') !== false && strpos($svg, 'width="100%"') !== false, 'responsief svg');
+    check(substr_count($svg, '<title>') === 14 && substr_count($svg, 'role="img"') === 14, 'titel per staaf');
+    check(strpos($svg, 'Titel &lt;x&gt;') !== false && strpos($svg, '<x>') === false, 'ge-escapet');
+    check(strpos($svg, 'maandag 16 november: 12 verzonden, 1 mislukt') !== false, 'toegankelijk label');
+    check(strpos($svg, 'maandag 9 november: 5 verzonden (waarvan 2 via backup), 0 mislukt') !== false, 'backup in label');
+    check(strpos($svg, '#1F9D55') !== false && strpos($svg, '#E8A317') !== false && strpos($svg, '#C41E25') !== false, 'kleuren');
+    check(strpos($svg, '>ma 16<') !== false && strpos($svg, '>wo 4<') !== false, 'daglabels');
+    check(preg_match('/(height|width|y)="-/', $svg) === 0, 'geen negatieve maten');
+    check($C::part(['sent' => 5, 'failed' => 1, 'backup' => 2], 'sent') === 3, 'verzonden zonder backup in de stapel');
+    check(strpos($C::legend(), 'Via backup') !== false, 'legenda');
+    $empty = $C::svg([['date' => '2026-11-17', 'sent' => 0, 'failed' => 0, 'backup' => 0]]);
+    check(strpos($empty, 'fill="#1F9D55"') === false && strpos($empty, '0 verzonden, 0 mislukt') !== false, 'lege dag');
+});
+
+// ---- widget: status en historie
+
+test('widget: status en historie worden streng genormaliseerd, oude gegevens blijven werken', function () {
+    $W = \NextBuzz\OcMonitor\Client\Admin\DashboardWidget::class;
+    $old = $W::normalize(['next' => '2026-11-16'], 'oc.nextbuzz.nl');
+    check($old['reports'] === [] && $old['status']['ssl'] === ['ok' => null, 'expires' => null] && $old['status']['uptime']['ok'] === null, 'oude payload');
+    check($W::statusLights($old, null, NOW) === [], 'geen gegevens: geen lampjes');
+
+    $reports = [
+        ['date' => '2026-11-17', 'label' => '<b>Onderhoud</b> november 2026', 'url' => 'https://oc.nextbuzz.nl/api/rapport/1/9?signature=x'],
+        ['date' => '2026-08-17', 'label' => 'x', 'url' => 'http://oc.nextbuzz.nl/api/rapport/1/8'],
+        ['date' => '2026-05-17', 'label' => 'x', 'url' => 'https://phish.example/api/rapport/1/7'],
+        ['date' => '2026-02-30', 'label' => 'x', 'url' => 'https://oc.nextbuzz.nl/api/rapport/1/6'],
+        ['date' => '2026-02-17', 'url' => 'https://OC.nextbuzz.nl/api/rapport/1/5'],
+        'onzin',
+    ];
+    $n = $W::normalize(['status' => [
+        'ssl' => ['ok' => 'ja', 'expires' => '2027-13-01'],
+        'uptime' => ['ok' => true, 'percent' => 140, 'down_since' => 'gisteren'],
+    ], 'reports' => $reports], 'oc.nextbuzz.nl');
+    check($n['status']['ssl'] === ['ok' => null, 'expires' => null], 'alleen echte booleans en geldige datums');
+    check($n['status']['uptime'] === ['ok' => true, 'percent' => 100.0, 'down_since' => null], 'percentage begrensd');
+    check($W::normalize(['status' => ['uptime' => ['percent' => -3]]], null)['status']['uptime']['percent'] === 0.0, 'niet onder 0');
+    check(count($n['reports']) === 2, 'http, andere host en ongeldige datum vallen weg');
+    check($n['reports'][0] === ['date' => '2026-11-17', 'label' => 'Onderhoud november 2026', 'url' => 'https://oc.nextbuzz.nl/api/rapport/1/9?signature=x'], 'label zonder html');
+    check($n['reports'][1]['label'] === 'Onderhoud 2026-02-17', 'standaardlabel');
+    check($W::normalize(['reports' => $reports], null)['reports'] === [], 'niet gekoppeld: geen links');
+    $many = array_fill(0, 20, ['date' => '2026-01-01', 'label' => 'x', 'url' => 'https://oc.nextbuzz.nl/r']);
+    check(count($W::normalize(['reports' => $many], 'oc.nextbuzz.nl')['reports']) === 12, 'hoogstens 12');
+    check($W::normalize(['reports' => 'x', 'status' => 'x'], 'oc.nextbuzz.nl')['reports'] === [], 'verkeerd type');
+});
+
+test('widget: statuslampjes met tekst en kleur', function () {
+    $W = \NextBuzz\OcMonitor\Client\Admin\DashboardWidget::class;
+    $tz = new \DateTimeZone('Europe/Amsterdam');
+    $now = (new \DateTimeImmutable('2026-11-17 10:00:00', $tz))->getTimestamp();
+    $lights = static function (array $status, ?array $mail = null) use ($W, $now, $tz): array {
+        $out = [];
+        foreach ($W::statusLights($W::normalize(['status' => $status], null), $mail, $now, $tz) as $l) {
+            $out[] = $l['tone'] . ':' . $l['label'];
+        }
+
+        return $out;
+    };
+    check($lights(['ssl' => ['ok' => true, 'expires' => '2027-03-12'], 'uptime' => ['ok' => true, 'percent' => 99.98]], ['sent' => 40, 'failed' => 0, 'total' => 40])
+        === ['ok:SSL geldig tot 12 mrt 2027', 'ok:Online · 99,98% (30 dagen)', 'ok:E-mail: alles verstuurd (7 dagen)'], 'alles goed');
+    check($lights(['ssl' => ['ok' => true, 'expires' => '2026-11-26']]) === ['warn:SSL verloopt over 9 dagen'], 'bijna verlopen');
+    check($lights(['ssl' => ['ok' => true, 'expires' => '2026-11-18']]) === ['warn:SSL verloopt morgen'], 'morgen');
+    check($lights(['ssl' => ['ok' => false, 'expires' => '2027-03-12']]) === ['crit:SSL-probleem'], 'probleem');
+    check($lights(['uptime' => ['ok' => true, 'percent' => 100]]) === ['ok:Online · 100% (30 dagen)'], '100%');
+    check($lights(['uptime' => ['ok' => true, 'percent' => 98.5]]) === ['warn:Online · 98,50% (30 dagen)'], 'lage uptime oranje');
+    check($lights(['uptime' => ['ok' => false, 'down_since' => '2026-11-17T08:05:00+00:00']]) === ['crit:Offline sinds 09:05'], 'vandaag offline, lokale tijd');
+    check($lights(['uptime' => ['ok' => false, 'down_since' => '2026-11-15T22:30:00Z']]) === ['crit:Offline sinds 15 nov 2026 23:30'], 'eerder offline');
+    check($lights(['uptime' => ['ok' => false]]) === ['crit:Offline'], 'zonder tijdstip');
+    check($lights([], ['sent' => 37, 'failed' => 3, 'total' => 40]) === ['warn:E-mail: 3 mislukt (7 dagen)'], 'mislukte mail');
+    check($lights([], ['sent' => 0, 'failed' => 2, 'total' => 2]) === ['crit:E-mail: 2 mislukt (7 dagen)'], 'alles mislukt');
+    check($lights([], ['sent' => 0, 'failed' => 0, 'total' => 0]) === [], 'geen mail: geen lampje');
+});
+
+// ---- Systeem en support-export
+
+/** Feiten zoals SystemStatus::collect() ze geeft, met nep-geheimen op plekken waar ze niet in de export mogen. */
+function systemFacts(array $overrides = []): array
+{
+    return array_replace([
+        'generated_at' => NOW, 'timezone' => 'Europe/Amsterdam', 'abspath' => '/var/www/klant/',
+        'site_url' => 'https://klant.example.nl/wp?preview_token=URLSECRETQUERY', 'home_url' => 'https://klant.example.nl',
+        'admin_email' => 'jan.jansen@klant.example.nl', 'locale' => 'nl_NL', 'environment' => 'production',
+        'wp_version' => '6.8.3', 'wp_update' => null, 'php_version' => '8.3.10', 'db_server' => '5.5.5-10.11.6-MariaDB', 'server_software' => 'nginx',
+        'wp_debug' => false, 'wp_debug_display' => false, 'timezone_string' => 'Europe/Amsterdam', 'gmt_offset' => 1.0, 'object_cache' => true,
+        'memory_limit' => '256M', 'wp_memory_limit' => '40M', 'max_execution_time' => 60, 'upload_max_filesize' => '64M', 'post_max_size' => '64M',
+        'disk_free' => 5 * 1073741824, 'uploads_writable' => true,
+        'extensions' => ['sodium' => true, 'openssl' => true, 'curl' => true, 'mbstring' => true, 'zip' => true, 'intl' => true, 'image' => true, 'imap' => false],
+        'cron' => ['disabled' => false, 'alternate' => false, 'events' => 10, 'overdue' => 0, 'oldest_overdue_seconds' => null, 'own' => ['nb_ocm_hourly' => NOW + 600, 'nb_ocm_twicedaily' => NOW + 9000]],
+        'paired' => true, 'site_id' => SITE_ID, 'panel_host' => 'ocm.nextbuzz.nl', 'paired_at' => NOW - 86400, 'scopes' => ['read', 'events'],
+        'last_panel_request' => NOW - 300, 'plugin_version' => '0.16.0',
+        // Velden die de export nooit mag overnemen:
+        'site_key' => 'SITEKEYSECRETb64AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'panel_url' => 'https://ocm.nextbuzz.nl/?k=PANELURLSECRET',
+        'theme' => ['name' => 'Astra', 'version' => '4.8', 'parent' => null],
+        'plugins' => [['file' => 'woocommerce/woocommerce.php', 'name' => 'WooCommerce', 'version' => '9.3.1', 'active' => true], ['file' => 'hello.php', 'name' => 'Hello Dolly', 'version' => '1.7.2', 'active' => false]],
+        'mu_plugins' => [['file' => 'host-cache.php', 'name' => 'Host Cache', 'version' => '1.0']],
+        'tweaks' => ['disable_comments' => true, 'heartbeat' => 'slow', 'smtp_module' => true],
+        'smtp' => ['enabled' => true, 'active' => true, 'reason' => null, 'host' => 'smtp.klant.example.nl', 'port' => 587, 'encryption' => 'tls',
+            'from_email' => 'noreply@klant.example.nl', 'user' => 'SMTPUSERSECRET', 'pass' => 'SMTPPASSSECRET', 'conflicts' => [],
+            'last_test' => ['ok' => false, 'time' => NOW - 60, 'error' => 'Login mislukt voor smtpuser@klant.example.nl met wachtwoord']],
+        'alerts' => ['emails' => ['ALERTMAILSECRET@example.org'], 'webhooks' => ['https://hooks.slack.com/services/T000/B000/WEBHOOKTOKENSECRET', 'https://example.org/hook?token=QUERYTOKENSECRET'],
+            'events' => ['failed' => true], 'throttle' => 15],
+        'php_errors' => [[
+            'type' => 'Fatal error', 'count' => 3, 'last_seen' => NOW - 3600, 'line' => 12, 'url' => '/afrekenen/?key=wc_order_ORDERKEYSECRET',
+            'file' => '/var/www/klant/wp-content/plugins/x/x.php',
+            // Nepsleutel in stukjes, zodat secret scanning (GitHub) hem niet voor een echte Stripe-sleutel aanziet.
+            'message' => "Uncaught Exception: API-sleutel " . 'sk_' . 'live_' . str_repeat('4eC39HqLyj', 5) . " geweigerd voor klant@gmail.com in /var/www/klant/wp-content/plugins/x/x.php:12 https://api.example.com/v1?apikey=APIKEYQUERYSECRET" . str_repeat(' lang', 200),
+        ]],
+        'cookies' => 'wordpress_logged_in_COOKIESECRET',
+    ], $overrides);
+}
+
+test('systeem: drempels voor schijf, panelcontact, PHP-EOL, cron en debug', function () {
+    $S = \NextBuzz\OcMonitor\Client\Admin\SystemStatus::class;
+    $find = static function (array $sections, string $label): array {
+        foreach ($sections as $checks) {
+            foreach ($checks as $c) {
+                if ($c['label'] === $label) {
+                    return $c;
+                }
+            }
+        }
+        throw new \RuntimeException('check ontbreekt: ' . $label);
+    };
+    $tone = static function (array $overrides, string $label) use ($S, $find): string {
+        return $find($S::evaluate(systemFacts($overrides), NOW), $label)['tone'];
+    };
+    $healthy = $S::counts($S::evaluate(systemFacts(['php_errors' => []]), NOW));
+    check($healthy['crit'] === 0 && $healthy['warn'] === 0, 'gezonde site zonder waarschuwingen');
+    check($tone(['disk_free' => 150 * 1048576], 'Vrije schijfruimte') === 'crit', 'schijf < 200 MB');
+    check($tone(['disk_free' => 500 * 1048576], 'Vrije schijfruimte') === 'warn', 'schijf < 1 GB');
+    check($tone(['disk_free' => null], 'Vrije schijfruimte') === 'info', 'schijf onbekend');
+    check($tone(['last_panel_request' => NOW - 30 * 3600], 'Laatste contact') === 'warn', 'panel > 24 uur');
+    check($tone(['last_panel_request' => NOW - 80 * 3600], 'Laatste contact') === 'crit', 'panel > 72 uur');
+    check($tone(['last_panel_request' => null], 'Laatste contact') === 'warn', 'gekoppeld zonder contact');
+    check($tone(['php_version' => '8.0.30'], 'PHP') === 'crit', 'PHP 8.0 is EOL');
+    check($tone(['php_version' => '7.2.1'], 'PHP') === 'crit', 'PHP < 7.4');
+    check($tone(['php_version' => '8.2.20', 'generated_at' => NOW], 'PHP') === 'ok', 'PHP 8.2 nog ruim ondersteund op NOW');
+    check($S::evaluate(systemFacts(['php_version' => '8.2.20']), strtotime('2026-11-17'))['WordPress en PHP'][1]['tone'] === 'warn', 'PHP 8.2 bijna EOL');
+    check($tone(['cron' => ['overdue' => 2, 'oldest_overdue_seconds' => 7200, 'own' => []]], 'Achterstallige taken') === 'warn', 'cron > 1 uur');
+    check($tone(['cron' => ['overdue' => 2, 'oldest_overdue_seconds' => 90000, 'own' => []]], 'Achterstallige taken') === 'crit', 'cron > 24 uur');
+    check($tone(['cron' => ['own' => ['nb_ocm_hourly' => null]]], 'Taak elk uur') === 'warn', 'eigen taak niet ingepland');
+    check($tone(['wp_debug' => true, 'wp_debug_display' => true], 'Debugmodus') === 'warn', 'debug op live site');
+    check($tone(['wp_debug' => true, 'environment' => 'staging'], 'Debugmodus') === 'info', 'debug op staging');
+    check($tone(['timezone_string' => '', 'gmt_offset' => 0], 'Tijdzone') === 'warn', 'tijdzone als UTC-offset');
+    check($tone(['home_url' => 'http://klant.example.nl'], 'HTTPS') === 'crit', 'geen https');
+    check($tone(['extensions' => ['sodium' => false]], 'sodium') === 'crit' && $tone(['extensions' => []], 'imap') === 'info', 'extensies');
+    check($tone(['memory_limit' => '96M'], 'Geheugen') === 'warn' && $tone(['memory_limit' => '-1'], 'Geheugen') === 'ok', 'geheugen');
+    check($tone(['db_server' => '5.7.44'], 'Database') === 'warn' && $find($S::evaluate(systemFacts(), NOW), 'Database')['value'] === 'MariaDB 10.11.6', 'database');
+    check($tone(['php_errors' => [['last_seen' => NOW - 100], ['last_seen' => NOW - 90000]]], 'PHP-fouten (24 uur)') === 'warn' && $S::recentErrors([['last_seen' => NOW - 90000]], NOW) === 0, 'PHP-fouten 24 uur');
+    check($S::bytes('1G') === 1073741824 && $S::bytes('512K') === 524288 && $S::duration(7300) === '2 uur' && $S::duration(3 * 86400) === '3 dagen', 'hulpfuncties');
+});
+
+test('support-export: bevat de feiten maar nooit geheimen, volledige adressen of paden', function () {
+    $X = \NextBuzz\OcMonitor\Client\Admin\SupportExport::class;
+    $text = $X::build(systemFacts());
+    foreach (['WooCommerce 9.3.1', '[uit   ] Hello Dolly 1.7.2', 'Host Cache 1.0', 'Site-ID: ' . SITE_ID, 'Scopes: read, events', 'smtp.klant.example.nl:587', 'Webhooks: 2 (hooks.slack.com, example.org)',
+        'E-mailontvangers: 1', 'Beheerdersmail: j***@klant.example.nl', 'Afzender: n***@klant.example.nl', 'wp-content/plugins/x/x.php:12', '(/afrekenen/)', 'MariaDB', '[OK] PHP: 8.3.10', 'disable_comments=aan'] as $needle) {
+        check(strpos($text, $needle) !== false, 'ontbreekt: ' . $needle);
+    }
+    foreach (['SECRET', 'jan.jansen', 'smtpuser@', 'klant@gmail.com', 'sk_live_', '/var/www', 'apikey=', 'preview_token', 'wordpress_logged_in', 'ALERTMAIL', 'T000/B000'] as $secret) {
+        check(stripos($text, $secret) === false, 'gelekt: ' . $secret);
+    }
+    check(strpos($text, 'k***@gmail.com') !== false, 'e-mail in foutmelding ingekort');
+    $errorLines = array_values(preg_grep('/Fatal error/', explode("\n", $text)));
+    check(count($errorLines) === 1 && mb_strlen($errorLines[0]) < 400, 'foutmelding ingekort');
+    check($X::maskEmail('info@klant.nl') === 'i***@klant.nl' && $X::maskEmail('') === '-', 'maskEmail');
+    check($X::scrub('zie https://x.nl/a?b=c#d en abcdefABCDEF0123456789abcdefABCDEF01') === 'zie https://x.nl/a?[weggelaten] en [weggelaten]', 'scrub');
+    check($X::filename('https://Klant.example.nl', NOW) === 'support-klant.example.nl-' . gmdate('Ymd-Hi', NOW) . '.txt', 'bestandsnaam');
 });
 
 foreach ($failures as $failure) {

@@ -5,6 +5,7 @@ namespace App\Ocm\Monitoring;
 use App\Models\Site;
 use App\Models\UptimeCheck;
 use App\Ocm\Activity;
+use App\Ocm\SiteSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
@@ -79,7 +80,12 @@ final class Monitor
             Activity::log('site_up', ['down_minutes' => $site->down_since ? (int) $site->down_since->diffInMinutes(now()) : null], $site, null);
             $site->down_since = null;
         }
+        $before = $site->uptime_state;
         $site->forceFill(['uptime_state' => $state, 'uptime_failures' => min($failures, 65000), 'uptime_checked_at' => now(), 'response_ms' => $ms ?? $site->response_ms, 'uptime_since' => $site->uptime_since ?? now()])->save();
+        if ($before !== $state) {
+            // Offline of weer online: de widget op de site meteen bijwerken (0.16.0+).
+            SiteSchedule::pushStatus($site);
+        }
     }
 
     public static function checkSsl(Site $site): void
@@ -91,12 +97,17 @@ final class Monitor
             return;
         }
         $result = self::$sslProbe ? (self::$sslProbe)($host) : self::probeTls($host, (int) $port);
+        $before = SiteSchedule::sslStatus($site);
         $site->forceFill([
             'ssl_expires_at' => $result['expires_at'] ? CarbonImmutable::createFromTimestamp($result['expires_at']) : null,
             'ssl_issuer' => $result['issuer'] ? mb_substr($result['issuer'], 0, 190) : null,
             'ssl_error' => $result['error'] ? mb_substr($result['error'], 0, 255) : null,
             'ssl_checked_at' => now(),
         ])->save();
+        if (SiteSchedule::sslStatus($site) !== $before) {
+            // Nieuw certificaat of een probleem: de widget op de site meteen bijwerken (0.16.0+).
+            SiteSchedule::pushStatus($site);
+        }
     }
 
     /** @return array{expires_at: ?int, issuer: ?string, error: ?string} */

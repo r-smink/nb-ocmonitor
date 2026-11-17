@@ -90,6 +90,7 @@ final class Module
             add_action('admin_post_nb_ocm_smtp_save', [$this, 'handleSave']);
             add_action('admin_post_nb_ocm_smtp_test', [$this, 'handleTest']);
             add_action('admin_post_nb_ocm_smtp_check', [$this, 'handleCheck']);
+            DomainCheck::register();
         }
     }
 

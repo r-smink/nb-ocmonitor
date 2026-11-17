@@ -39,10 +39,17 @@
 .nbocm-hd h1 { margin: 2px 0 0; padding: 0; font-size: 22px; font-weight: 700; line-height: 1.25; color: #fff; }
 .nbocm-hd p { margin: 2px 0 0; opacity: .75; font-size: 13px; }
 .nbocm-hd-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.nbocm-tabs { display: flex; gap: 4px; padding: 0 18px; overflow-x: auto; }
+.nbocm-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 18px; }
 .nbocm-tabs a { color: rgba(255, 255, 255, .72); text-decoration: none; padding: 10px 14px 12px; font-weight: 600; font-size: 13px; border-bottom: 3px solid transparent; margin-bottom: -3px; white-space: nowrap; }
 .nbocm-tabs a:hover, .nbocm-tabs a:focus { color: #fff; box-shadow: none; }
 .nbocm-tabs a.is-active { color: #fff; border-bottom-color: #fff; }
+/* Subtabs (bijv. SMTP › E-maillog › Meldingen) */
+.nbocm-subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 0; }
+.nbocm-subtabs a { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--nb-line); background: #fff; color: var(--nb-muted); font-weight: 600; font-size: 13px; text-decoration: none; }
+.nbocm-subtabs a:hover, .nbocm-subtabs a:focus { color: var(--nb-strong); border-color: #D1D5DB; box-shadow: none; }
+.nbocm-subtabs a.is-active { background: var(--nb-dark); border-color: var(--nb-dark); color: #fff; }
+.nbocm-subtabs .count { background: var(--nb-crit-bg); color: var(--nb-crit); border-radius: 999px; padding: 0 7px; font-size: 11px; }
+.nbocm-subtabs a.is-active .count { background: rgba(255, 255, 255, .2); color: #fff; }
 
 /* Meldingen */
 .nbocm-alert { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--nb-radius-sm); font-weight: 500; border: 1px solid transparent; }
@@ -226,4 +233,47 @@ a.nbocm-kpi:hover, a.nbocm-kpi:focus { color: var(--nb-ink); box-shadow: 0 4px 1
 .nbocm-log-frame { display: block; width: 100%; height: 520px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-sm); background: #fff; }
 @media (max-width: 960px) {
   .nbocm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- Domeincheck en grafiek ---- */
+.nbocm-dns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.nbocm-dns-item { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border: 1px solid var(--nb-line); border-radius: var(--nb-radius-sm); background: var(--nb-alt); min-width: 0; }
+.nbocm-dns-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nbocm-dns-hd strong { font-size: 15px; color: var(--nb-strong); }
+.nbocm-dns-item p { margin: 0; }
+.nbocm .nbocm-dns-rec { display: block; background: #fff; border: 1px solid var(--nb-line); padding: 4px 8px; font-size: 11.5px; word-break: break-all; }
+.nbocm-dns-why { color: var(--nb-subtle); font-size: 12px; margin-top: auto; padding-top: 4px; }
+.nbocm .nbocm-dns-note { margin: 0 0 12px; }
+.nbocm-chart-wrap { overflow-x: auto; }
+.nbocm-chart .nbocm-chart-svg { display: block; width: 100%; min-width: 600px; height: auto; }
+.nbocm-chart-svg g:hover rect[fill="transparent"] { fill: rgba(31, 41, 55, .05); }
+.nbocm-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--nb-muted); }
+.nbocm-chart-legend li { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.nbocm-chart-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; }
+@media (max-width: 960px) {
+  .nbocm-dns { grid-template-columns: 1fr; }
+}
+
+/* ---- Onderhoud ---- */
+.nbocm-maint-lights { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.nbocm-maint-lights .nbocm-pill { white-space: normal; }
+.nbocm .nbocm-maint-hd { margin: 20px 0 10px; font-size: 14px; color: var(--nb-strong); }
+.nbocm-maint .nbocm-table td { vertical-align: middle; }
+.nbocm-maint-dl { text-align: right; white-space: nowrap; }
+.nbocm-maint-dl a { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; }
+.nbocm-maint-dl .dashicons { font-size: 16px; width: 16px; height: 16px; }
+
+/* ---- Systeem ---- */
+.nbocm-checks { list-style: none; margin: 0; padding: 0; }
+.nbocm-checks li { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 4px 12px; align-items: start; margin: 0; padding: 10px 0; border-top: 1px solid var(--nb-line); }
+.nbocm-checks li:first-child { border-top: 0; padding-top: 0; }
+.nbocm-check-label { color: var(--nb-muted); padding-top: 1px; word-break: break-word; }
+.nbocm-check-body strong { display: block; font-weight: 600; color: var(--nb-strong); word-break: break-word; }
+.nbocm-check-body small { display: block; color: var(--nb-muted); font-size: 12px; margin-top: 2px; line-height: 1.45; }
+.nbocm-check-pill { justify-self: end; }
+.nbocm-export-text { display: block; min-height: 260px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--nb-alt); white-space: pre; overflow: auto; resize: vertical; }
+.nbocm-copy-status { font-size: 13px; }
+@media (max-width: 782px) {
+  .nbocm-checks li { grid-template-columns: minmax(0, 1fr) auto; }
+  .nbocm-check-body { grid-column: 1 / -1; grid-row: 2; }
 }

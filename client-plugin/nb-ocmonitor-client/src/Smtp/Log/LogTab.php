@@ -50,6 +50,8 @@ final class LogTab
         );
         echo '</div>';
 
+        self::renderChart($repo);
+
         Ui::cardOpen('E-mails', 'Alle e-mails die deze site via wp_mail() verstuurt, van WordPress zelf, plugins en het thema.', 'nbocm-log-list');
 
         // Statusfilter en export
@@ -340,6 +342,24 @@ final class LogTab
         }
 
         return [$label, $row['status'] === 'failed' ? 'crit' : 'muted'];
+    }
+
+    /** Staafgrafiek van de laatste 14 dagen (Chart, inline SVG). */
+    private static function renderChart(LogRepository $repo): void
+    {
+        $tz = wp_timezone();
+        [$since, $until] = Chart::range(time(), $tz);
+        $days = $repo->daily($since, $until, $tz);
+        $sent = $failed = $backup = 0;
+        foreach ($days as $d) {
+            $sent += $d['sent'];
+            $failed += $d['failed'];
+            $backup += $d['backup'];
+        }
+        Ui::cardOpen('Laatste ' . Chart::DAYS . ' dagen', sprintf('%s verzonden (waarvan %s via backup), %s mislukt.', number_format_i18n($sent), number_format_i18n($backup), number_format_i18n($failed)), 'nbocm-chart');
+        echo '<div class="nbocm-chart-wrap">' . Chart::svg($days, 'E-mails per dag, laatste ' . Chart::DAYS . ' dagen') . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput -- Chart escapet zelf
+        echo Chart::legend(); // phpcs:ignore WordPress.Security.EscapeOutput
+        Ui::cardClose();
     }
 
     private static function kpi(string $label, int $value, string $hint, string $tone, string $url): void
