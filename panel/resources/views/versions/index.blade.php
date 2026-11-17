@@ -8,6 +8,7 @@
     </div>
   </div>
   @include('partials.tag-filter')
+  @php($query = fn (array $extra) => array_filter(array_merge(['tag' => request('tag'), 'php' => $php, 'wp' => $wp], $extra), fn ($v) => $v !== null && $v !== ''))
 
   <div class="cols">
     <section class="panel">
@@ -15,20 +16,27 @@
       <div class="dist">
         @foreach ($phpCounts as $version => $count)
           @php($eol = $version !== 'onbekend' ? \App\Ocm\SiteIssues::phpEol((string) $version) : null)
-          <span @class(['chip', 'crit has' => $eol && now()->gt($eol), 'warn has' => $eol && !now()->gt($eol) && now()->addMonths(6)->gt($eol)])>PHP {{ $version }}: {{ $count }}</span>
+          <a href="{{ route('versions.index', $query(['php' => $php === (string) $version ? null : (string) $version])) }}#per-site" @class(['chip', 'chip-link', 'crit has' => $eol && now()->gt($eol), 'warn has' => $eol && !now()->gt($eol) && now()->addMonths(6)->gt($eol), 'on' => $php === (string) $version])>PHP {{ $version }}: {{ $count }}</a>
         @endforeach
       </div>
     </section>
     <section class="panel">
       <div class="panel-head"><h3>WordPress</h3></div>
       <div class="dist">
-        @foreach ($wpCounts as $version => $count)<span class="chip">WordPress {{ $version }}: {{ $count }}</span>@endforeach
+        @foreach ($wpCounts as $version => $count)
+          <a href="{{ route('versions.index', $query(['wp' => $wp === (string) $version ? null : (string) $version])) }}#per-site" @class(['chip', 'chip-link', 'on' => $wp === (string) $version])>WordPress {{ $version }}: {{ $count }}</a>
+        @endforeach
       </div>
     </section>
   </div>
 
   <section class="panel">
-    <div class="panel-head"><h3>Per site</h3><span class="badge">{{ $rows->count() }}</span></div>
+    <div class="panel-head" id="per-site"><h3>Per site</h3><span class="badge">{{ $rows->count() }}</span>
+      @if ($php || $wp)
+        <span class="hint">gefilterd op {{ collect([$php ? 'PHP ' . $php : null, $wp ? 'WordPress ' . $wp : null])->filter()->implode(' en ') }} ({{ $rows->count() }} van {{ $total }})</span>
+        <div class="right"><a class="btn ghost small" href="{{ route('versions.index', array_filter(['tag' => request('tag')])) }}">Filter wissen</a></div>
+      @endif
+    </div>
     <div class="table-wrap scroll-lg">
       <table>
         <thead><tr><th>Site</th><th>PHP</th><th>WordPress</th><th>Database</th><th>OC-plugin</th><th class="num">Plugins</th><th class="num">Inactief</th><th class="num">Updates</th><th>Thema</th><th class="num">DB-grootte</th></tr></thead>
@@ -47,7 +55,7 @@
               <td class="num">{{ $r['db_mb'] !== null ? number_format($r['db_mb'], 1, ',', '.') . ' MB' : '–' }}</td>
             </tr>
           @empty
-            <tr><td colspan="10" class="muted">Geen gekoppelde sites.</td></tr>
+            <tr><td colspan="10" class="muted">{{ $php || $wp ? 'Geen sites met deze versie.' : 'Geen gekoppelde sites.' }}</td></tr>
           @endforelse
         </tbody>
       </table>

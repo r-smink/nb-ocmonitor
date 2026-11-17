@@ -44,11 +44,23 @@ class VersionController extends Controller
             ];
         });
 
+        // Pills: aantallen over alle sites; een klik filtert de tabel op die PHP- of WordPress-versie.
+        $phpKey = fn (array $r): string => $r['php_minor'] ?? 'onbekend';
+        $wpKey = fn (array $r): string => $r['wp'] ? implode('.', array_slice(explode('.', $r['wp']), 0, 2)) : 'onbekend';
+        $phpCounts = $rows->groupBy($phpKey)->map->count()->sortKeysDesc(SORT_NATURAL);
+        $wpCounts = $rows->groupBy($wpKey)->map->count()->sortKeysDesc(SORT_NATURAL);
+        $php = $phpCounts->has((string) $request->query('php')) ? (string) $request->query('php') : null;
+        $wp = $wpCounts->has((string) $request->query('wp')) ? (string) $request->query('wp') : null;
+        $filtered = $rows->filter(fn ($r) => ($php === null || $phpKey($r) === $php) && ($wp === null || $wpKey($r) === $wp))->values();
+
         return view('versions.index', [
-            'rows' => $rows,
+            'rows' => $filtered,
+            'total' => $rows->count(),
             'latestWp' => $latestWp,
-            'phpCounts' => $rows->groupBy(fn ($r) => $r['php_minor'] ?? 'onbekend')->map->count()->sortKeysDesc(),
-            'wpCounts' => $rows->groupBy(fn ($r) => $r['wp'] ? implode('.', array_slice(explode('.', $r['wp']), 0, 2)) : 'onbekend')->map->count()->sortKeysDesc(),
+            'phpCounts' => $phpCounts,
+            'wpCounts' => $wpCounts,
+            'php' => $php,
+            'wp' => $wp,
         ]);
     }
 }

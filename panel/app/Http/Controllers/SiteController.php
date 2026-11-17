@@ -39,10 +39,19 @@ class SiteController extends Controller
         $order = ['crit' => 0, 'warn' => 1, 'pending' => 2, 'ok' => 3];
         $sites = $sites->sortBy(fn (Site $s) => $order[$s->level()] . Str::lower($s->name))->values();
 
+        // Tellers (pills) over alle sites; klikken op een pill filtert op die status.
         $counts = ['crit' => 0, 'warn' => 0, 'ok' => 0, 'pending' => 0];
         foreach ($all as $site) {
             $counts[$site->level()]++;
         }
+        $status = array_key_exists((string) $request->query('status'), $counts) ? (string) $request->query('status') : null;
+        if ($status !== null) {
+            $sites = $sites->filter(fn (Site $s) => $s->level() === $status)->values();
+        }
+
+        // Weergave: kaarten of een smalle lijst; de laatste keuze wordt onthouden.
+        $view = in_array($request->query('weergave'), ['kaarten', 'lijst'], true) ? (string) $request->query('weergave') : (string) $request->session()->get('sites.view', 'kaarten');
+        $request->session()->put('sites.view', $view);
 
         // Indeling: één lijst, per klant, per server of per tag.
         $layout = in_array($request->query('indeling'), ['klant', 'server', 'tag'], true) ? (string) $request->query('indeling') : 'lijst';
@@ -66,7 +75,7 @@ class SiteController extends Controller
             default => collect(['' => $sites]),
         };
 
-        return view('sites.index', ['groups' => $groups, 'sites' => $sites, 'counts' => $counts, 'q' => $q, 'layout' => $layout]);
+        return view('sites.index', ['groups' => $groups, 'sites' => $sites, 'counts' => $counts, 'total' => $all->count(), 'q' => $q, 'layout' => $layout, 'status' => $status, 'view' => $view]);
     }
 
     public function create(): View

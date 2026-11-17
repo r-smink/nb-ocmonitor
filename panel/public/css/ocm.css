@@ -368,6 +368,28 @@ a.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .site-problem.crit { background: var(--crit-bg); color: var(--crit-fg); }
 .site-problem.warn { background: var(--warn-bg); color: var(--warn-fg); }
 .site-problem .more-n { font-weight: 500; opacity: .8; white-space: nowrap; }
+.chip.on, a.chip.on { box-shadow: 0 0 0 2px var(--text-strong); }
+a.chip { text-decoration: none; }
+.filter-note { margin: -8px 0 14px; font-size: var(--text-sm); color: var(--text-muted); }
+.view-toggle { display: inline-flex; border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); overflow: hidden; background: var(--surface-card); }
+.view-toggle a { padding: 6px 14px; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); text-decoration: none; }
+.view-toggle a + a { border-left: 1px solid var(--border-subtle); }
+.view-toggle a.on { background: var(--surface-sunken); color: var(--text-strong); }
+.site-list-panel { padding: 0; overflow: hidden; }
+.site-list-panel .table-wrap { margin: 0; }
+.site-list { width: 100%; font-size: var(--text-sm); }
+.site-list td, .site-list th { padding: 8px 12px; vertical-align: middle; }
+.site-list tbody tr { cursor: pointer; }
+.site-list-name { display: flex; align-items: center; gap: 8px; min-width: 220px; }
+.site-list-name a { font-weight: 600; color: var(--text-strong); white-space: nowrap; }
+.site-list-name .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.site-list-issue { min-width: 200px; }
+.site-problem-inline { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.site-problem-inline.crit { color: var(--crit-fg); }
+.site-problem-inline.warn { color: var(--warn-fg); }
+.site-list .more-n { font-size: 11px; color: var(--text-muted); }
+.site-list b.warn { color: var(--warn-fg); }
+.nowrap { white-space: nowrap; }
 .site-card .site-stats { margin-top: 0; font-size: 12.5px; }
 .site-card .site-stats b { color: var(--text-strong); }
 .site-card .site-stats b.warn { color: var(--warn-fg); }

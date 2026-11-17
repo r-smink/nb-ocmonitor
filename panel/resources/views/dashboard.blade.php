@@ -9,11 +9,11 @@
       <p>Alles wat vandaag je aandacht vraagt, de zwaarste bovenaan.</p>
     </div>
     <div class="right summary">
-      <span class="chip">{{ $sites->count() }} sites</span>
-      <span @class(['chip', 'crit', 'has' => $levels['crit'] > 0])>{{ $levels['crit'] }} kritiek</span>
-      <span @class(['chip', 'warn', 'has' => $levels['warn'] > 0])>{{ $levels['warn'] }} aandacht</span>
-      <span class="chip ok">{{ $levels['ok'] }} in orde</span>
-      @if ($levels['pending'] > 0)<span class="chip">{{ $levels['pending'] }} niet gekoppeld</span>@endif
+      <a href="{{ route('sites.index', array_filter(['tag' => request('tag')])) }}" class="chip chip-link">{{ $sites->count() }} sites</a>
+      <a href="{{ route('sites.index', array_filter(['status' => 'crit', 'tag' => request('tag')])) }}" @class(['chip', 'chip-link', 'crit', 'has' => $levels['crit'] > 0])>{{ $levels['crit'] }} kritiek</a>
+      <a href="{{ route('sites.index', array_filter(['status' => 'warn', 'tag' => request('tag')])) }}" @class(['chip', 'chip-link', 'warn', 'has' => $levels['warn'] > 0])>{{ $levels['warn'] }} aandacht</a>
+      <a href="{{ route('sites.index', array_filter(['status' => 'ok', 'tag' => request('tag')])) }}" class="chip chip-link ok">{{ $levels['ok'] }} in orde</a>
+      @if ($levels['pending'] > 0)<a href="{{ route('sites.index', array_filter(['status' => 'pending', 'tag' => request('tag')])) }}" class="chip chip-link">{{ $levels['pending'] }} niet gekoppeld</a>@endif
     </div>
   </div>
   @include('partials.tag-filter')

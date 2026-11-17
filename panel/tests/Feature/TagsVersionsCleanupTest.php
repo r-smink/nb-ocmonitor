@@ -74,6 +74,38 @@ class TagsVersionsCleanupTest extends TestCase
             ->assertSee('50,0 MB');
     }
 
+    public function test_version_pills_filter_the_table(): void
+    {
+        $this->site('oud.example.nl', 'site_oud', '8.0.30');
+        $this->site('nieuw.example.nl', 'site_nieuw', '8.4.1');
+        $this->actingAs($this->makeUser());
+
+        $this->get('/versies')->assertOk()->assertSee('/versies?php=8.0#per-site', false)->assertSee('/versies?wp=6.8#per-site', false);
+        $filtered = $this->get('/versies?php=8.0')->assertOk()->assertSee('gefilterd op PHP 8.0 (1 van 2)')
+            ->assertSee('PHP 8.4: 1'); // de andere pills blijven staan
+        $this->assertSame(['Oud'], $filtered->viewData('rows')->map(fn ($r) => $r['site']->name)->all());
+        $this->assertSame(2, $this->get('/versies?wp=6.8')->viewData('rows')->count());
+        $this->assertSame(0, $this->get('/versies?php=8.4&wp=6.8')->viewData('rows')->where('php_minor', '8.0')->count());
+        $this->assertSame(2, $this->get('/versies?php=9.9')->viewData('rows')->count(), 'onbekende waarde: geen filter');
+    }
+
+    public function test_sites_pills_filter_and_list_view_is_remembered(): void
+    {
+        $this->site('oud.example.nl', 'site_oud', '8.0.30');
+        $this->site('nieuw.example.nl', 'site_nieuw', '8.4.1');
+        $pending = Site::query()->create(['site_id' => 'site_nieuwe', 'name' => 'Nog niet', 'url' => 'https://nognietgekoppeld.example.nl', 'host' => 'nognietgekoppeld.example.nl']);
+        $this->actingAs($this->makeUser());
+
+        $this->get('/sites')->assertOk()->assertSee('3 sites')->assertSee('class="site-card', false);
+        $only = $this->get('/sites?status=pending')->assertOk()->assertSee('1 van 3 sites')->assertSee('filter wissen');
+        $this->assertSame([$pending->id], $only->viewData('sites')->pluck('id')->all());
+        $this->get('/')->assertOk()->assertSee('/sites?status=crit', false);
+
+        $this->get('/sites?weergave=lijst')->assertOk()->assertSee('class="site-list"', false)->assertDontSee('class="site-card', false);
+        $this->get('/sites')->assertSee('class="site-list"', false); // onthouden
+        $this->get('/sites?weergave=kaarten')->assertSee('class="site-card', false);
+    }
+
     public function test_cleanup_is_validated_queued_and_processed(): void
     {
         $site = $this->site('winkel.example.nl', 'site_shop');

@@ -11,9 +11,9 @@
       <p>Elke update maakt eerst een kopie; na afloop volgt een health check met automatische rollback.</p>
     </div>
     <div class="right summary">
-      <span @class(['chip', 'warn', 'has' => $counts['plugin'] > 0])>{{ $counts['plugin'] }} plugins</span>
-      <span @class(['chip', 'warn', 'has' => $counts['theme'] > 0])>{{ $counts['theme'] }} thema's</span>
-      <span @class(['chip', 'crit', 'has' => $counts['core'] > 0])>{{ $counts['core'] }} WordPress</span>
+      <a href="{{ route('updates.index', $query(['type' => $filters['type'] === 'plugin' ? null : 'plugin', 'component' => null])) }}" @class(['chip', 'chip-link', 'warn', 'has' => $counts['plugin'] > 0, 'on' => $filters['type'] === 'plugin'])>{{ $counts['plugin'] }} plugins</a>
+      <a href="{{ route('updates.index', $query(['type' => $filters['type'] === 'theme' ? null : 'theme', 'component' => null])) }}" @class(['chip', 'chip-link', 'warn', 'has' => $counts['theme'] > 0, 'on' => $filters['type'] === 'theme'])>{{ $counts['theme'] }} thema's</a>
+      <a href="{{ route('updates.index', $query(['type' => $filters['type'] === 'core' ? null : 'core', 'component' => null])) }}" @class(['chip', 'chip-link', 'crit', 'has' => $counts['core'] > 0, 'on' => $filters['type'] === 'core'])>{{ $counts['core'] }} WordPress</a>
     </div>
   </div>
   @include('updates.tabs')
