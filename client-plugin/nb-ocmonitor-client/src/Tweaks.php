@@ -31,6 +31,7 @@ final class Tweaks
         'hide_admin_bar' => ['bool', false],
         'heartbeat' => ['choice', 'default'],      // default, slow (60 s), off_frontend
         'revisions' => ['int', -1],               // -1 = WordPress-standaard, 0..50
+        'smtp_module' => ['bool', false],         // 0.15.0: SMTP-module (tabs SMTP in de clientpagina)
     ];
 
     /**

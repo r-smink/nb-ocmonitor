@@ -46,7 +46,11 @@ final class SiteIssues
     private const EVENT_TYPES = [
         'user.created', 'user.role_changed', 'option.changed', 'component.changed_externally', 'login.failed_summary',
         'plugin.update', 'theme.update', 'plugin.rolled_back', 'theme.rolled_back',
+        ...self::SMTP_EVENT_TYPES,
     ];
+
+    /** Uitkomsten van de SMTP-module (client-plugin 0.15.0+); het laatste event bepaalt of er een probleem openstaat. */
+    private const SMTP_EVENT_TYPES = ['smtp.failed', 'smtp.backup_used', 'smtp.recovered'];
 
     private const PRIVILEGED_ROLES = ['administrator', 'editor', 'author', 'shop_manager'];
 
@@ -195,6 +199,7 @@ final class SiteIssues
         self::environment($site, $add);
         self::health($site, $add, self::$directory ?? []);
         self::events($events, $add);
+        self::smtp($site, $events, $add);
 
         // Updates
         $inventory = $site->inventory ?? [];
@@ -397,6 +402,68 @@ final class SiteIssues
         }
     }
 
+    /** Korte uitleg per Diagnose-code van de client (Smtp\Diagnose::explain()). */
+    private const SMTP_DIAGNOSE = [
+        'dns' => 'SMTP-server niet gevonden', 'refused' => 'server weigert de verbinding', 'timeout' => 'geen verbinding (time-out)',
+        'certificate' => 'SSL-certificaat klopt niet', 'encryption' => 'versleuteling past niet bij de poort',
+        'app_password' => 'provider vraagt een app-wachtwoord', 'auth' => 'inloggen lukt niet', 'sender' => 'afzenderadres niet toegestaan',
+        'relay' => 'relay geweigerd', 'recipient' => 'ontvanger bestaat niet', 'limit' => 'tijdelijk tegengehouden (limiet)',
+        'rejected' => 'bericht geweigerd', 'invalid_address' => 'ongeldig e-mailadres', 'connect' => 'geen verbinding met de SMTP-server',
+    ];
+
+    /** Fouten die bij één bericht horen, niet bij de verbinding: aandacht in plaats van kritiek. */
+    private const SMTP_MESSAGE_ERRORS = ['recipient', 'invalid_address'];
+
+    /** Link naar het e-maillog van de SMTP-module in WP-admin. */
+    public static function smtpLogUrl(Site $site): string
+    {
+        return rtrim($site->url, '/') . '/wp-admin/admin.php?page=nb-ocmonitor&tab=maillog';
+    }
+
+    /**
+     * SMTP-module (client-plugin 0.15.0+): is het laatste smtp-event een mislukte mail, of staat de
+     * module aan zonder dat hij verstuurt? smtp.recovered of een geslaagde backup sluit het probleem.
+     *
+     * @param Collection<int, SiteEvent> $events oplopend in tijd
+     * @param callable(string, string, string, array<string, mixed>=): void $add
+     */
+    private static function smtp(Site $site, Collection $events, callable $add): void
+    {
+        $smtp = ($site->inventory ?? [])['smtp'] ?? null;
+        if (is_array($smtp) && array_key_exists('enabled', $smtp) && empty($smtp['enabled'])) {
+            return; // module uit: WordPress verstuurt weer zelf, oude SMTP-fouten zeggen niets meer
+        }
+        $link = ['smtp' => self::smtpLogUrl($site)];
+
+        $since = null; // eerste mislukte mail sinds de laatste geslaagde
+        $last = null;
+        foreach ($events as $event) {
+            if (!in_array($event->type, self::SMTP_EVENT_TYPES, true)) {
+                continue;
+            }
+            $last = $event;
+            $since = $event->type === 'smtp.failed' ? ($since ?? $event) : null;
+        }
+        if ($last !== null && $last->type === 'smtp.failed') {
+            $data = is_array($last->data) ? $last->data : [];
+            $code = (string) ($data['diagnose_code'] ?? '');
+            $reason = self::SMTP_DIAGNOSE[$code] ?? \Illuminate\Support\Str::limit(trim((string) ($data['error'] ?? '')), 80);
+            $add(
+                in_array($code, self::SMTP_MESSAGE_ERRORS, true) ? 'warn' : 'crit',
+                'beschikbaarheid',
+                'E-mail versturen mislukt sinds ' . $since->occurred_at->timezone('Europe/Amsterdam')->format('d-m H:i') . ($reason !== '' ? ": {$reason}" : ''),
+                $link + ['key' => 'smtp-failed']
+            );
+        } elseif ($last !== null && $last->type === 'smtp.backup_used' && $last->occurred_at->gte(now()->subDay())) {
+            $add('info', 'beschikbaarheid', 'Primaire SMTP-verbinding faalde; e-mail ging via de backupverbinding (' . $last->occurred_at->timezone('Europe/Amsterdam')->format('d-m H:i') . ')', $link + ['key' => 'smtp-backup']);
+        }
+
+        if (is_array($smtp) && !empty($smtp['enabled']) && ($smtp['active'] ?? null) === false) {
+            $reason = trim((string) ($smtp['reason'] ?? ''));
+            $add('warn', 'beschikbaarheid', 'SMTP-module staat aan maar verstuurt niet via SMTP' . ($reason !== '' ? ': ' . \Illuminate\Support\Str::limit($reason, 120) : ''), $link + ['key' => 'smtp-inactive']);
+        }
+    }
+
     /**
      * @param Collection<int, SiteEvent> $events
      * @param callable(string, string, string): void $add
@@ -444,6 +511,10 @@ final class SiteIssues
                 case 'theme.rolled_back':
                     $add('warn', 'updates', "Update van {$event->object} teruggedraaid na een fout ({$date})");
                     break;
+                case 'smtp.failed':
+                case 'smtp.backup_used':
+                case 'smtp.recovered':
+                    break; // zie smtp()
                 default: // plugin.update / theme.update
                     $updates[$event->object] = $event;
             }

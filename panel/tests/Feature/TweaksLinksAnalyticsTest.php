@@ -52,6 +52,33 @@ class TweaksLinksAnalyticsTest extends TestCase
         $this->post("/sites/{$site->site_id}/schakelaars", ['disable_comments' => '1'])->assertSessionHasErrors('tweaks');
     }
 
+    public function test_smtp_module_switch_only_for_client_0_15(): void
+    {
+        $site = $this->site('0.14.0');
+        $this->actingAs($this->makeUser());
+        $this->get('/sites/' . $site->site_id)->assertOk()->assertDontSee('SMTP-module');
+
+        // Oudere plugins weigeren onbekende sleutels: smtp_module gaat niet mee.
+        $this->post("/sites/{$site->site_id}/schakelaars", ['smtp_module' => '1'])->assertRedirect();
+        $this->assertArrayNotHasKey('smtp_module', SiteJob::query()->where('command', 'tweaks.set')->latest('id')->first()->args['tweaks']);
+        $this->post('/bulk-acties', ['action' => 'tweak', 'sites' => [$site->id], 'tweak' => 'smtp_module', 'tweak_value' => '1'])->assertSessionHasErrors('bulk');
+        $this->assertSame(1, SiteJob::query()->where('command', 'tweaks.set')->count());
+
+        $site->forceFill(['plugin_version' => '0.15.0'])->save();
+        $this->get('/sites/' . $site->site_id)->assertOk()->assertSee('SMTP-module');
+        $this->post("/sites/{$site->site_id}/schakelaars", ['smtp_module' => '1'])->assertRedirect();
+        $this->assertTrue(SiteJob::query()->where('command', 'tweaks.set')->latest('id')->first()->args['tweaks']['smtp_module']);
+        $this->post('/bulk-acties', ['action' => 'tweak', 'sites' => [$site->id], 'tweak' => 'smtp_module', 'tweak_value' => '1'])->assertRedirect();
+        $this->assertSame(['tweaks' => ['smtp_module' => true]], SiteJob::query()->where('command', 'tweaks.set')->latest('id')->first()->args);
+
+        // Status van de module op de site (uit de inventaris) staat bij de schakelaar.
+        $inventory = $site->fresh()->inventory;
+        $inventory['tweaks']['smtp_module'] = true;
+        $inventory['smtp'] = ['enabled' => true, 'active' => true, 'host' => 'smtp.klant.nl', 'port' => 587, 'last_test' => ['ok' => true, 'time' => time()]];
+        $site->forceFill(['inventory' => $inventory])->save();
+        $this->get('/sites/' . $site->site_id)->assertOk()->assertSee('SMTP actief')->assertSee('smtp.klant.nl:587');
+    }
+
     public function test_broken_link_checker(): void
     {
         $page = '<html><body><a href="/goed">ok</a> <a href="/weg">kapot</a> <a href="https://extern.example/stuk">ext</a>'

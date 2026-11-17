@@ -6,7 +6,7 @@ namespace NextBuzz\OcMonitor\Client;
 
 final class Schema
 {
-    public const VERSION = '1';
+    public const VERSION = '2';
     private const VERSION_OPTION = 'nb_ocm_db_version';
 
     public static function eventsTable(): string
@@ -21,6 +21,13 @@ final class Schema
         global $wpdb;
 
         return $wpdb->prefix . 'nb_ocm_nonces';
+    }
+
+    public static function mailLogTable(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'nb_ocm_mail_log';
     }
 
     public static function maybeUpgrade(): void
@@ -38,6 +45,7 @@ final class Schema
         $charset = $wpdb->get_charset_collate();
         $events = self::eventsTable();
         $nonces = self::noncesTable();
+        $mailLog = self::mailLogTable();
 
         // seq is het oplopende volgnummer waarmee het panel gaten detecteert.
         dbDelta("CREATE TABLE {$events} (
@@ -68,6 +76,37 @@ final class Schema
             KEY expires_at (expires_at)
         ) {$charset};");
 
+        // E-maillog van de SMTP-module (Smtp\Log). status: pending | sent | failed.
+        dbDelta("CREATE TABLE {$mailLog} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            created_at INT UNSIGNED NOT NULL,
+            updated_at INT UNSIGNED NOT NULL DEFAULT 0,
+            status VARCHAR(16) NOT NULL DEFAULT 'pending',
+            connection VARCHAR(16) NOT NULL DEFAULT '',
+            is_test TINYINT(1) NOT NULL DEFAULT 0,
+            is_alert TINYINT(1) NOT NULL DEFAULT 0,
+            to_email TEXT NOT NULL,
+            cc TEXT NULL,
+            bcc TEXT NULL,
+            from_email VARCHAR(255) NOT NULL DEFAULT '',
+            subject TEXT NOT NULL,
+            headers TEXT NULL,
+            sent_headers TEXT NULL,
+            content LONGTEXT NULL,
+            content_type VARCHAR(64) NOT NULL DEFAULT '',
+            attachments TEXT NULL,
+            message_id VARCHAR(255) NOT NULL DEFAULT '',
+            initiator VARCHAR(191) NOT NULL DEFAULT '',
+            initiator_file VARCHAR(255) NOT NULL DEFAULT '',
+            error TEXT NULL,
+            backup_error TEXT NULL,
+            diagnose_code VARCHAR(32) NOT NULL DEFAULT '',
+            resent_of BIGINT UNSIGNED NULL,
+            PRIMARY KEY  (id),
+            KEY created_at (created_at),
+            KEY status_created (status, created_at)
+        ) {$charset};");
+
         update_option(self::VERSION_OPTION, self::VERSION, false);
         Cron::schedule();
     }
@@ -77,6 +116,7 @@ final class Schema
         global $wpdb;
         $wpdb->query('DROP TABLE IF EXISTS ' . self::eventsTable()); // phpcs:ignore WordPress.DB.PreparedSQL
         $wpdb->query('DROP TABLE IF EXISTS ' . self::noncesTable()); // phpcs:ignore WordPress.DB.PreparedSQL
+        $wpdb->query('DROP TABLE IF EXISTS ' . self::mailLogTable()); // phpcs:ignore WordPress.DB.PreparedSQL
         delete_option(self::VERSION_OPTION);
     }
 }

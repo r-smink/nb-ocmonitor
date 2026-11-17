@@ -24,7 +24,7 @@ class SiteToolsController extends Controller
         if ($reason = TweakCatalog::blockedReason($site)) {
             return back()->withErrors(['tweaks' => $reason]);
         }
-        $tweaks = TweakCatalog::fromForm($request->all());
+        $tweaks = TweakCatalog::fromForm($request->all(), $site);
         $job = JobQueue::enqueue($site, 'tweaks.set', ['tweaks' => $tweaks], $request->user(), false);
         Activity::log('tweaks_requested', ['job_id' => $job->job_id, 'tweaks' => $tweaks], $site);
 

@@ -139,6 +139,7 @@ final class SiteCommands
             'storage' => \NextBuzz\OcMonitor\Client\Storage::summary(),
             'licenses' => LicenseCommands::status(),
             'tweaks' => \NextBuzz\OcMonitor\Client\Tweaks::current(),
+            'smtp' => \NextBuzz\OcMonitor\Client\Smtp\Module::summary(),
             'translations_pending' => count(wp_get_translation_updates()),
             'users' => ['total' => (int) $users['total_users'], 'by_role' => $users['avail_roles']],
             'environment' => [

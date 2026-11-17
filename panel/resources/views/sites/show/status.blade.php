@@ -29,7 +29,7 @@
   @if ($urgent->isNotEmpty() && $paired)
     <div @class(['sd-issues', 'crit' => $urgent->contains('level', 'crit')])>
       <ul>
-        @foreach ($urgent as $issue)<li><b>{{ \App\Ocm\SiteIssues::CATEGORIES[$issue['category']] }}:</b> {{ $issue['text'] }}</li>@endforeach
+        @foreach ($urgent as $issue)<li><b>{{ \App\Ocm\SiteIssues::CATEGORIES[$issue['category']] }}:</b> {{ $issue['text'] }}@if (!empty($issue['smtp'])) · <a href="{{ $issue['smtp'] }}" target="_blank" rel="noopener noreferrer">E-maillog in WP-admin</a>@endif</li>@endforeach
       </ul>
       @if ($site->last_error)<p>Laatste fout: {{ $site->last_error }}</p>@endif
     </div>

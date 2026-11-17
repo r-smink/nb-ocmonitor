@@ -52,6 +52,10 @@ final class IssueActions
             return ['kind' => 'link', 'label' => '2FA instellen', 'url' => route('wp-users.index')];
         }
 
+        if (!empty($issue['smtp'])) {
+            return ['kind' => 'link', 'label' => 'E-maillog', 'url' => (string) $issue['smtp']];
+        }
+
         return $view;
     }
 

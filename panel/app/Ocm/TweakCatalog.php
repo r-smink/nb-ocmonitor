@@ -25,6 +25,12 @@ final class TweakCatalog
         'clean_head' => ['Broncode opschonen', 'Haalt RSD-, WLW-, shortlink- en REST-links uit de head.', 'Snelheid'],
         'disable_emojis' => ['Emoji-script uitzetten', 'Scheelt een script en een stylesheet op elke pagina.', 'Snelheid'],
         'disable_embeds' => ['Embeds uitzetten', 'Geen wp-embed-script en oEmbed-links (andere sites kunnen berichten dan niet insluiten).', 'Snelheid'],
+        'smtp_module' => ['SMTP-module', 'Zet de tab SMTP aan in de client-plugin. De SMTP-server en het wachtwoord vul je daarna op de site zelf in; het panel ziet die niet.', 'E-mail'],
+    ];
+
+    /** Schakelaars die pas vanaf een nieuwere client-plugin bestaan (oudere versies weigeren onbekende sleutels). */
+    public const SWITCH_MIN_VERSION = [
+        'smtp_module' => '0.15.0',
     ];
 
     public const HEARTBEAT = ['default' => 'WordPress-standaard', 'slow' => 'Trager (elke 60 seconden)', 'off_frontend' => 'Uit op de voorkant'];
@@ -43,16 +49,34 @@ final class TweakCatalog
         return $site->hasScope('maintenance') ? null : 'Onderhoud staat niet aan op de site';
     }
 
+    /** Kent de client-plugin op deze site deze schakelaar? */
+    public static function supports(Site $site, string $key): bool
+    {
+        $min = self::SWITCH_MIN_VERSION[$key] ?? null;
+
+        return $min === null || ($site->plugin_version !== null && version_compare($site->plugin_version, $min, '>='));
+    }
+
+    /**
+     * De schakelaars die de plugin op deze site kent.
+     *
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    public static function switchesFor(Site $site): array
+    {
+        return array_filter(self::SWITCHES, fn (string $key) => self::supports($site, $key), ARRAY_FILTER_USE_KEY);
+    }
+
     /**
      * Invoer van een formulier omzetten naar de argumenten voor tweaks.set.
      *
      * @param array<string, mixed> $input
      * @return array<string, mixed>
      */
-    public static function fromForm(array $input): array
+    public static function fromForm(array $input, ?Site $site = null): array
     {
         $out = [];
-        foreach (array_keys(self::SWITCHES) as $key) {
+        foreach (array_keys($site ? self::switchesFor($site) : self::SWITCHES) as $key) {
             $out[$key] = !empty($input[$key]);
         }
         $out['heartbeat'] = isset(self::HEARTBEAT[$input['heartbeat'] ?? '']) ? $input['heartbeat'] : 'default';

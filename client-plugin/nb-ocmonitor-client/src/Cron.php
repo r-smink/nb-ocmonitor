@@ -39,5 +39,9 @@ final class Cron
     {
         wp_clear_scheduled_hook(self::HOURLY);
         wp_clear_scheduled_hook(self::TWICE_DAILY);
+        wp_clear_scheduled_hook('nb_ocm_smtp_log_cleanup'); // Smtp\Log\LogModule::CLEANUP_HOOK
+        // Smtp\Alerts\AlertsModule::DISPATCH_HOOK en FLUSH_HOOK: eenmalige taken met argumenten, dus alles wissen.
+        wp_unschedule_hook('nb_ocm_smtp_alert_dispatch');
+        wp_unschedule_hook('nb_ocm_smtp_alert_flush');
     }
 }

@@ -7,7 +7,7 @@ Vereist WordPress 6.0+ en PHP 7.4+. Zonder ext-sodium gebruikt de plugin het `so
 ## Koppelen
 
 1. Maak in het panel een site aan. Je krijgt een koppelcode (`nbocm1.…`, 15 minuten geldig).
-2. Plak de code op de site onder **Extra → NB OC Monitor**, of gebruik WP-CLI: `wp nb-ocm pair <code>`.
+2. Plak de code op de site onder **NB OC Monitor** (eigen menu-item), of gebruik WP-CLI: `wp nb-ocm pair <code>`.
 3. De site maakt een eigen Ed25519-sleutelpaar en stuurt alleen de publieke sleutel naar het panel.
 
 De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OCM_ALLOW_HTTP', true);` zetten.
@@ -58,7 +58,7 @@ De site moet via HTTPS bereikbaar zijn. Voor lokaal testen kun je `define('NB_OC
 
 ## Inlogbeveiliging
 
-Instellingen onder **Extra → NB OC Monitor → Inlogbeveiliging**, of met `wp nb-ocm login-security`. Standaard aan:
+Instellingen onder **NB OC Monitor → Beveiliging**, of met `wp nb-ocm login-security`. Standaard aan:
 
 - Blokkade per IP-adres na 5 mislukte pogingen binnen 15 minuten, voor 30 minuten. Na drie blokkades op een dag: 24 uur. Een geblokkeerd IP komt er ook met het juiste wachtwoord niet in.
 - Het echte IP-adres achter Cloudflare (alleen als het verzoek echt van Cloudflare komt) of achter een proxy op de server. Een `X-Forwarded-For` van buitenaf wordt genegeerd.

@@ -44,6 +44,7 @@ final class Plugin
         (new TwoFactor($recorder))->register();
         MaintenanceMode::register();
         Tweaks::register();
+        (new Smtp\Module($recorder))->register();
         ErrorCatcher::register();
         Admin\DashboardWidget::register();
         $panelLogin = new Security\PanelLogin($recorder);

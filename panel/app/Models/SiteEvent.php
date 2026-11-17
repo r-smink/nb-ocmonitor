@@ -34,6 +34,8 @@ class SiteEvent extends Model
         'plugin.rolled_back' => 'Plugin teruggedraaid', 'theme.rolled_back' => 'Thema teruggedraaid', 'translation.updated' => 'Vertaling bijgewerkt',
         'component.changed_externally' => 'Gewijzigd buiten WordPress om', 'login.failed_summary' => 'Mislukte inlogpogingen', 'db.cleaned' => 'Database opgeschoond',
         'site.maintenance' => 'Onderhoudsmodus',
+        'smtp.failed' => 'E-mail niet verstuurd', 'smtp.backup_used' => 'E-mail via backupverbinding verstuurd', 'smtp.recovered' => 'E-mail werkt weer',
+        'ocm.smtp_changed' => 'SMTP-instellingen gewijzigd', 'ocm.smtp_test' => 'SMTP-testmail', 'ocm.smtp_backup_changed' => 'SMTP-backupverbinding gewijzigd',
     ];
 
     /** Eén regel, bijv. "Plugin bijgewerkt: elementor 3.21 → 3.23". */

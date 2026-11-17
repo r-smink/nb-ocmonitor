@@ -107,6 +107,9 @@ class BulkController extends Controller
                 return [null, [], $reason];
             }
             $key = (string) $data['tweak'];
+            if (!\App\Ocm\TweakCatalog::supports($site, $key)) {
+                return [null, [], 'vanaf client-plugin ' . \App\Ocm\TweakCatalog::SWITCH_MIN_VERSION[$key]];
+            }
             $value = (string) $data['tweak_value'];
             $value = match ($key) {
                 'revisions' => array_key_exists((int) $value, \App\Ocm\TweakCatalog::REVISIONS) ? (int) $value : -1,

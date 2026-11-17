@@ -13,13 +13,20 @@
     @else
       <form method="POST" action="{{ route('sites.tweaks', $site) }}" class="form">
         @csrf
-        @foreach (collect(\App\Ocm\TweakCatalog::SWITCHES)->groupBy(fn ($s) => $s[2], true) as $group => $switches)
+        @foreach (collect(\App\Ocm\TweakCatalog::switchesFor($site))->groupBy(fn ($s) => $s[2], true) as $group => $switches)
           <h4>{{ $group }}</h4>
           <div class="check-grid">
             @foreach ($switches as $key => [$label, $help])
               <label title="{{ $help }}"><input type="checkbox" name="{{ $key }}" value="1" @checked(!empty($tweaks[$key])) @cannot('manage-sites') disabled @endcannot> {{ $label }}</label>
             @endforeach
           </div>
+          @if ($group === 'E-mail' && !empty($inventory['smtp']['enabled']))
+            @php($smtp = $inventory['smtp'])
+            <p class="note">Op de site:
+              @if (!empty($smtp['active']))<span class="chip ok">SMTP actief</span> {{ $smtp['host'] }}:{{ $smtp['port'] }}@else<span class="chip warn">nog niet actief</span> {{ $smtp['reason'] ?? '' }}@endif
+              @if (!empty($smtp['last_test']))· laatste testmail {{ !empty($smtp['last_test']['ok']) ? 'gelukt' : 'mislukt' }} op {{ \Illuminate\Support\Carbon::createFromTimestamp((int) $smtp['last_test']['time'])->timezone(config('app.timezone'))->format('d-m-Y H:i') }}@endif
+            </p>
+          @endif
         @endforeach
         <div class="form-row mt">
           <label>Revisies bewaren

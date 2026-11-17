@@ -736,6 +736,428 @@ test('self-update: laadt vooraf alle classes van de plugin, zodat het verzoek ni
     }
 });
 
+// ---------------------------------------------------------------- SMTP-module
+
+test('smtp: schakelaar smtp_module staat standaard uit en is een bool', function () {
+    check(\NextBuzz\OcMonitor\Client\Tweaks::normalize(null)['smtp_module'] === false);
+    check(\NextBuzz\OcMonitor\Client\Tweaks::normalize(['smtp_module' => '1'])['smtp_module'] === true);
+});
+
+test('smtp: wachtwoord versleutelen en ontsleutelen; andere sleutel of rommel geeft null', function () {
+    $key = sodium_crypto_secretbox_keygen();
+    $enc = \NextBuzz\OcMonitor\Client\Smtp\Crypto::encryptWith($key, 'geheim-wachtwoord');
+    check(strpos($enc, 'geheim') === false, 'leesbaar opgeslagen');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Crypto::decryptWith($key, $enc) === 'geheim-wachtwoord');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Crypto::decryptWith(sodium_crypto_secretbox_keygen(), $enc) === null, 'andere sleutel');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Crypto::decryptWith($key, 'geheim-wachtwoord') === null, 'onversleuteld');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Crypto::decryptWith($key, 'nbenc1:!!!') === null, 'kapot');
+    check($enc !== \NextBuzz\OcMonitor\Client\Smtp\Crypto::encryptWith($key, 'geheim-wachtwoord'), 'nonce wordt hergebruikt');
+});
+
+test('smtp: instellingen worden gecontroleerd', function () {
+    $o = \NextBuzz\OcMonitor\Client\Smtp\Options::normalize([
+        'host' => ' SMTP.Example.NL ', 'port' => '99999', 'encryption' => 'rot13', 'from_email' => 'geen-adres',
+        'from_name' => "Naam\r\nBcc: x@y.z", 'user' => 'info@example.nl', 'auth' => '0',
+    ]);
+    check($o['host'] === 'smtp.example.nl', 'host');
+    check($o['port'] === 587, 'poort buiten bereik');
+    check($o['encryption'] === 'tls', 'onbekende versleuteling');
+    check($o['from_email'] === '', 'ongeldig adres');
+    check(strpos($o['from_name'], "\n") === false && strpos($o['from_name'], "\r") === false, 'header-injectie via naam');
+    check($o['auth'] === false);
+    check(\NextBuzz\OcMonitor\Client\Smtp\Options::normalize(['host' => 'http://evil/x'])['host'] === '', 'url als host');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Options::isComplete(\NextBuzz\OcMonitor\Client\Smtp\Options::normalize(['host' => 'smtp.x.nl', 'auth' => true, 'user' => ''])) === false, 'auth zonder gebruiker');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Options::isComplete(\NextBuzz\OcMonitor\Client\Smtp\Options::normalize(['host' => 'smtp.x.nl', 'auth' => false])) === true);
+    check(strpos(\NextBuzz\OcMonitor\Client\Smtp\Options::describe(\NextBuzz\OcMonitor\Client\Smtp\Options::normalize(['host' => 'smtp.x.nl', 'user' => 'u', 'pass' => 'nbenc1:abc'])), 'nbenc1') === false, 'wachtwoord in logregel');
+});
+
+test('smtp: foutdiagnose herkent de gangbare fouten', function () {
+    $d = static function (string $error, string $debug = ''): string {
+        return \NextBuzz\OcMonitor\Client\Smtp\Diagnose::explain($error, $debug)['code'];
+    };
+    check($d('SMTP Error: Could not authenticate.') === 'auth', 'auth');
+    check($d('SMTP Error: Could not connect to SMTP host. Failed to connect to server', "Connection failed. Error #2: stream_socket_client(): Unable to connect to smtp.x.nl:587 (Connection timed out)") === 'timeout', 'timeout');
+    check($d('SMTP Error: Could not connect to SMTP host.', "Connection failed. Error #2: stream_socket_client(): php_network_getaddresses: getaddrinfo for smtp.x.nl failed") === 'dns', 'dns');
+    check($d('SMTP Error: Could not connect to SMTP host.', 'Connection failed. stream_socket_client(): SSL operation failed with code 1. OpenSSL Error messages: error:0A000086:SSL routines::certificate verify failed') === 'certificate', 'certificaat');
+    check($d('SMTP Error: Could not authenticate.', "SERVER -> CLIENT: 535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Tenant.") === 'app_password', 'M365');
+    check($d('SMTP Error: data not accepted.', "SERVER -> CLIENT: 554 5.7.1 Message rejected as spam") === 'rejected', 'spam');
+    check($d('SMTP Error: The following From address failed: a@b.nl', "SERVER -> CLIENT: 553 5.7.1 Sender address rejected: not owned by user") === 'sender', 'afzender');
+    check($d('Iets heel anders') === 'unknown', 'onbekend');
+    // STARTTLS in de EHLO-lijst of een getal als SIZE 35882421 is geen fout.
+    $ehlo = "SERVER -> CLIENT: 250-smtp.x.nl\nSERVER -> CLIENT: 250-SIZE 35882421\nSERVER -> CLIENT: 250-STARTTLS\nSERVER -> CLIENT: 250 AUTH LOGIN PLAIN";
+    check($d('SMTP Error: Could not authenticate.', $ehlo . "\nSERVER -> CLIENT: 535 Incorrect authentication data") === 'auth', 'auth na EHLO met STARTTLS');
+});
+
+test('smtp: inloggegevens verdwijnen uit de SMTP-dialoog', function () {
+    $user = 'info@example.nl';
+    $pass = 'Sup3r$geheim';
+    $debug = "CLIENT -> SERVER: AUTH LOGIN\nSERVER -> CLIENT: 334 VXNlcm5hbWU6\nCLIENT -> SERVER: " . base64_encode($user)
+        . "\nSERVER -> CLIENT: 334 UGFzc3dvcmQ6\nCLIENT -> SERVER: " . base64_encode($pass)
+        . "\nCLIENT -> SERVER: AUTH PLAIN " . base64_encode("\0" . $user . "\0" . $pass);
+    $out = \NextBuzz\OcMonitor\Client\Smtp\TestMail::redact($debug, $user, $pass);
+    check(strpos($out, base64_encode($pass)) === false && strpos($out, $pass) === false, 'wachtwoord');
+    check(strpos($out, base64_encode("\0" . $user . "\0" . $pass)) === false, 'AUTH PLAIN');
+    check(substr_count($out, '[verborgen]') >= 3);
+    $other = \NextBuzz\OcMonitor\Client\Smtp\TestMail::redact("CLIENT -> SERVER: AUTH XOAUTH2 dG9rZW4=", $user, '');
+    check(strpos($other, 'dG9rZW4=') === false, 'XOAUTH2-token');
+});
+
+test('smtp: andere mailplugins worden herkend', function () {
+    $found = \NextBuzz\OcMonitor\Client\Smtp\Conflicts::detect(['akismet/akismet.php', 'wp-mail-smtp/wp_mail_smtp.php', 'fluent-smtp/fluent-smtp.php']);
+    check($found === ['WP Mail SMTP', 'FluentSMTP']);
+    check(\NextBuzz\OcMonitor\Client\Smtp\Conflicts::detect([]) === []);
+});
+
+test('smtp: standaardafzender van WordPress wordt herkend', function () {
+    check(\NextBuzz\OcMonitor\Client\Smtp\Mailer::isDefaultWpFrom('wordpress@klant.nl'));
+    check(\NextBuzz\OcMonitor\Client\Smtp\Mailer::isDefaultWpFrom(''));
+    check(!\NextBuzz\OcMonitor\Client\Smtp\Mailer::isDefaultWpFrom('info@klant.nl'));
+});
+
+// ---- SMTP: backup
+
+test('smtp backup: instellingen worden gecontroleerd en bevatten alleen verbindingsvelden', function () {
+    $b = \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::normalize([
+        'enabled' => '1', 'host' => ' Mail.Backup.NL ', 'port' => '0', 'encryption' => 'x', 'user' => "u@x.nl\r\n",
+        'pass' => 'nbenc1:abc', 'from_email' => 'info@x.nl', 'force_from_email' => true,
+    ]);
+    check($b['enabled'] === true);
+    check($b['host'] === 'mail.backup.nl', 'host');
+    check($b['port'] === 587 && $b['encryption'] === 'tls', 'poort/versleuteling');
+    check($b['user'] === 'u@x.nl', 'gebruiker');
+    check($b['pass'] === 'nbenc1:abc', 'pass ongewijzigd');
+    check(!isset($b['from_email']) && !isset($b['force_from_email']), 'geen afzendervelden');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::normalize(null)['enabled'] === false, 'standaard uit');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::normalize(['host' => 'http://evil/x'])['host'] === '', 'url als host');
+});
+
+test('smtp backup: compleet pas met server, gebruiker en wachtwoord', function () {
+    $n = static function (array $v): array {
+        return \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::normalize($v);
+    };
+    $complete = static function (array $v) use ($n): bool {
+        return \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::isComplete($n($v));
+    };
+    check($complete(['host' => 'smtp.x.nl', 'auth' => true, 'user' => 'u', 'pass' => 'nbenc1:abc']) === true);
+    check($complete(['host' => 'smtp.x.nl', 'auth' => true, 'user' => 'u', 'pass' => '']) === false, 'zonder wachtwoord');
+    check($complete(['host' => 'smtp.x.nl', 'auth' => true, 'user' => '', 'pass' => 'nbenc1:abc']) === false, 'zonder gebruiker');
+    check($complete(['host' => 'smtp.x.nl', 'auth' => false]) === true, 'relay zonder login');
+    check($complete(['host' => '', 'auth' => false]) === false, 'zonder server');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::isUsable($n(['enabled' => false, 'host' => 'smtp.x.nl', 'auth' => false])) === false, 'uit');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::isUsable($n(['enabled' => true, 'host' => 'smtp.x.nl', 'auth' => false])) === true, 'aan zonder login');
+});
+
+test('smtp backup: opslaan houdt of wist het wachtwoord, mailer-opties nemen de afzender van primair', function () {
+    $enc = static function (string $p): string {
+        return 'ENC(' . $p . ')';
+    };
+    $stored = \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::normalize(['enabled' => true, 'host' => 'a.nl', 'pass' => 'nbenc1:oud']);
+    $keep = \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::merge($stored, ['host' => 'b.nl', 'pass' => ''], $enc);
+    check($keep['pass'] === 'nbenc1:oud' && $keep['host'] === 'b.nl', 'leeg veld houdt wachtwoord');
+    check($keep['enabled'] === false && $keep['auth'] === false, 'niet aangevinkt = uit');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::merge($stored, ['pass' => 'nieuw'], $enc)['pass'] === 'ENC(nieuw)', 'nieuw wachtwoord versleuteld');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::merge($stored, ['pass' => 'nieuw', 'clear_pass' => '1'], $enc)['pass'] === '', 'wissen');
+    $primary = \NextBuzz\OcMonitor\Client\Smtp\Options::normalize(['host' => 'primair.nl', 'user' => 'p', 'from_email' => 'info@klant.nl', 'return_path' => false]);
+    $m = \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::mailerOptions($keep, $primary);
+    check($m['host'] === 'b.nl' && $m['user'] === '' && $m['from_email'] === 'info@klant.nl' && $m['return_path'] === false, 'mailer-opties');
+    check(strpos(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::describe($stored), 'nbenc1') === false, 'wachtwoord in logregel');
+    check(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::describe(\NextBuzz\OcMonitor\Client\Smtp\Backup\BackupOptions::normalize([])) === 'uit');
+});
+
+test('smtp backup: testmails en meldingsmails worden herkend, backup-header wordt toegevoegd', function () {
+    $bm = \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupModule::class;
+    check($bm::shouldSkip(['Content-Type: text/html', \NextBuzz\OcMonitor\Client\Smtp\TestMail::HEADER]) === true, 'testmail (lijst)');
+    check($bm::shouldSkip("From: a@b.nl\r\nx-nb-ocm-alert: 1") === true, 'melding (string, kleine letters)');
+    check($bm::shouldSkip("From: a@b.nl\nSubject-X: X-NB-OCM-Test: 1") === false, 'alleen echte headernaam');
+    check($bm::shouldSkip('') === false && $bm::shouldSkip([]) === false, 'leeg');
+    check($bm::withHeader('') === 'X-NB-OCM-Connection: backup', 'lege string');
+    check($bm::withHeader("From: a@b.nl\r\n") === "From: a@b.nl\r\nX-NB-OCM-Connection: backup", 'string');
+    check($bm::withHeader(['From: a@b.nl']) === ['From: a@b.nl', 'X-NB-OCM-Connection: backup'], 'lijst');
+    check($bm::withHeader(['X-NB-OCM-Connection: backup']) === ['X-NB-OCM-Connection: backup'], 'niet dubbel');
+});
+
+test('smtp backup: wp_mail-argumenten worden gelezen (associatief of op volgorde)', function () {
+    $bm = \NextBuzz\OcMonitor\Client\Smtp\Backup\BackupModule::class;
+    $a = $bm::mailArgs(['to' => 'a@b.nl', 'subject' => 'Hoi', 'message' => 'Tekst', 'headers' => ['X: 1'], 'attachments' => ['/tmp/f']]);
+    check($a !== null && $a['to'] === 'a@b.nl' && $a['subject'] === 'Hoi' && $a['headers'] === ['X: 1'] && $a['attachments'] === ['/tmp/f']);
+    $p = $bm::mailArgs(['a@b.nl', 'Hoi', 'Tekst']);
+    check($p !== null && $p['headers'] === '' && $p['attachments'] === [], 'op volgorde, aangevuld');
+    check($bm::mailArgs([]) === null && $bm::mailArgs(['to' => '']) === null, 'zonder ontvanger');
+    check($bm::isRunning() === false);
+});
+
+// ---- SMTP: meldingen
+
+test('smtp meldingen: ontvangers en webhooks worden gecontroleerd (max 3, alleen https)', function () {
+    $S = \NextBuzz\OcMonitor\Client\Smtp\Alerts\AlertSettings::class;
+    $e = $S::parseEmails(['a@klant.nl', ' ', 'geen-adres', 'A@klant.nl', 'b@klant.nl', 'c@klant.nl', 'd@klant.nl']);
+    check($e['valid'] === ['a@klant.nl', 'b@klant.nl', 'c@klant.nl'], 'geldige, uniek, max 3');
+    check(in_array('geen-adres', $e['invalid'], true) && in_array('d@klant.nl', $e['invalid'], true), 'ongeldig en 4e adres gemeld');
+    $u = $S::parseUrls(['https://hooks.slack.com/services/T/B/x', 'http://voorbeeld.nl/hook', 'ftp://x.nl', 'https://', 'javascript:alert(1)', 'https://a.nl/x y']);
+    check($u['valid'] === ['https://hooks.slack.com/services/T/B/x'], 'alleen https');
+    check(count($u['invalid']) === 5, 'http://, ftp, zonder host, javascript, spatie geweigerd');
+    check($S::isWebhookUrl('HTTPS://Example.com/hook'), 'schema hoofdletterongevoelig');
+    check(!$S::isWebhookUrl('http://localhost/hook'), 'http localhost');
+    check($S::webhookLabel('https://hooks.slack.com/services/T/B/geheim') === 'hooks.slack.com', 'geheim pad niet in geschiedenis');
+    $n = $S::normalize(['throttle' => 7, 'events' => ['failed' => false]]);
+    check($n['throttle'] === 15 && $n['events'] === ['failed' => false, 'backup_used' => true, 'recovered' => true], 'normalize');
+    check($S::normalize(['throttle' => '240'])['throttle'] === 240, 'throttle 240');
+});
+
+test('smtp meldingen: throttling bundelt fouten en telt wat is ingehouden', function () {
+    $A = \NextBuzz\OcMonitor\Client\Smtp\Alerts\AlertState::class;
+    $on = ['failed' => true, 'backup_used' => true, 'recovered' => true];
+    $fail = ['log_id' => 7, 'status' => 'failed', 'connection' => 'primary', 'to' => ['x@y.nl'], 'subject' => 'Hoi', 'error' => 'SMTP Error: Could not authenticate.', 'backup_error' => '', 'diagnose_code' => 'auth', 'initiator' => 'Contact Form 7', 'is_test' => false, 'time' => NOW];
+
+    $o = $A::apply([], ['is_test' => true] + $fail, NOW, 15, $on);
+    check($o['emit'] === [] && $o['state']['failing'] === 0, 'testmail genegeerd');
+
+    $o = $A::apply([], $fail, NOW, 15, $on);
+    check(count($o['emit']) === 1 && $o['emit'][0]['type'] === 'failed' && $o['emit'][0]['suppressed'] === 0, 'eerste fout direct');
+    check($o['emit'][0]['panel'] && $o['emit'][0]['notify'], 'panel en kanalen');
+    $s = $o['state'];
+
+    $o = $A::apply($s, $fail, NOW + 60, 15, $on);
+    check($o['emit'] === [], 'tweede binnen venster ingehouden');
+    check($o['schedule'] === [['sig' => 'failed:auth', 'at' => NOW + 900]], 'flush gepland aan eind van venster');
+    $o = $A::apply($o['state'], ['log_id' => 9] + $fail, NOW + 120, 15, $on);
+    check($o['emit'] === [] && $o['schedule'] === [], 'derde: geen tweede flush');
+    check($o['state']['throttle']['failed:auth']['count'] === 2 && $o['state']['throttle']['failed:auth']['last']['log_id'] === 9, 'geteld, laatste bewaard');
+
+    // Andere oorzaak = eigen signatuur, dus wel direct.
+    $other = $A::apply($o['state'], ['diagnose_code' => 'timeout'] + $fail, NOW + 130, 15, $on);
+    check(count($other['emit']) === 1 && $other['emit'][0]['suppressed'] === 0, 'andere diagnose direct');
+
+    // Flush te vroeg: opnieuw plannen; op tijd: een samenvatting.
+    $early = $A::flush($o['state'], 'failed:auth', NOW + 600, 15, $on);
+    check($early['emit'] === [] && $early['schedule'][0]['at'] === NOW + 900, 'te vroeg');
+    $f = $A::flush($o['state'], 'failed:auth', NOW + 905, 15, $on);
+    check(count($f['emit']) === 1 && $f['emit'][0]['digest'] === true && $f['emit'][0]['suppressed'] === 2 && $f['emit'][0]['since'] === NOW + 60, 'samenvatting');
+    check($f['emit'][0]['result']['log_id'] === 9, 'samenvatting met de laatste mail');
+    check($A::flush($f['state'], 'failed:auth', NOW + 2000, 15, $on)['emit'] === [], 'niets meer open');
+
+    // Geen flush gedraaid (cron uit) en het venster is voorbij: de volgende fout neemt de telling mee.
+    $o2 = $A::apply($o['state'], $fail, NOW + 1000, 15, $on);
+    check(count($o2['emit']) === 1 && $o2['emit'][0]['suppressed'] === 2 && $o2['emit'][0]['since'] === NOW + 60, '+2 bij de volgende melding');
+    check($A::flush($o2['state'], 'failed:auth', NOW + 1001, 15, $on)['emit'] === [], 'geplande flush doet dan niets');
+});
+
+test('smtp meldingen: backup gebruikt en herstel', function () {
+    $A = \NextBuzz\OcMonitor\Client\Smtp\Alerts\AlertState::class;
+    $on = ['failed' => true, 'backup_used' => true, 'recovered' => true];
+    $ok = ['status' => 'sent', 'connection' => 'primary', 'to' => ['x@y.nl'], 'subject' => 'Hoi', 'error' => '', 'diagnose_code' => '', 'is_test' => false, 'time' => NOW];
+    $failed = ['status' => 'failed', 'diagnose_code' => 'auth'] + $ok;
+
+    check($A::apply([], $ok, NOW, 15, $on)['emit'] === [], 'gewone mail: niets');
+    $b = $A::apply([], ['connection' => 'backup', 'error' => 'SMTP connect() failed', 'diagnose_code' => 'connect'] + $ok, NOW, 15, $on);
+    check($b['emit'][0]['type'] === 'backup_used', 'backup_used');
+
+    $s = $A::apply([], $failed, NOW, 15, $on)['state'];
+    $s = $A::apply($s, $failed, NOW + 10, 15, $on)['state'];
+    $r = $A::apply($s, $ok, NOW + 300, 15, $on);
+    check(count($r['emit']) === 1 && $r['emit'][0]['type'] === 'recovered' && $r['emit'][0]['failures'] === 2 && $r['emit'][0]['since'] === NOW, 'herstel na 2 fouten');
+    check($r['emit'][0]['notify'] && $r['emit'][0]['panel'], 'herstel naar panel en kanalen');
+    check($r['state']['failing'] === 0 && $r['state']['throttle'] === [], 'schone lei');
+    check($A::apply($r['state'], $ok, NOW + 400, 15, $on)['emit'] === [], 'geen tweede herstel');
+    check($A::apply($r['state'], $failed, NOW + 400, 15, $on)['emit'] !== [], 'nieuw incident meteen gemeld');
+
+    // Kanalen uit voor failed: het herstel gaat dan ook niet naar de kanalen, wel naar het panel.
+    $off = ['failed' => false, 'backup_used' => true, 'recovered' => true];
+    $s = $A::apply([], $failed, NOW, 15, $off);
+    check($s['emit'][0]['notify'] === false && $s['emit'][0]['panel'] === true, 'failed uit: alleen panel');
+    $r = $A::apply($s['state'], $ok, NOW + 60, 15, $off);
+    check($r['emit'][0]['type'] === 'recovered' && $r['emit'][0]['notify'] === false && $r['emit'][0]['panel'] === true, 'herstel alleen naar het panel');
+});
+
+test('smtp meldingen: webhook-JSON, tekst en e-mail', function () {
+    $P = \NextBuzz\OcMonitor\Client\Smtp\Alerts\Payload::class;
+    $site = ['title' => 'Klant BV', 'url' => 'https://klant.nl', 'admin_url' => 'https://klant.nl/wp-admin/', 'panel_url' => null];
+    $emit = ['type' => 'failed', 'suppressed' => 12, 'since' => NOW, 'digest' => false, 'result' => [
+        'log_id' => 42, 'status' => 'failed', 'connection' => 'primary', 'to' => ['a@b.nl'], 'subject' => '<script>x</script>',
+        'error' => 'SMTP Error: Could not authenticate.', 'backup_error' => '', 'diagnose_code' => 'auth', 'initiator' => 'WooCommerce', 'time' => NOW,
+    ]];
+    $body = $P::webhook($emit, $site);
+    check(array_keys($body) === ['event', 'site_title', 'site_url', 'message', 'text', 'mail', 'suppressed'], 'velden zonder panel_url');
+    check($body['event'] === 'smtp.failed' && $body['suppressed'] === 12, 'event en suppressed');
+    check(array_keys($body['mail']) === ['to', 'subject', 'error', 'backup_error', 'diagnose_code', 'diagnose_title', 'initiator', 'log_id', 'time'], 'mailvelden');
+    check($body['mail']['diagnose_title'] === 'Inloggen bij de SMTP-server lukt niet' && $body['mail']['log_id'] === 42 && $body['mail']['time'] === gmdate('c', NOW), 'mailwaarden');
+    check(strpos($body['message'], '+12 vergelijkbare fouten sinds') !== false, 'telling in de tekst: ' . $body['message']);
+    check(isset($P::webhook($emit, ['panel_url' => 'https://oc.nextbuzz.nl'] + $site)['panel_url']), 'panel_url als gekoppeld');
+    check($P::subject($emit, $site) === '[Klant BV] E-mail niet verstuurd (+12)', 'onderwerp');
+    check($P::logUrl('https://klant.nl/wp-admin/', 42) === 'https://klant.nl/wp-admin/admin.php?page=nb-ocmonitor&tab=maillog&log=42', 'link naar logregel');
+
+    $digest = $P::message(['digest' => true, 'suppressed' => 3] + $emit, $site);
+    check(strpos($digest, 'In totaal 3 vergelijkbare fouten') !== false, 'samenvatting');
+    $rec = $P::message(['type' => 'recovered', 'failures' => 1, 'since' => NOW, 'suppressed' => 0, 'result' => []], $site);
+    check(strpos($rec, 'weer verstuurd') !== false && strpos($rec, '1 e-mail niet') !== false, 'herstel: ' . $rec);
+
+    $html = \NextBuzz\OcMonitor\Client\Smtp\Alerts\EmailBody::html($emit, $site);
+    check(strpos($html, '<script>') === false && strpos($html, '&lt;script&gt;') !== false, 'onderwerp ge-escapet');
+    check(strpos($html, '#1F2937') !== false && strpos($html, '#E22830') !== false, 'Next Buzz-stijl');
+    check(strpos($html, 'tab=maillog&amp;log=42') !== false, 'link in de mail');
+    check(strpos($html, 'app-wachtwoord') !== false, 'stappen uit Diagnose');
+});
+
+test('smtp meldingen: geschiedenis, adminwaarschuwing en omweg buiten SMTP', function () {
+    $H = \NextBuzz\OcMonitor\Client\Smtp\Alerts\History::class;
+    $list = [];
+    for ($i = 1; $i < 56; $i++) {
+        $list = $H::push($list, ['time' => $i, 'type' => 'failed', 'channel' => 'email', 'target' => 'a@b.nl', 'ok' => true]);
+    }
+    check(count($list) === 50 && $list[0]['time'] === 55 && $list[49]['time'] === 6, 'ringbuffer 50, nieuwste eerst');
+
+    $N = \NextBuzz\OcMonitor\Client\Smtp\Alerts\ProblemNotice::class;
+    $p = $N::next(null, ['status' => 'failed', 'log_id' => 3], NOW);
+    check($p === ['since' => NOW, 'last' => NOW, 'count' => 1, 'log_id' => 3], 'probleem gezet');
+    $p = $N::next($p, ['status' => 'failed', 'log_id' => 4], NOW + 5);
+    check($p['since'] === NOW && $p['last'] === NOW + 5 && $p['count'] === 2, 'opgeteld');
+    check($N::next($p, ['status' => 'sent'], NOW + 9) === null, 'weg bij succes');
+
+    $M = \NextBuzz\OcMonitor\Client\Smtp\Alerts\AlertsModule::class;
+    check($M::bypassFor(['type' => 'failed', 'result' => ['connection' => 'primary']], true), 'primaire SMTP faalde: via mail()');
+    check($M::bypassFor(['type' => 'backup_used', 'result' => ['connection' => 'backup']], true), 'backup gebruikt: via mail()');
+    check(!$M::bypassFor(['type' => 'failed', 'result' => ['connection' => 'wordpress']], true), 'connection wordpress');
+    check(!$M::bypassFor(['type' => 'recovered', 'result' => ['connection' => 'primary']], true), 'herstel via SMTP');
+    check(!$M::bypassFor(['type' => 'failed', 'result' => ['connection' => 'primary']], false), 'module niet actief');
+    $t = $M::testEmit(NOW, 'rick@x.nl');
+    check($t['type'] === 'test' && $t['result']['to'] === ['rick@x.nl'] && $t['panel'] === false, 'testmelding');
+});
+
+// ---- SMTP: e-maillog
+
+test('maillog: ontvangers uit to (string of array) en headers, ook met komma in de naam', function () {
+    $P = \NextBuzz\OcMonitor\Client\Smtp\Log\MailParts::class;
+    check($P::addresses('a@x.nl, "Jansen, Piet" <p@x.nl>,, b@x.nl') === ['a@x.nl', '"Jansen, Piet" <p@x.nl>', 'b@x.nl'], 'string');
+    check($P::emails(['Piet <p@x.nl>', 'q@x.nl', null]) === ['p@x.nl', 'q@x.nl'], 'array');
+    check($P::email('"Jansen, Piet" <p@x.nl>') === 'p@x.nl');
+    $h = $P::parseHeaders("From: Shop <shop@x.nl>\r\nCc: c1@x.nl, C Twee <c2@x.nl>\r\nBCC: b@x.nl\r\nContent-Type: text/html; charset=UTF-8\r\nX-NB-OCM-Test: 1\r\nX-Lang: een\r\n  vervolg");
+    check($h['cc'] === ['c1@x.nl', 'C Twee <c2@x.nl>'] && $h['bcc'] === ['b@x.nl'], 'cc/bcc');
+    check($h['from'] === 'Shop <shop@x.nl>' && $h['content_type'] === 'text/html', 'from/type');
+    check($h['test'] === true && $h['alert'] === false && $h['connection'] === '', 'vlaggen');
+    check(end($h['lines']) === 'X-Lang: een vervolg', 'vervolgregel');
+    $a = $P::parseHeaders(['X-NB-OCM-Alert: 1', 'X-NB-OCM-Connection: backup', 'Cc: z@x.nl']);
+    check($a['alert'] === true && $a['connection'] === 'backup' && $a['cc'] === ['z@x.nl'], 'headers als array');
+    check($P::parseHeaders(null)['lines'] === [], 'geen headers');
+});
+
+test('maillog: headers voor opnieuw versturen zonder eigen headers en eventueel zonder Cc/Bcc', function () {
+    $P = \NextBuzz\OcMonitor\Client\Smtp\Log\MailParts::class;
+    $lines = ['Content-Type: text/html', 'X-NB-OCM-Test: 1', 'Cc: c@x.nl', 'bcc: b@x.nl', 'Reply-To: r@x.nl'];
+    check($P::resendHeaders($lines, false) === ['Content-Type: text/html', 'Cc: c@x.nl', 'bcc: b@x.nl', 'Reply-To: r@x.nl']);
+    check($P::resendHeaders($lines, true) === ['Content-Type: text/html', 'Reply-To: r@x.nl']);
+});
+
+test('maillog: bijlagen alleen als bestandsnaam', function () {
+    $P = \NextBuzz\OcMonitor\Client\Smtp\Log\MailParts::class;
+    check($P::attachmentNames(['/var/www/up/factuur.pdf', 'C:\\tmp\\a.txt', 'Eigen naam.pdf' => '/tmp/x', '']) === ['factuur.pdf', 'a.txt', 'Eigen naam.pdf']);
+    check($P::attachmentNames("/a/b.csv\n/c/d.zip") === ['b.csv', 'd.zip']);
+    check($P::attachmentNames(null) === []);
+});
+
+test('maillog: voorbeeldweergave blokkeert externe bronnen en escapet platte tekst', function () {
+    $P = \NextBuzz\OcMonitor\Client\Smtp\Log\MailParts::class;
+    $html = $P::previewDocument('<html><head><title>x</title></head><body><img src="https://track.er/p.gif"></body></html>', 'text/html');
+    check(strpos($html, '<head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'') !== false, 'CSP direct na <head>');
+    check(strpos($P::previewDocument('<p>los</p>', 'text/html'), '<meta http-equiv="Content-Security-Policy"') === 0, 'CSP zonder head');
+    $plain = $P::previewDocument('<script>alert(1)</script>', 'text/plain');
+    check(strpos($plain, '<script>') === false && strpos($plain, '&lt;script&gt;') !== false, 'tekst ge-escapet');
+});
+
+test('maillog: bron (initiator) uit het pad: plugin, mu-plugin, thema, WP Core, onbekend', function () {
+    $I = \NextBuzz\OcMonitor\Client\Smtp\Log\Initiator::class;
+    $dirs = ['plugins' => 'C:\\www\\wp-content\\plugins', 'mu' => '/www/wp-content/mu-plugins', 'themes' => '/www/wp-content/themes', 'core' => '/www/'];
+    $names = $I::namesFromPlugins(['contact-form-7/wp-contact-form-7.php' => ['Name' => 'Contact Form 7'], 'hello.php' => ['Name' => 'Hello Dolly']]);
+    check($names === ['contact-form-7' => 'Contact Form 7', 'hello.php' => 'Hello Dolly'], 'namen');
+    $c = static function (string $file) use ($I, $dirs, $names): array {
+        $r = $I::classify($file, $dirs, $names);
+
+        return [$r['type'], $r['name']];
+    };
+    check($c('C:/www/wp-content/plugins/contact-form-7/includes/mail.php') === ['plugin', 'Contact Form 7'], 'plugin (Windows-pad)');
+    check($c('c:\\WWW\\wp-content\\plugins\\hello.php') === ['plugin', 'Hello Dolly'], 'losse plugin, hoofdletters');
+    check($c('C:/www/wp-content/plugins/onbekend-ding/x.php') === ['plugin', 'onbekend-ding'], 'plugin zonder naam');
+    check($c('/www/wp-content/mu-plugins/loader.php') === ['mu-plugin', 'loader.php (mu-plugin)'], 'mu-plugin');
+    check($c('/www/wp-content/themes/astra/functions.php') === ['theme', 'astra'], 'thema');
+    check($c('/www/wp-includes/pluggable.php') === ['core', 'WP Core'], 'core');
+    check($c('/www/wp-login.php') === ['core', 'WP Core'], 'core root');
+    check($c('/www/wp-content/uploads/x.php') === ['unknown', 'onbekend'], 'wp-content elders');
+    check($c('/elders/x.php') === ['unknown', 'onbekend'], 'buiten WordPress');
+    check($c('/www/wp-content/pluginsextra/x.php')[0] === 'unknown', 'geen prefix-verwarring');
+    check($I::relative('/www/wp-content/plugins/a/b.php', '/www/') === 'wp-content/plugins/a/b.php', 'relatief pad');
+    $frame = $I::callerFrame([
+        ['function' => 'detect', 'class' => 'X', 'file' => '/a.php', 'line' => 1],
+        ['function' => 'apply_filters', 'file' => '/www/wp-includes/pluggable.php', 'line' => 2],
+        ['function' => 'wp_mail', 'file' => '/www/wp-content/plugins/cf7/mail.php', 'line' => 42],
+    ]);
+    check($frame === ['file' => '/www/wp-content/plugins/cf7/mail.php', 'line' => 42], 'wp_mail-frame');
+    check($I::callerFrame([['function' => 'x']]) === null, 'geen wp_mail');
+});
+
+test('maillog: CSV-cellen tegen formule-injectie en met juiste quotes', function () {
+    $E = \NextBuzz\OcMonitor\Client\Smtp\Log\Export::class;
+    check($E::csvCell('=HYPERLINK("x")') === '"\'=HYPERLINK(""x"")"', '=');
+    foreach (['+31', '-1', '@SUM(A1)', "\tx", "\rx"] as $bad) {
+        check(substr($E::csvCell($bad), 0, 2) === '"\'', 'prefix voor ' . json_encode($bad));
+    }
+    check($E::csvCell('gewoon; tekst') === '"gewoon; tekst"', 'normaal');
+    check($E::csvCell('') === '""', 'leeg');
+    check($E::csvLine(['a', 'b"c']) === "\"a\";\"b\"\"c\"\r\n", 'regel');
+    $values = $E::csvValues(['id' => 5, 'status' => 'sent', 'connection' => 'backup', 'to_email' => 'a@x.nl', 'subject' => '=1+1', 'is_test' => 1], '2026-01-01 10:00:00');
+    check(count($values) === count($E::csvColumns()), 'aantal kolommen');
+    check($values[2] === 'Via backup' && $values[3] === 'Backup' && $values[13] === 'ja', 'labels');
+});
+
+test('maillog: EML-export', function () {
+    $E = \NextBuzz\OcMonitor\Client\Smtp\Log\Export::class;
+    $eml = $E::eml(['id' => 7, 'created_at' => NOW, 'from_email' => 'Klant BV <noreply@klant.nl>', 'to_email' => 'Piet Jansen <p@x.nl>, q@x.nl', 'cc' => 'c@x.nl', 'bcc' => 'geheim@x.nl',
+        'subject' => "Bestelling ontvangen – €12\r\nBcc: evil@x.nl", 'message_id' => '<abc@klant.nl>', 'content' => '<p>Hallo</p>', 'content_type' => 'text/html']);
+    [$head, $body] = explode("\r\n\r\n", $eml, 2);
+    check(strpos($head, 'Date: Thu, 01 Jan 2026 00:00:00 +0000') !== false, 'datum');
+    check(strpos($head, "To: Piet Jansen <p@x.nl>, q@x.nl") !== false && strpos($head, 'Cc: c@x.nl') !== false, 'ontvangers');
+    check(strpos($eml, 'geheim@x.nl') === false, 'geen Bcc');
+    check(preg_match('/^Subject: =\?UTF-8\?B\?/m', $head) === 1, 'onderwerp gecodeerd');
+    check(preg_match('/^Bcc:/mi', $head) === 0, 'geen header-injectie via onderwerp');
+    $decoded = '';
+    preg_match_all('/=\?UTF-8\?B\?([^?]+)\?=/', $head, $m);
+    foreach ($m[1] as $part) {
+        $decoded .= base64_decode($part);
+    }
+    check(strpos($decoded, 'Bestelling ontvangen – €12') === 0, 'onderwerp terug te lezen');
+    check(strpos($head, 'Content-Type: text/html; charset=UTF-8') !== false && strpos($head, 'Message-ID: <abc@klant.nl>') !== false, 'type/id');
+    check(base64_decode(str_replace("\r\n", '', $body)) === '<p>Hallo</p>', 'body');
+    $none = $E::eml(['id' => 8, 'created_at' => NOW, 'to_email' => 'a@x.nl', 'subject' => 'x', 'content' => null]);
+    check(strpos($none, 'Content-Type: text/plain') !== false && strpos(base64_decode(explode("\r\n\r\n", $none, 2)[1]), 'niet gelogd') !== false, 'zonder inhoud');
+    foreach (explode("\r\n", $head) as $line) {
+        check(strlen($line) <= 998, 'regellengte');
+    }
+});
+
+test('maillog: instellingen en bewaartermijn', function () {
+    $S = \NextBuzz\OcMonitor\Client\Smtp\Log\LogSettings::class;
+    check($S::normalize(null) === ['enabled' => true, 'log_content' => false, 'retention_days' => 30], 'standaard');
+    check($S::normalize(['retention_days' => '45'])['retention_days'] === 30, 'ongeldige termijn');
+    check($S::normalize(['retention_days' => '0'])['retention_days'] === 0, 'altijd bewaren');
+    check($S::fromForm(['retention_days' => '365']) === ['enabled' => false, 'log_content' => false, 'retention_days' => 365], 'formulier zonder vinkjes');
+    check($S::cutoff(NOW, 30) === NOW - 30 * 86400, 'cutoff');
+    check($S::cutoff(NOW, 0) === null, 'altijd bewaren: geen cutoff');
+});
+
+test('maillog: filters, datumbereik en WHERE met placeholders', function () {
+    $Q = \NextBuzz\OcMonitor\Client\Smtp\Log\LogQuery::class;
+    $f = $Q::normalize(['status' => 'drop table', 's' => "a\nb", 'from' => '2026-02-30', 'to' => '2026-03-01', 'paged' => '-4']);
+    check($f === ['status' => 'all', 's' => 'a b', 'from' => '', 'to' => '2026-03-01', 'paged' => 1], 'normaliseren');
+    check($Q::where($Q::normalize([]), null, null) === ['1=1', []], 'geen filters');
+    [$start, $end] = $Q::range('2026-03-01', '2026-03-01', new \DateTimeZone('Europe/Amsterdam'));
+    check($start === 1772319600 && $end === $start + 86400, 'hele dag in de tijdzone van de site');
+    [$sql, $args] = $Q::where(['status' => 'backup', 's' => '50%_x', 'from' => '', 'to' => '', 'paged' => 1], 10, 20);
+    check($sql === 'status = %s AND connection = %s AND (to_email LIKE %s OR subject LIKE %s OR error LIKE %s OR initiator LIKE %s) AND created_at >= %d AND created_at < %d', 'sql');
+    check($args === ['sent', 'backup', '%50\\%\\_x%', '%50\\%\\_x%', '%50\\%\\_x%', '%50\\%\\_x%', 10, 20], 'args met ge-escapete LIKE');
+    check(substr_count($sql, '%') === count($args), 'evenveel placeholders als waarden');
+    check($Q::where(['status' => 'test', 's' => '', 'from' => '', 'to' => '', 'paged' => 1], null, null) === ['is_test = %d', [1]], 'test');
+    check($Q::pages(0) === 1 && $Q::pages(50) === 1 && $Q::pages(51) === 2 && $Q::offset(3) === 100, 'paginering');
+    check($Q::args(['status' => 'all', 's' => '', 'from' => '2026-01-01', 'to' => '', 'paged' => 3], true) === ['from' => '2026-01-01', 'paged' => 3], 'link-argumenten');
+});
+
 foreach ($failures as $failure) {
     fwrite(STDERR, "FAIL {$failure}\n");
 }
